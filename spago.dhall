@@ -12,6 +12,7 @@ You can edit this file as you like.
   , "profunctor-lenses"
   , "affjax"
   , "parseint"
+  , "sequence"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

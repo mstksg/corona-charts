@@ -5,6 +5,7 @@ import Prelude
 
 import Effect
 import Type.Equality
+import Type.Equiv
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
 import Foreign.Object as O
@@ -22,11 +23,6 @@ type SeriesData a b =
     { name   :: String
     , values :: Array (Point a b)
     }
-
-type Equiv a b = forall p. (TypeEquals a b => p) -> p
-
-refl :: forall a. Equiv a a
-refl x = x
 
 data Scale a = Date   (Equiv a JSDate)
              | Linear (Equiv a Number)

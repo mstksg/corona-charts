@@ -24,6 +24,8 @@ import Data.Maybe
 import Foreign.Papa
 import Effect.Aff
 
+type Country = String
+
 type CoronaData =
     { dates  :: Array JSDate
     , counts :: O.Object CoronaCounts
@@ -46,7 +48,7 @@ buildData = traverse process <<< A.uncons
       let vals = A.mapMaybe go ht.tail
           counts = O.fromFoldableWith addCounts vals
       pure { dates, counts }
-    go :: Array String -> Maybe (Tuple String CoronaCounts)
+    go :: Array Country -> Maybe (Tuple Country CoronaCounts)
     go val = do
        country <- val A.!! 1
        valnum  <- traverse (flip parseInt (toRadix 10)) (A.drop 4 val)

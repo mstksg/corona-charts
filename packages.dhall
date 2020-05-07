@@ -157,6 +157,11 @@ let additions =
           , repo = "https://github.com/athanclark/purescript-parseint.git"
           , version = "v1.1.1"
           }
+      , sequence =
+          { dependencies = [] : List Text
+          , repo = "https://github.com/hdgarrood/purescript-sequences.git"
+          , version = "v2.1.0"
+          }
       }
 
 in  upstream ⫽ overrides ⫽ additions
