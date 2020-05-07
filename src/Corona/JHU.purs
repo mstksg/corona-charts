@@ -24,34 +24,36 @@ import Data.Maybe
 import Foreign.Papa
 import Effect.Aff
 
--- type Region = { country  :: String
---               , province :: Maybe String
---               }
+type CoronaData =
+    { dates  :: Array JSDate
+    , counts :: O.Object CoronaCounts
+    }
 
-type Data = O.Object (M.Map JSDate Int)
+type CoronaCounts = { confirmed :: Array Int }
+
+addCounts :: CoronaCounts -> CoronaCounts -> CoronaCounts
+addCounts x y = { confirmed: A.zipWith (+) x.confirmed y.confirmed }
 
 confirmedUrl :: String
 confirmedUrl = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
 
-buildData :: Array (Array String) -> Effect (Maybe Data)
+buildData :: Array (Array String) -> Effect (Maybe CoronaData)
 buildData = traverse process <<< A.uncons
   where
-    process :: { head :: Array String, tail :: Array (Array String) } -> Effect Data
+    process :: { head :: Array String, tail :: Array (Array String) } -> Effect CoronaData
     process ht = do
       dates <- traverse JSDate.parse (A.drop 4 (ht.head))
       let vals = A.mapMaybe go ht.tail
-          bigObj = O.fromFoldableWith (A.zipWith (+)) vals
-          dataRaw = map (M.filter (_ > 0) <<< M.fromFoldable <<< A.zip dates) bigObj
-      pure dataRaw
-    go :: Array String -> Maybe (Tuple String (Array Int))
+          counts = O.fromFoldableWith addCounts vals
+      pure { dates, counts }
+    go :: Array String -> Maybe (Tuple String CoronaCounts)
     go val = do
        country <- val A.!! 1
        valnum  <- traverse (flip parseInt (toRadix 10)) (A.drop 4 val)
-       pure (Tuple country valnum)
-    -- merge :: O.Object Int -> O.Object Int -> O.Object Int
+       pure (Tuple country { confirmed: valnum })
 
 
-fetchData :: Aff (Either String Data)
+fetchData :: Aff (Either String CoronaData)
 fetchData = do
     result <- AX.request (AX.defaultRequest
       { url = confirmedUrl
@@ -65,3 +67,18 @@ fetchData = do
          pure case dat of
            Nothing -> Left "data not accumulated"
            Just d  -> Right d
+
+lookupData
+    :: CoronaData
+    -> String
+    -> Array ({ date :: JSDate, confirmed :: Int })
+lookupData cd c = case O.lookup c cd.counts of
+    Nothing -> []
+    Just cs -> A.zipWith (\d c -> { date: d, confirmed: c }) cd.dates cs.confirmed
+
+    
+-- type CoronaData =
+--     { dates  :: Array JSDate
+--     , counts :: O.Object CoronaCounts
+--     }
+
