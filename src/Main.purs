@@ -83,18 +83,11 @@ main = launchAff_ $ do
         , values: map (\d -> { x: d.date, y: toNumber (d.confirmed) }) (lookupData dat cty)
         }
 
-  log case Count Log of
-    Date -> "date"
-    Count c -> case c of
-      Linear -> "linear"
-      Log    -> "log"
-
-
   chart <- liftEffect $ mkSvg "#scatterchart"
 
   liftEffect do
-    let sp = { xAxis: { scale: Date, label: "Date"}
-             , yAxis: { scale: Count Log, label: "Confirmed" }
+    let sp = { xAxis: { scale: sDate, label: "Date"}
+             , yAxis: { scale: sLog, label: "Confirmed" }
              , series: map toData (O.keys dat.counts)
              -- [toData "US", toData "Egypt", toData "Italy"]
              }

@@ -32,15 +32,18 @@ exports.mkSvg = function(ident) {
     }
 }
 
-const scaleFuncWith = handlers =>
+exports.clearSvg = function(svg) {
+    return function () {
+        svg.selectAll("*").remove();
+    }
+}
+
+const scaleFuncWith = handler =>
     scale =>
-      handlers.scale(scale)(
-        { date: (_u => d3.scaleUtc())
-        , count: c => handlers.numberScale(c)(
-              { linear: (_u => d3.scaleLinear())
-              , log: (_u => d3.scaleLog())
-              }
-            )
+      handler(scale)(
+        { date:   (_u => d3.scaleUtc())
+        , linear: (_u => d3.scaleLinear())
+        , log:    (_u => d3.scaleLog())
         }
       );
 
@@ -48,12 +51,12 @@ const scaleFuncWith = handlers =>
 // , yAxis : { scale : Scale, label : String}
 // , series : [{ name : String, values: [{x, y}]}]
 // }
-exports._drawData = function(handlers) {
-    const scaleFunc = scaleFuncWith(handlers);
+exports._drawData = function(scaleHandler) {
+    const scaleFunc = scaleFuncWith(scaleHandler);
     return function(svg) {
         return function (scatter) {
             return function () {
-                svg.selectAll("*").remove();
+                exports.clearSvg(svg)();
                 const width = 1000;
                 const height = 600;
                 const margin = { top: 20, right: 20, bottom: 20, left: 50 };

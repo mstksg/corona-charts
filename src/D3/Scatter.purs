@@ -4,14 +4,17 @@ module D3.Scatter where
 import Prelude
 
 import Effect
+import Type.Equality
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
 import Foreign.Object as O
+import Data.Maybe
 import Data.Tuple
 
-data D3Scatter
+foreign import data D3Scatter :: Type
 
 foreign import mkSvg    :: String -> Effect D3Scatter
+foreign import clearSvg :: D3Scatter -> Effect Unit
 
 type Point a b = { x :: a, y :: b }
 
@@ -20,44 +23,51 @@ type SeriesData a b =
     , values :: Array (Point a b)
     }
 
-data NumberScale = Linear | Log
+type Equiv a b = forall p. (TypeEquals a b => p) -> p
 
-data Scale = Date
-           | Count NumberScale
+refl :: forall a. Equiv a a
+refl x = x
 
-type AxisConf = { scale :: Scale, label :: String }
+data Scale a = Date   (Equiv a JSDate)
+             | Linear (Equiv a Number)
+             | Log    (Equiv a Number)
+
+sDate :: Scale JSDate
+sDate = Date refl
+
+sLinear :: Scale Number
+sLinear = Linear refl
+
+sLog :: Scale Number
+sLog = Log refl
+
+type AxisConf a = { scale :: Scale a, label :: String }
 
 type ScatterPlot a b =
-        { xAxis  :: AxisConf
-        , yAxis  :: AxisConf
+        { xAxis  :: AxisConf a
+        , yAxis  :: AxisConf b
         , series :: Array (SeriesData a b)
         }
 
-foreign import _drawData :: ScaleHandlers -> D3Scatter -> ScatterPlot JSDate Number -> Effect Unit
+type SomeScatterPlot = forall r. (forall a b. ScatterPlot a b -> r) -> r
 
-drawData :: D3Scatter -> ScatterPlot JSDate Number -> Effect Unit
-drawData = _drawData
-    { scale      : case _ of Date  -> \h -> h.date unit
-                             Count c -> \h -> h.count c
-    , numberScale: case _ of Linear -> \h -> h.linear unit
-                             Log    -> \h -> h.log unit
-    }
+foreign import _drawData :: forall a b. ForAny ScaleHandler -> D3Scatter -> ScatterPlot a b -> Effect Unit
 
--- onNumberScale :: forall a. { linear:: Unit -> a, log :: Unit -> a } -> NumberScale -> a
--- onNumberScale h = case _ of
---     Linear -> h.linear unit
---     Log    -> h.log unit
+drawData :: forall a b. D3Scatter -> ScatterPlot a b -> Effect Unit
+drawData = _drawData onScale
 
--- onScale :: forall a. { date:: Unit -> a, count:: NumberScale -> a } -> Scale -> a
--- onScale h = case _ of
---     Date    -> h.date unit
---     Count c -> h.count c
+type OnScale a = forall r.
+        { date   :: Equiv a JSDate -> r
+        , linear :: Equiv a Number -> r
+        , log    :: Equiv a Number -> r
+        } -> r
 
+onScale :: forall a. Scale a -> OnScale a
+onScale = case _ of
+    Date   refl -> \h -> h.date   refl
+    Linear refl -> \h -> h.linear refl
+    Log    refl -> \h -> h.log    refl
 
-type OnNumberScale = forall a. { linear:: Unit -> a, log :: Unit -> a } -> a
-type OnScale       = forall a. { date:: Unit -> a, count:: NumberScale -> a } -> a
+type ForAny f = forall a. f a
 
-type ScaleHandlers = { scale       :: Scale -> OnScale
-                     , numberScale :: NumberScale -> OnNumberScale
-                     }
-
+type ScaleHandler a = Scale a -> OnScale a
