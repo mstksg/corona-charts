@@ -4,23 +4,24 @@ module Corona.Chart where
 import Prelude
 
 import Apexcharts (createChart, render, Apexchart, Apexoptions)
+import Data.Const
 import Apexcharts.Chart as C
-import Data.FunctorWithIndex
-import Corona.JHU (Counts, Country, CoronaData)
-import Control.Apply
 import Apexcharts.Chart.Zoom as Z
-import Data.Dated (Dated(..))
-import Data.Dated as D
 import Apexcharts.Common as CC
 import Apexcharts.Series as SE
 import Apexcharts.Xaxis as X
 import Apexcharts.Yaxis as Y
+import Control.Apply
 import Control.Monad.ST as ST
+import Corona.JHU (Counts, Country, CoronaData)
 import Corona.JHU as JHU
 import D3.Scatter (ScatterPlot(..), Point(..), Scale(..), AxisConf(..))
 import Data.Array as A
 import Data.Array.ST as MA
+import Data.Dated (Dated(..))
+import Data.Dated as D
 import Data.Foldable
+import Data.FunctorWithIndex
 import Data.Int
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
@@ -45,6 +46,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource as ES
+import Type.Chain as C
 import Type.Equality
 import Type.Equiv
 
@@ -58,25 +60,25 @@ data BaseProjection a =
       | Recovered (Equiv a Number)
 
 type Projection b = forall r.
-        (forall a. { base      :: BaseProjection a
-                   , operation :: Operation a b
+        (forall a. { base       :: BaseProjection a
+                   , operations :: C.Chain Operation a b
                    } -> r)
         -> r
 
--- data Condition a = AtLeast a | AtMost a
+data Condition a = AtLeast a | AtMost a
 
 -- type SomeCondition = forall r. (forall a. { condition :: Condition a, projection :: Projection a } -> r ) -> r
 
 -- type Refuted a = a -> Void
 
+
 data Operation a b =
-        Ident     (Equiv  a b)        -- ^ x
-      | Delta     (Equiv a Number) (Equiv b Number)  -- ^ dx/dt
+        Delta     (Equiv a Number) (Equiv b Number)  -- ^ dx/dt
       | PGrowth   (Equiv a Number) (Equiv b Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
       | Window    (Equiv a Number) (Equiv b Number) Int -- ^ moving average of x over t, window (2n+1)
       -- | DaysSince SomeCondition (Equiv a JSDate) (Equiv b Duration)
             -- ^ says since x has met a condition
-      | Chain     (forall r. (forall c. Operation a c -> Operation c b -> r) -> r)
+      -- | Chain     (forall r. (forall c. Operation a c -> Operation c b -> r) -> r)
 
 reflTo :: forall a b. Equiv a b -> a -> b
 reflTo r = r to
@@ -133,7 +135,6 @@ applyOperation
     -> Dated a
     -> Dated b
 applyOperation = case _ of
-    Ident refl  -> map (reflTo refl)
     Delta ran rbn -> \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: withConsec
@@ -156,9 +157,6 @@ applyOperation = case _ of
                     )
                     x.values
         }
-    Chain f -> f (\o1 o2 ->
-            applyOperation o2 <<< applyOperation o1
-        )
     -- DaysSince c refl refl' -> ?e
 
 applyBaseProjection
@@ -179,7 +177,7 @@ applyProjection
     -> Dated (Counts Number)
     -> Dated a
 applyProjection spr = spr (\pr ->
-          applyOperation pr.operation <<< applyBaseProjection pr.base
+          C.runChainF applyOperation pr.operations <<< applyBaseProjection pr.base
         )
 
 baseProjectionLabel :: forall a. BaseProjection a -> String
@@ -191,15 +189,20 @@ baseProjectionLabel = case _ of
 
 operationLabel :: forall a b. Operation a b -> String
 operationLabel = case _ of
-    Ident   _     -> "Amount of"
     Delta   _ _   -> "Daily Increase in"
     PGrowth _ _   -> "Daily Percent Growth in"
     Window  _ _ n -> "Moving Average (size " <> show (2*n+1) <> ") of"
-    Chain   f     -> f (\o1 o2 -> operationLabel o2 <> " " <> operationLabel o1)
+
+operationsLabel :: forall a b. C.Chain Operation a b -> String
+operationsLabel c = res
+  where
+    go :: forall r s. Operation r s -> Const String r -> Const String s
+    go o (Const s) = Const (s <> " " <> operationLabel o)
+    Const res = C.runChainF go c (Const "Amount of")
 
 projectionLabel :: forall a. Projection a -> String
 projectionLabel spr = spr (\pr ->
-        operationLabel pr.operation <> " " <> baseProjectionLabel pr.base
+        operationsLabel pr.operations <> " " <> baseProjectionLabel pr.base
     )
 
 toAxisConf :: forall a. Projection a -> Scale a -> AxisConf a
@@ -237,87 +240,5 @@ toScatterPlot dat pX sX pY sY ctrys =
               }
         }
 
-
--- type SeriesData a b =
---     { name   :: String
---     , values :: Array (Point a b)
---     }
-
-
--- type AxisConf a = { scale :: Scale a, label :: String }
-
--- type ScatterPlot a b =
---         { xAxis  :: AxisConf a
---         , yAxis  :: AxisConf b
---         , series :: Array (SeriesData a b)
---         }
-
--- data Aspect = Time
---             | Confirmed
-
--- confirmed, deaths, recovered
--- aspect:
---   * count
---   * moving
---   * change
---   * percent change
-
--- data DataView = DV
---     { countries :: Set Country
---     , spec      :: ViewSpec
---     }
-
--- type ViewSpec =
---     { xAxis :: Aspect
---     , yAxis :: Aspect
---     }
-
--- extractAspect
---     :: Array JSDate
---     -> Counts
---     -> Aspect
---     -> Array Number
--- extractAspect dat cc = case _ of
---     Time      -> map JSDate.getTime dat
---     Confirmed -> map toNumber cc.confirmed
-
--- aspectType :: Aspect -> AxisType
--- aspectType = case _ of
---     Time      -> DateTime
-    
-
--- type SeriesData = 
---     { series :: Options SE.Series
---     , xAxis  :: Options X.Xaxis
---     , yAxis  :: Options Y.Yaxis
---     }
-
--- mkSeries
---     :: JHU.CoronaData
---     -> Country
---     -> ViewSpec
---     -> Maybe SeriesData
--- mkSeries dat country vs = do
---     countryCounts <- O.lookup country dat.counts
---     let xData    = extractAspect dat.dates countryCounts vs.xAxis
---         yData    = extractAspect dat.dates countryCounts vs.yAxis
---         fullData = A.zipWith (\x y -> [x, y]) xData yData
---         series   = SE.name  := country
---                 <> SE.data' := fullData
---     pure { series, xAxis: mempty, yAxis: mempty }
-    
---       egyptData = case O.lookup "Egypt" dat of
-    -- SE.name := country
-  -- where
-    -- xData
-
---     render $ createChart "#scatteredchart" (
---          SE.series := [
---             (SE.name := "Egypt" <> SE.data' := egyptData)
---          ]
---          <> C.chart := (C.type' := CC.Scatter <> C.height := 350 <> Z.zoom := (Z.enabled := true <> Z.type' := Z.XY))       
---          <> X.xaxis := (X.tickAmount := 10.0 <> X.type' := X.Datetime)
---          <> Y.yaxis := (Y.tickAmount := 10.0)
---       )
 
 foreign import incrDate    :: Int -> JSDate -> JSDate

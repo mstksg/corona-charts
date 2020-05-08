@@ -13,6 +13,8 @@ You can edit this file as you like.
   , "affjax"
   , "parseint"
   , "sequence"
+  , "css"
+  , "halogen-css"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

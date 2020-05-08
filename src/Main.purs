@@ -10,6 +10,7 @@ import Apexcharts (createChart, render)
 import Apexcharts.Chart as C
 import Apexcharts.Chart.Zoom as Z
 import Apexcharts.Common as CC
+import Halogen.MultiSelect as MultiSelect
 import Corona.Chart
 import Apexcharts.Series as SE
 import Apexcharts.Xaxis as X
@@ -27,6 +28,7 @@ import Data.Int
 import Data.JSDate
 import Data.JSDate as JSDate
 import Data.Lens
+import Type.Chain as C
 import Data.Lens.Indexed
 import Data.Map as M
 import Data.Maybe
@@ -79,27 +81,41 @@ type Line = String
 --     -> ScatterPlot a b
 
 main :: Effect Unit
-main = launchAff_ $ do
+main = HA.runHalogenAff do
   dat <- fetchCoronaData >>= case _ of
     Right x -> pure x
     Left e  -> liftEffect (throwException (error e))
-
-  let sp = toScatterPlot
-              dat
-              (\f -> f { base: Time refl 
-                       , operation: Ident refl
-                       })
-              sDate
-              (\f -> f { base: Deaths refl 
-                       , operation: Ident refl
-                       })
-              sLog
-              (Set.fromFoldable ["US", "Egypt", "Italy"])
+  body <- HA.awaitBody
+  runUI MultiSelect.component
+      { options: map (\cty -> { label: cty, value: cty }) (O.keys dat.counts)
+      , selected: mempty
+      , filter: ""
+      }
+    body
 
 
-  liftEffect do
-     chart <- mkSvg "#scatterchart"
-     drawData chart sp
+
+-- main :: Effect Unit
+-- main = launchAff_ $ do
+--   dat <- fetchCoronaData >>= case _ of
+--     Right x -> pure x
+--     Left e  -> liftEffect (throwException (error e))
+--   let sp = toScatterPlot
+--               dat
+--               (\f -> f { base: Time refl 
+--                        , operations: C.Nil refl
+--                        })
+--               sDate
+--               (\f -> f { base: Confirmed refl 
+--                        , operations: C.Cons (\f -> f (Window refl refl 5)
+--                                 (C.Cons (\f -> f (Delta refl refl) (C.Nil
+--                                 refl))))
+--                        })
+--               sLog
+--               (Set.fromFoldable ["US", "Egypt", "Italy"])
+--   liftEffect do
+--      chart <- mkSvg "#scatterchart"
+--      drawData chart sp
 
 --   let egyptData :: SeriesData JSDate Number
 --       egyptData =
