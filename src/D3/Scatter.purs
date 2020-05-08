@@ -5,6 +5,7 @@ import Prelude
 
 import Effect
 import Type.Equality
+import Web.DOM.Element (Element)
 import Type.Equiv
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
@@ -14,7 +15,7 @@ import Data.Tuple
 
 foreign import data D3Scatter :: Type
 
-foreign import mkSvg    :: String -> Effect D3Scatter
+foreign import mkSvg    :: Element -> Effect D3Scatter
 foreign import clearSvg :: D3Scatter -> Effect Unit
 
 type Point a b = { x :: a, y :: b }

@@ -3,16 +3,21 @@ module Halogen.Scatter where
 
 import Prelude
 
+import D3.Scatter
+import Data.Foldable
+import Data.Int
+import Data.Maybe
+import CSS.Size as CSS
 import Data.Options
+import CSS.Geometry as CSS
+import Halogen.HTML.CSS as HC
+import Data.Traversable
 import Effect.Aff.Class (class MonadAff, liftAff)
-import Halogen as H
+import Effect.Class
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
-import Effect.Class
-import Data.Maybe
 import Halogen.Query.EventSource as ES
-import D3.Scatter
 
 type State  = { chart :: Maybe D3Scatter }
 data Action = Initialize
@@ -20,15 +25,14 @@ data Action = Initialize
 newtype Query a = Query { update :: SomeScatterPlot, next :: a }
 
 component
-    :: forall q i o m. MonadAff m
-     => String
-     -> H.Component HH.HTML Query i o m
-component d =
+    :: forall q i o m. MonadEffect m
+     => H.Component HH.HTML Query i o m
+component =
   H.mkComponent
   { initialState
-  , render: renderH d
+  , render: renderH
   , eval: H.mkEval $ H.defaultEval
-        { handleAction = handleAction d
+        { handleAction = handleAction
         , handleQuery  = handleQuery
         , initialize   = Just Initialize
         , finalize     = Just Finalize
@@ -38,18 +42,25 @@ component d =
 initialState :: forall i. i -> State
 initialState _ = { chart: Nothing }
 
-renderH :: forall m. String -> State -> H.ComponentHTML Action () m
-renderH d _ = HH.div [ HP.ref (H.RefLabel d) ] []
+renderH :: forall m. State -> H.ComponentHTML Action () m
+renderH _ = HH.div [
+              HP.ref scatterRef
+            , HC.style $ do
+                CSS.height (CSS.px (toNumber 600))
+                CSS.width (CSS.px (toNumber 1000))
+            ]
+            []
 
 handleAction
-    :: forall m o. MonadAff m
-    => String
-    -> Action
+    :: forall m o. MonadEffect m
+    => Action
     -> H.HalogenM State Action () o m Unit
-handleAction d = case _ of
+handleAction = case _ of
     Initialize -> do
-      chart <- liftEffect $ mkSvg d
-      H.modify_ (\_ -> { chart: Just chart })
+      r     <- H.getRef scatterRef
+      for_ r $ \ref -> do
+        chart <- liftEffect $ mkSvg ref
+        H.modify_ (\_ -> { chart: Just chart })
     Finalize -> do
       s <- H.get
       case s.chart of
@@ -57,7 +68,7 @@ handleAction d = case _ of
         Just c  -> liftEffect $ clearSvg c
 
 handleQuery
-    :: forall m a o. MonadAff m
+    :: forall m a o. MonadEffect m
     => Query a
     -> H.HalogenM State Action () o m (Maybe a)
 handleQuery (Query q) = do
@@ -66,3 +77,7 @@ handleQuery (Query q) = do
       Nothing -> pure unit
       Just c  -> q.update (drawData c)
     pure (Just q.next)
+
+scatterRef ∷ H.RefLabel
+scatterRef = H.RefLabel "scatter-plot"
+

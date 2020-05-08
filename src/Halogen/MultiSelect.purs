@@ -3,11 +3,10 @@ module Halogen.MultiSelect where
 
 import Prelude
 
+import CSS as CSS
 import Control.Alternative
 import Control.Monad.Maybe.Trans
 import Control.Monad.State.Class
-import Halogen.HTML.CSS as HC
-import CSS as CSS
 import Control.MonadZero as MZ
 import Data.Array as A
 import Data.Boolean
@@ -15,6 +14,7 @@ import Data.Either
 import Data.Foldable
 import Data.FunctorWithIndex
 import Data.Int.Parse
+import Data.List as L
 import Data.Map (Map)
 import Data.Map as M
 import Data.Maybe
@@ -30,6 +30,7 @@ import Effect.Class
 import Effect.Class.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.CSS as HC
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Web.DOM.Element as W
@@ -57,7 +58,9 @@ data Query a r =
         AskSelected (Array a -> r)
         | SetState (State a -> { new :: State a, next :: r })
 
-component :: forall a o m. MonadEffect m => H.Component HH.HTML (Query a) (State a) o m
+data Output a = SelectionChanged (Array a)
+
+component :: forall a m. MonadEffect m => H.Component HH.HTML (Query a) (State a) (Output a) m
 component =
   H.mkComponent
     { initialState: identity
@@ -114,12 +117,15 @@ render st =
                 ]
               )
             selectedItems
+      , HH.button [
+          HE.onClick (\_ -> Just RemoveAll)
+        ] [HH.text "Clear Selection"]
       ]
-    selectedItems  = A.mapMaybe
+    selectedItems  = A.fromFoldable $ L.mapMaybe
       (\i -> map (\lv -> { ix: i, label: lv.label }) $ A.index st.options i) 
-      (A.fromFoldable st.selected)
+      (L.fromFoldable st.selected)
 
-handleAction :: forall a o m. MonadEffect m => Action -> H.HalogenM (State a) Action () o m Unit
+handleAction :: forall a o m. MonadEffect m => Action -> H.HalogenM (State a) Action () (Output a) m Unit
 handleAction = case _ of
     AddValues      -> void <<< runMaybeT $ do
        e  <- MaybeT $ H.getRef selRef
@@ -129,20 +135,31 @@ handleAction = case _ of
        vals <- liftEffect $ traverse Option.value opts
        let valInts = S.fromFoldable (A.mapMaybe (flip parseInt (toRadix 10)) vals)
        modify_ $ \s -> s { selected = S.union valInts s.selected }
-    RemoveValue i  -> modify_ $ \s -> s { selected = S.delete i s.selected }
-    RemoveAll      -> modify_ $ \s -> { options: s.options, selected: S.empty, filter: s.filter}
+       lift raiseChange
+    RemoveValue i  -> do
+       modify_ $ \s -> s { selected = S.delete i s.selected }
+       raiseChange
+    RemoveAll      -> do
+       modify_ $ \s -> { options: s.options, selected: S.empty, filter: s.filter}
+       raiseChange
     SetFilter t    -> modify_ $ \s -> s { filter = t }
 
 handleQuery :: forall a o m r. Query a r -> H.HalogenM (State a) Action () o m (Maybe r)
 handleQuery = case _ of
-    AskSelected f -> do
-      st <- get
-      let selectedItems  = A.mapMaybe
-            (\i -> map (\lv -> lv.value) $ A.index st.options i) 
-            (A.fromFoldable st.selected)
-      pure $ Just (f selectedItems)
+    AskSelected f -> 
+      Just <<< f <$> getSelected
     SetState f -> state $ \s -> let sr = f s in Tuple (Just sr.next) sr.new
 
+getSelected :: forall a m. MonadState (State a) m => m (Array a)
+getSelected = do
+    st <- get
+    pure $ A.fromFoldable $ L.mapMaybe
+        (\i -> map (\lv -> lv.value) $ A.index st.options i) 
+        (L.fromFoldable st.selected)
+                                  
+
+raiseChange :: forall a r c m. H.HalogenM (State a) r c (Output a) m Unit
+raiseChange = H.raise <<< SelectionChanged =<< getSelected
 
 selRef ∷ H.RefLabel
 selRef = H.RefLabel "multiselect-sel"

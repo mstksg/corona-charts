@@ -12,6 +12,7 @@ import Apexcharts.Chart.Zoom as Z
 import Apexcharts.Common as CC
 import Halogen.MultiSelect as MultiSelect
 import Corona.Chart
+import Corona.Chart.UI as UI
 import Apexcharts.Series as SE
 import Apexcharts.Xaxis as X
 import Apexcharts.Yaxis as Y
@@ -86,12 +87,13 @@ main = HA.runHalogenAff do
     Right x -> pure x
     Left e  -> liftEffect (throwException (error e))
   body <- HA.awaitBody
-  runUI MultiSelect.component
-      { options: map (\cty -> { label: cty, value: cty }) (O.keys dat.counts)
-      , selected: mempty
-      , filter: ""
-      }
-    body
+  runUI (UI.component dat) unit body
+  -- runUI MultiSelect.component
+  --     { options: map (\cty -> { label: cty, value: cty }) (O.keys dat.counts)
+  --     , selected: mempty
+  --     , filter: ""
+  --     }
+  --   body
 
 
 

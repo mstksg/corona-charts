@@ -19,11 +19,11 @@
 const findByX = (ps, x, lo) => d3.bisector(p => p.x).left(ps, x, lo)
     
 
-exports.mkSvg = function(ident) {
+exports.mkSvg = function(elem) {
     return function () {
         const width = 1000;
         const height = 600;
-        const svg = d3.select(ident)
+        const svg = d3.select(elem)
                 .append("svg")
                 .attr("viewBox", [0,0,width, height])
                 .style("overflow","visible");
