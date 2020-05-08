@@ -10,6 +10,7 @@ import Apexcharts (createChart, render)
 import Apexcharts.Chart as C
 import Apexcharts.Chart.Zoom as Z
 import Apexcharts.Common as CC
+import Corona.Chart
 import Apexcharts.Series as SE
 import Apexcharts.Xaxis as X
 import Apexcharts.Yaxis as Y
@@ -18,7 +19,7 @@ import D3.Scatter
 import Data.Argonaut.Core as J
 import Data.Bounded
 import Data.Date
-import Data.DateTime as DT
+-- import Data.DateTime as DT
 import Data.Either (Either(..))
 import Data.Enum
 import Data.HTTP.Method (Method(..))
@@ -29,9 +30,11 @@ import Data.Lens
 import Data.Lens.Indexed
 import Data.Map as M
 import Data.Maybe
+import Data.Set as Set
+import Type.Equiv
 import Data.Options ((:=))
-import Data.Time hiding (adjust)
-import Data.Time.Duration
+-- import Data.Time hiding (adjust)
+-- import Data.Time.Duration
 import Data.Tuple
 import Data.Unfoldable
 import Effect (Effect)
@@ -65,33 +68,60 @@ type Line = String
 --   , render = \_ -> pure unit
 --   }
 
+-- toScatterPlot
+--     :: forall a b. Partial
+--     => CoronaData
+--     -> Projection a
+--     -> Scale a
+--     -> Projection b
+--     -> Scale b
+--     -> Set Country
+--     -> ScatterPlot a b
+
 main :: Effect Unit
 main = launchAff_ $ do
-  dat <- fetchData >>= case _ of
+  dat <- fetchCoronaData >>= case _ of
     Right x -> pure x
     Left e  -> liftEffect (throwException (error e))
 
-  let egyptData :: SeriesData JSDate Number
-      egyptData =
-        { name: "Egypt"
-        , values: map (\d -> { x: d.date, y: toNumber (d.confirmed) }) (lookupData dat "Egypt")
-        }
+  let sp = toScatterPlot
+              dat
+              (\f -> f { base: Time refl 
+                       , operation: Ident refl
+                       })
+              sDate
+              (\f -> f { base: Deaths refl 
+                       , operation: Ident refl
+                       })
+              sLog
+              (Set.fromFoldable ["US", "Egypt", "Italy"])
 
-  let toData :: String -> SeriesData JSDate Number
-      toData cty =
-        { name: cty
-        , values: map (\d -> { x: d.date, y: toNumber (d.confirmed) }) (lookupData dat cty)
-        }
-
-  chart <- liftEffect $ mkSvg "#scatterchart"
 
   liftEffect do
-    let sp = { xAxis: { scale: sDate, label: "Date"}
-             , yAxis: { scale: sLog, label: "Confirmed" }
-             , series: map toData (O.keys dat.counts)
-             -- [toData "US", toData "Egypt", toData "Italy"]
-             }
-    drawData chart sp
+     chart <- mkSvg "#scatterchart"
+     drawData chart sp
+
+--   let egyptData :: SeriesData JSDate Number
+--       egyptData =
+--         { name: "Egypt"
+--         , values: map (\d -> { x: d.date, y: toNumber (d.confirmed) }) (lookupData dat "Egypt")
+--         }
+
+--   let toData :: String -> SeriesData JSDate Number
+--       toData cty =
+--         { name: cty
+--         , values: map (\d -> { x: d.date, y: toNumber (d.confirmed) }) (lookupData dat cty)
+--         }
+
+--   chart <- liftEffect $ mkSvg "#scatterchart"
+
+--   liftEffect do
+--     let sp = { xAxis: { scale: sDate, label: "Date"}
+--              , yAxis: { scale: sLog, label: "Confirmed" }
+--              , series: map toData (O.keys dat.counts)
+--              -- [toData "US", toData "Egypt", toData "Italy"]
+--              }
+--     drawData chart sp
 
   -- delay (Milliseconds (toNumber 5000))
   -- liftEffect do

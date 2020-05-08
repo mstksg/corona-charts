@@ -4,6 +4,7 @@ module Data.Dated where
 import Prelude
 
 import Data.ModifiedJulianDay (Day(..))
+import Data.FunctorWithIndex as FWI
 import Data.Array as A
 import Data.ModifiedJulianDay as MJD
 import Data.Functor
@@ -15,6 +16,9 @@ newtype Dated a = Dated
 
 instance functorDated :: Functor Dated where
     map f (Dated d) = Dated { start: d.start, values: map f d.values }
+
+instance functorWithIndexDated :: FWI.FunctorWithIndex Day Dated where
+    mapWithIndex = mapWithIndex
 
 instance applyDated :: Apply Dated where
     apply = zipDated ($)

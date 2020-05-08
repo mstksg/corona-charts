@@ -47,6 +47,14 @@ const scaleFuncWith = handler =>
         }
       );
 
+const fmt = function(x) {
+    if (x instanceof Date) {
+        return x.toLocaleDateString("en-US", {month:"numeric",day:"numeric"});
+    } else {
+        return x;
+    }
+}
+
 // { xAxis : { scale : Scale, label : String}
 // , yAxis : { scale : Scale, label : String}
 // , series : [{ name : String, values: [{x, y}]}]
@@ -145,7 +153,7 @@ exports._drawData = function(scaleHandler) {
                     const di = xm - s.values[di0].x > s.values[di1].x - xm ? di1 : di0;
                     path.attr("stroke", d => d === s ? null : "#ddd").filter(d => d === s).raise();
                     dot.attr("transform", `translate(${x(allx[i])},${y(s.values[di].y)})`);
-                    dot.select("text").text(s.name);
+                    dot.select("text").text(s.name + ": " + fmt(s.values[di].x) + ", " + fmt(s.values[di].y));
                   }
 
                   function entered() {

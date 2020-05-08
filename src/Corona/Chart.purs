@@ -5,6 +5,8 @@ import Prelude
 
 import Apexcharts (createChart, render, Apexchart, Apexoptions)
 import Apexcharts.Chart as C
+import Data.FunctorWithIndex
+import Corona.JHU (Counts, Country, CoronaData)
 import Control.Apply
 import Apexcharts.Chart.Zoom as Z
 import Data.Dated (Dated(..))
@@ -50,7 +52,7 @@ newtype Duration = Duration Number
 newtype Percent  = Percent Number
 
 data BaseProjection a =
-        Time (Equiv a Day)
+        Time (Equiv a JSDate)
       | Confirmed (Equiv a Number)
       | Deaths (Equiv a Number)
       | Recovered (Equiv a Number)
@@ -132,7 +134,6 @@ applyOperation
     -> Dated b
 applyOperation = case _ of
     Ident refl  -> map (reflTo refl)
-    -- \x -> Dated { start: x.start, values: map (reflTo refl) x.values }
     Delta ran rbn -> \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: withConsec
@@ -161,19 +162,21 @@ applyOperation = case _ of
     -- DaysSince c refl refl' -> ?e
 
 applyBaseProjection
-    :: forall a. Partial
-    => BaseProjection a
-    -> Dated Number
+    :: forall a. 
+       BaseProjection a
+    -> Dated (Counts Number)
     -> Dated a
 applyBaseProjection = case _ of
-    Time refl      -> D.mapWithIndex (\i _ -> reflFrom refl i)
-    Confirmed refl -> map (reflFrom refl)
+    Time refl      -> mapWithIndex (\i _ -> reflFrom refl (MJD.toJSDate i))
+    Confirmed refl -> map (\c -> reflFrom refl c.confirmed)
+    Deaths    refl -> map (\c -> reflFrom refl c.deaths   )
+    Recovered refl -> map (\c -> reflFrom refl c.recovered)
     
     
 applyProjection
-    :: forall a. Partial
-    => Projection a
-    -> Dated Number
+    :: forall a.
+       Projection a
+    -> Dated (Counts Number)
     -> Dated a
 applyProjection spr = spr (\pr ->
           applyOperation pr.operation <<< applyBaseProjection pr.base
@@ -206,13 +209,34 @@ toAxisConf spr scl =
       }
 
 toSeries
-    :: forall a b. Partial
-    => Projection a
+    :: forall a b. 
+       Projection a
     -> Projection b
-    -> Dated Number
+    -> Dated (Counts Number)
     -> Array (Point a b)
 toSeries pX pY ps = D.datedValues $
     lift2 (\x y -> {x, y}) (applyProjection pX ps) (applyProjection pY ps)
+
+toScatterPlot
+    :: forall a b.
+       CoronaData
+    -> Projection a
+    -> Scale a
+    -> Projection b
+    -> Scale b
+    -> Set Country
+    -> ScatterPlot a b
+toScatterPlot dat pX sX pY sY ctrys =
+        { xAxis  : toAxisConf pX sX
+        , yAxis  : toAxisConf pY sY
+        , series : flip A.mapMaybe (A.fromFoldable ctrys) $ \ctry -> do
+            cdat <- O.lookup ctry dat.counts
+            pure 
+              { name : ctry
+              , values : toSeries pX pY (Dated { start: dat.start, values: cdat })
+              }
+        }
+
 
 -- type SeriesData a b =
 --     { name   :: String
@@ -250,7 +274,7 @@ toSeries pX pY ps = D.datedValues $
 
 -- extractAspect
 --     :: Array JSDate
---     -> JHU.CoronaCounts
+--     -> Counts
 --     -> Aspect
 --     -> Array Number
 -- extractAspect dat cc = case _ of
