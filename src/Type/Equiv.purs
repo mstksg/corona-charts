@@ -3,7 +3,9 @@ module Type.Equiv where
 
 import Prelude
 
+import Data.Maybe
 import Type.Equality
+import Unsafe.Coerce
 import Data.BSum
 
 newtype Equiv a b = Equiv (forall p. (TypeEquals a b => p) -> p)
@@ -14,18 +16,33 @@ withEquiv :: forall a b c. a ~ b -> (TypeEquals a b => c) -> c
 withEquiv (Equiv f) = f
 
 overEquiv :: forall a b. Equiv a b -> (b -> b) -> (a -> a)
-overEquiv (Equiv f) g = f (from <<< g <<< to)
+overEquiv _ = unsafeCoerce
 
 underEquiv :: forall a b. Equiv a b -> (a -> a) -> (b -> b)
-underEquiv (Equiv f) g = f (to <<< g <<< from)
+underEquiv _ = unsafeCoerce
 
 equivTo :: forall a b. a ~ b -> a -> b
-equivTo e = withEquiv e to
+equivTo _ = unsafeCoerce
+
+equivToF :: forall f a b. (a ~ b) -> f a -> f b
+equivToF _ = unsafeCoerce
 
 equivFrom :: forall a b. a ~ b -> b -> a
-equivFrom e = withEquiv e from
+equivFrom _ = unsafeCoerce
+
+equivFromF :: forall f a b. a ~ b -> f b -> f a
+equivFromF _ = unsafeCoerce
 
 refl :: forall a. a ~ a
 refl = Equiv \x -> x
 
 type OneOf a = BSum (Equiv a)
+
+class Decide f where
+    decide :: forall a b. f a -> f b -> Maybe (a ~ b)
+
+instance eqEquiv :: Eq (Equiv a b) where
+    eq _ _ = true
+
+instance ordEquiv :: Ord (Equiv a b) where
+    compare _ _ = EQ

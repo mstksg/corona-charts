@@ -162,6 +162,11 @@ let additions =
           , repo = "https://github.com/hdgarrood/purescript-sequences.git"
           , version = "v2.1.0"
           }
+      , sorted-arrays =
+          { dependencies = [] : List Text
+          , repo = "https://github.com/vladciobanu/purescript-sorted-arrays.git"
+          , version = "v0.2.0"
+          }
       }
 
 in  upstream ⫽ overrides ⫽ additions

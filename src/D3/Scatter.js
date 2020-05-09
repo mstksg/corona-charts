@@ -1,12 +1,29 @@
 
 "use strict";
 
-const secondsPerDay = 864000000;
+const msPerDay      = 24*60*60*1000;
 const mjdShift      = 40587;
-const fromMJD = mjd => new Date((mjd - mjdShift) * 40587);
+const fromMJD = mjd => new Date((mjd - mjdShift) * msPerDay);
 
 const findByX = (ps, x, lo) => d3.bisector(p => p.x).left(ps, x, lo)
-    
+
+const mantissa = (x, n) => Math.round((x / Math.pow(10, exponent(x)-n+1)));
+const exponent = x => Math.floor(Math.log10(x));
+const suffices = ["","k","M","B","T","q","Q","s","S","o","N","d"];
+
+const fmtPrefix = function(i, n) {
+
+    const ipos = Math.abs(i);
+    const mant = mantissa(ipos,n);
+    const expo = exponent(ipos);
+
+    const extraDigits = expo % 3;
+    const sections    = Math.floor(expo / 3);
+    const numberPart  = (mant * Math.pow(10,extraDigits-n+1)).toFixed(n-extraDigits-1);
+    const pref = (i < 0) ? "-" : "";
+
+    return pref + numberPart + suffices[sections];
+}
 
 exports.mkSvg = function(elem) {
     return function () {
@@ -16,7 +33,6 @@ exports.mkSvg = function(elem) {
                 .append("svg")
                 .attr("viewBox", [0,0,width, height])
                 .style("overflow","visible");
-                // .node();
         return svg;
     }
 }
@@ -44,9 +60,13 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
         handleType(tp)(
             { day:     (() => val.toLocaleDateString("en-US", {month:"numeric",day:"numeric"}))
             , days:    (() => val)
-            , "int":   (() => val)
-            , number:  (() => val.toFixed(2))
-            , percent: (() => val.toFixed(1) + "%")
+            , "int":   (() => (Math.abs(val) < 1000) ? val : fmtPrefix(val,4))
+            , number:  (() => (Math.abs(val) < 1) ? val
+                                    : (Math.abs(val) < 1000) ? val.toFixed(2) : fmtPrefix(val,4)
+                       )
+            , percent: (() => ((Math.abs(val) < 1) ? val
+                                    : (Math.abs(val) < 1000) ? val.toFixed(1) : fmtPrefix(val,3)) + "%"
+                       )
             }
         );
     const fmtX = fmt(typeX);
@@ -82,14 +102,14 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
         const ally = series.map(s => s.values.map(p => p.y) ).flat();
 
         const x = scaleFunc(scatter.xAxis.scale)
-                        .domain(d3.extent(allx.filter(x => !isNaN(x) && x > 0))).nice()
+                        .domain(d3.extent(allx.filter(x => !isNaN(x) && x != 0))).nice()
                         .range([margin.left, width - margin.right]);
         const y = scaleFunc(scatter.yAxis.scale)
-                        .domain(d3.extent(ally.filter(y => !isNaN(y) && y > 0))).nice()
+                        .domain(d3.extent(ally.filter(y => !isNaN(y) && y != 0))).nice()
                         .range([height - margin.bottom, margin.top]);
 
         const line = d3.line()
-                            .defined(d => !isNaN(d.y) && d.y > 0 && !isNaN(d.x) && d.x > 0)
+                            .defined(d => !isNaN(d.y) && d.y != 0 && !isNaN(d.x) && d.x != 0)
                             .x(d => x(d.x))
                             .y(d => y(d.y));
 

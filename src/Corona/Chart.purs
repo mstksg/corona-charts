@@ -57,11 +57,45 @@ data BaseProjection a =
       | Deaths    (a ~ Int)
       | Recovered (a ~ Int)
 
-type Projection b = forall r.
+baseType :: forall a. BaseProjection a -> SType a
+baseType = case _ of
+    Time      refl -> SDay refl
+    Confirmed refl -> SInt refl
+    Deaths    refl -> SInt refl
+    Recovered refl -> SInt refl
+
+bTime      :: BaseProjection Day
+bTime      = Time refl
+bConfirmed :: BaseProjection Int
+bConfirmed = Confirmed refl
+bDeaths    :: BaseProjection Int
+bDeaths    = Deaths refl
+bRecovered :: BaseProjection Int
+bRecovered = Recovered refl
+
+newtype Projection b = Projection (forall r.
         (forall a. { base       :: BaseProjection a
                    , operations :: C.Chain Operation a b
                    } -> r)
         -> r
+      )
+
+withProjection
+    :: forall a b r.
+       Projection b
+    -> (forall a. { base       :: BaseProjection a
+                  , operations :: C.Chain Operation a b } -> r
+       )
+    -> r
+withProjection (Projection f) = f
+
+projection
+    :: forall a b.
+       { base       :: BaseProjection a
+       , operations :: C.Chain Operation a b
+       }
+    -> Projection b
+projection x = Projection (\f -> f x)
 
 data Condition a = AtLeast a | AtMost a
 
@@ -74,6 +108,25 @@ data Operation a b =
       -- | DaysSince SomeCondition (Equiv a JSDate) (Equiv b Duration)
             -- ^ says since x has met a condition
       -- | Chain     (forall r. (forall c. Operation a c -> Operation c b -> r) -> r)
+
+operationInType :: forall a b. Operation a b -> SType a
+operationInType = case _ of
+    Delta   nt _   -> fromNType nt
+    PGrowth nt _   -> fromNType nt
+    Window  nt _ _ -> fromNType nt
+operationOutType :: forall a b. Operation a b -> SType b
+operationOutType = case _ of
+    Delta   nt refl   -> equivToF refl (fromNType nt)
+    PGrowth _  refl   -> SPercent refl
+    Window  _  refl _ -> SNumber refl
+
+-- data Last f a b =
+--         CLNil  (a ~ b)
+--       | CLLast (forall r. (forall c. f a c -> r) -> r)
+-- -- newtype InHelp a b = IH (SType a)
+
+-- chainInType :: forall a b. C.Chain Operation a b -> SType a -> SType b
+-- chainInType ops = C.runChain applyOperation pr.operations (IH
 
 percentGrowth
     :: Number
@@ -128,6 +181,9 @@ applyOperation = case _ of
     Delta num rab -> \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: case num of
+            NDays rac ->
+                withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
+                  x.values
             NInt rac ->
                 withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
                   x.values
@@ -141,6 +197,11 @@ applyOperation = case _ of
     PGrowth num rbp -> \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: case num of
+            NDays rac ->
+                withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
+                                (toNumber $ unDays $ equivTo rac y0)
+                                (toNumber $ unDays $ equivTo rac y1))
+                    x.values
             NInt rac ->
                 withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
                                 (toNumber $ equivTo rac y0)
@@ -160,6 +221,10 @@ applyOperation = case _ of
     Window num rbn n -> \(Dated x) -> Dated
         { start: MJD.addDays n x.start
         , values: case num of
+            NDays rac ->
+                withWindow n (\ys -> equivFrom rbn $
+                        sum (map (toNumber <<< unDays <<< equivTo rac) ys) / toNumber (n*2+1))
+                    x.values
             NInt rac ->
                 withWindow n (\ys -> equivFrom rbn $
                         toNumber (sum (map (equivTo rac) ys)) / toNumber (n*2+1))
@@ -193,8 +258,8 @@ applyProjection
        Projection a
     -> Dated (Counts Int)
     -> Dated a
-applyProjection spr = spr (\pr ->
-          C.runChainF applyOperation pr.operations <<< applyBaseProjection pr.base
+applyProjection spr = withProjection spr (\pr ->
+          C.runChain applyOperation pr.operations <<< applyBaseProjection pr.base
         )
 
 baseProjectionLabel :: forall a. BaseProjection a -> String
@@ -215,10 +280,10 @@ operationsLabel c = res
   where
     go :: forall r s. Operation r s -> Const String r -> Const String s
     go o (Const s) = Const (s <> " " <> operationLabel o)
-    Const res = C.runChainF go c (Const "Amount of")
+    Const res = C.runChain go c (Const "Amount of")
 
 projectionLabel :: forall a. Projection a -> String
-projectionLabel spr = spr (\pr ->
+projectionLabel spr = withProjection spr (\pr ->
         operationsLabel pr.operations <> " " <> baseProjectionLabel pr.base
     )
 
