@@ -107,22 +107,24 @@ classProp :: forall r a. String -> HP.IProp (class :: String | r) a
 classProp cl = HP.class_ (HH.ClassName cl)
 
 render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Action ChildSlots m
-render dat st =
-    HH.div [classProp "ui"] [
-      HH.div [classProp "plot"] [
-        HH.div [classProp "title"] [HH.span_ [HH.text title]]
-      , HH.div [classProp "d3"] [
-          HH.slot _scatter unit (Scatter.component) unit absurd
+render dat st = HH.main_ [
+      HH.h1_ [HH.text "COVID-19 Data"]
+    , HH.div [classProp "ui"] [
+        HH.div [classProp "plot"] [
+          HH.h2_ [HH.text title]
+        , HH.div [classProp "d3"] [
+            HH.slot _scatter unit (Scatter.component) unit absurd
+          ]
         ]
-      ]
-    , HH.div [classProp "options"] [
-        HH.div [classProp "countries"] [
-          HH.slot _multi unit (MultiSelect.component) sel0 $ case _ of
-            MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
-        ]
-      , HH.div [classProp "axes"] [
-          axisPicker "X axis" st.xAxis (Some.some bTime) SetXBase SetXNumScale
-        , axisPicker "Y axis" st.xAxis (Some.some bTime) SetYBase SetYNumScale
+      , HH.div [classProp "options"] [
+          HH.div [classProp "countries"] [
+            HH.slot _multi unit (MultiSelect.component) sel0 $ case _ of
+              MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
+          ]
+        , HH.div [classProp "axes"] [
+            axisPicker "X axis" st.xAxis (Some.some bTime) SetXBase SetXNumScale
+          , axisPicker "Y axis" st.xAxis (Some.some bTime) SetYBase SetYNumScale
+          ]
         ]
       ]
     ]

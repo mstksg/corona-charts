@@ -3,7 +3,7 @@
     "postinstall": "spago install",
     "build": "spago build",
     "clean": "rm -rf node_modules output .spago dist/* *.lock",
-    "bundle": "spago bundle-app --main Main --to dist/app.js && parcel build assets/index.html"
+    "bundle": "spago bundle-app --main Main --to dist/app.js && parcel build assets/index.html -d dist/corona-charts --public-url /corona-charts/ && jle-update-gh-pages dist/corona-charts"
   },
   "devDependencies": {
     "cssnano": "^4.1.10",
