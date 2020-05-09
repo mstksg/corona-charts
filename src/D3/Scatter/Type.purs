@@ -3,7 +3,6 @@ module D3.Scatter.Type where
 
 import Prelude
 
-import Data.BSum
 import Data.Either
 import Data.Enum
 import Data.JSDate (JSDate)

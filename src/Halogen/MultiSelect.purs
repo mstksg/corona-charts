@@ -73,15 +73,14 @@ component =
 
 render :: forall a m. State a -> H.ComponentHTML Action () m
 render st =
-    HH.div_ [
-        HH.div_ [
+    HH.div [classProp "multiselect"] [
+        HH.div [classProp "select-options"] [
           HH.input [
             HP.type_ HP.InputText
           , HP.placeholder "type to filter"
           , HE.onValueInput (Just <<< SetFilter)
           ]
         , HH.select [HP.multiple true, HP.ref selRef] $
-          
             A.catMaybes $ mapWithIndex
               (\i o -> do
                   MZ.guard $ not (S.member i st.selected)
@@ -92,18 +91,19 @@ render st =
         , HH.button [
               HP.type_ HP.ButtonButton
             , HE.onClick (\_ -> Just AddValues)
+            , classProp "add-button"
             ]
             [ HH.text "Add" ]
         ]
-      , HH.div_ $ 
+      , HH.div [classProp "selected"] $ 
           if null st.selected
             then [HH.text "(nothing selected yet)"]
             else renderSelected
       ]
   where
     renderSelected = [
-        HH.ol_ $
-          map (\il -> HH.li_ [
+        HH.ol [classProp "selected-list"] $
+          map (\il -> HH.li [classProp "selected-item"] [
                   HH.span_ [HH.text il.label]
                 , HH.text " "
                 , HH.a [
@@ -111,6 +111,7 @@ render st =
                       if ME.buttons e == 0
                         then Just (RemoveValue il.ix)
                         else Nothing
+                  , classProp "remove-selected"
                   , HC.style $
                       CSS.key (CSS.Key (CSS.Plain "cursor")) "pointer"
                   ] [ HH.text "x" ]
@@ -119,11 +120,14 @@ render st =
             selectedItems
       , HH.button [
           HE.onClick (\_ -> Just RemoveAll)
+        , classProp "clear-button"
         ] [HH.text "Clear Selection"]
       ]
     selectedItems  = A.fromFoldable $ L.mapMaybe
       (\i -> map (\lv -> { ix: i, label: lv.label }) $ A.index st.options i) 
       (L.fromFoldable st.selected)
+    classProp :: forall r a. String -> HP.IProp (class :: String | r) a
+    classProp cl = HP.class_ (HH.ClassName cl)
 
 handleAction :: forall a o m. MonadEffect m => Action -> H.HalogenM (State a) Action () (Output a) m Unit
 handleAction = case _ of

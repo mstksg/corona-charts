@@ -40,6 +40,7 @@ import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple
 import Data.Void
+import Debug.Trace
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class
 import Foreign.Object as O
@@ -50,6 +51,9 @@ import Halogen.Query.EventSource as ES
 import Type.Chain as C
 import Type.Equality
 import Type.Equiv
+import Type.GCompare
+import Type.Some (Some(..))
+import Type.Some as Some
 
 data BaseProjection a =
         Time      (a ~ Day)
@@ -72,6 +76,33 @@ bDeaths    :: BaseProjection Int
 bDeaths    = Deaths refl
 bRecovered :: BaseProjection Int
 bRecovered = Recovered refl
+
+instance decideBaseProjection :: Decide BaseProjection where
+    decide = case _ of
+      Time rX -> case _ of
+        Time rY -> Just (equivFromF rY rX)
+        _       -> Nothing
+      Confirmed rX -> case _ of
+        Confirmed rY -> Just (equivFromF rY rX)
+        _       -> Nothing
+      Deaths rX -> case _ of
+        Deaths rY -> Just (equivFromF rY rX)
+        _       -> Nothing
+      Recovered rX -> case _ of
+        Recovered rY -> Just (equivFromF rY rX)
+        _       -> Nothing
+
+instance geqBaseProjection :: GEq BaseProjection where
+    geq = decide
+
+allBaseProjections :: Array (Some BaseProjection)
+allBaseProjections = [
+      Some.some (Time refl)
+    , Some.some (Confirmed refl)
+    , Some.some (Deaths refl)
+    , Some.some (Recovered refl)
+    ]
+
 
 newtype Projection b = Projection (forall r.
         (forall a. { base       :: BaseProjection a
@@ -264,7 +295,7 @@ applyProjection spr = withProjection spr (\pr ->
 
 baseProjectionLabel :: forall a. BaseProjection a -> String
 baseProjectionLabel = case _ of
-    Time      _ -> "Date"
+    Time      _ -> "Time"
     Confirmed _ -> "Confirmed Cases"
     Deaths    _ -> "Deaths"
     Recovered _ -> "Recovered Cases"
@@ -280,15 +311,15 @@ operationsLabel c = res
   where
     go :: forall r s. Operation r s -> Const String r -> Const String s
     go o (Const s) = Const (s <> " " <> operationLabel o)
-    Const res = C.runChain go c (Const "Amount of")
+    Const res = C.runChain go c (Const "")
 
 projectionLabel :: forall a. Projection a -> String
 projectionLabel spr = withProjection spr (\pr ->
-        operationsLabel pr.operations <> " " <> baseProjectionLabel pr.base
+        operationsLabel pr.operations <> baseProjectionLabel pr.base
     )
 
 toAxisConf :: forall a. Projection a -> Scale a -> AxisConf a
-toAxisConf spr scl = 
+toAxisConf spr scl =
       { scale: scl
       , label: projectionLabel spr
       }

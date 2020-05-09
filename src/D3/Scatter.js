@@ -89,6 +89,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
 
     return function () {
         exports.clearSvg(svg)();
+        // console.log(scatter);
         const width = 1000;
         const height = 600;
         const margin = { top: 20, right: 20, bottom: 20, left: 50 };
@@ -122,7 +123,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
                             .attr("y", -3)
                             .attr("fill", "currentColor")
                             .attr("font-weight", "bold")
-                            .text(scatter.xLabel)
+                            .text(scatter.xAxis.label)
                      )
                 .call(g => g.selectAll(".tick line").clone()
                             .attr("stroke-opacity", 0.1)
@@ -140,7 +141,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
                         .attr("x", 3)
                         .attr("text-anchor", "start")
                         .attr("font-weight", "bold")
-                        .text(scatter.yLabel)
+                        .text(scatter.yAxis.label)
                     )
         };
 

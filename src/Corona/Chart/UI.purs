@@ -5,6 +5,7 @@ import Prelude
 
 import Corona.Chart
 import Corona.JHU
+import Halogen.HTML.Core as HH
 import D3.Scatter as D3
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
@@ -20,6 +21,7 @@ import Effect.Class
 import Foreign.Object as O
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.Elements as HH
 import Halogen.HTML.CSS as HC
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
@@ -30,7 +32,6 @@ import Type.Chain as C
 import Type.DMap as DM
 import Type.DProd
 import Type.DSum
-import Type.Equality
 import Type.Equiv
 import Type.Some (Some(..), withSome)
 import Type.Some as Some
@@ -57,9 +58,6 @@ lookupScale st ns = case D3.toNType st of
     Left  refl -> D3.Date refl
     Right nt   -> runDProd ns nt
 
--- type Some f = forall r. (forall a. f a -> r) -> r
--- type WrapBaseProjection = forall r. (forall a. SType a -> BaseProjection a -> r) -> r
-
 data Action =
         SetCountries (Set Country)
       | SetXBase     (Some BaseProjection)
@@ -67,24 +65,10 @@ data Action =
       | SetXNumScale NScale
       | SetYNumScale NScale
 
--- type TempState = State Day Number
-
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query               Void                         Unit
         , multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
         )
-
--- newtype SomeState = SomeState
---     (forall r. (forall a b. SType a -> SType b -> State a b -> r)
---         -> r
---     )
-
--- withSomeState :: forall r. SomeState -> (forall a b. SType a -> SType b -> State a b -> r) -> r
--- withSomeState (SomeState f) = f
-
--- someState :: forall a b. SType a -> SType b -> State a b -> SomeState
--- someState a b s = SomeState (\f -> f a b s)
-
 
 initialCountries :: Set Country
 initialCountries = S.fromFoldable ["US", "Egypt", "Italy"]
@@ -119,65 +103,26 @@ initialState _ = {
     , countries: initialCountries
     }
 
+classProp :: forall r a. String -> HP.IProp (class :: String | r) a
+classProp cl = HP.class_ (HH.ClassName cl)
+
 render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Action ChildSlots m
 render dat st =
-    HH.div_ [
-      HH.div_ [
-        HH.slot _scatter unit (Scatter.component) unit absurd
+    HH.div [classProp "ui"] [
+      HH.div [classProp "plot"] [
+        HH.div [classProp "title"] [HH.span_ [HH.text title]]
+      , HH.div [classProp "d3"] [
+          HH.slot _scatter unit (Scatter.component) unit absurd
+        ]
       ]
-    , HH.div_ [
-        HH.div_ [
+    , HH.div [classProp "options"] [
+        HH.div [classProp "countries"] [
           HH.slot _multi unit (MultiSelect.component) sel0 $ case _ of
             MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
-            _ -> Nothing
         ]
-      , HH.div_ [
-          HH.div_ [
-            HH.div_ [
-              HH.span_ [HH.text "X axis"]
-            , HH.select [HE.onSelectedIndexChange (map SetXBase <<< indexToBase)]
-              [ HH.option [HP.selected true] [HH.text "Time"]
-              , HH.option_ [HH.text "Confirmed Cases"]
-              , HH.option_ [HH.text "Deaths"]
-              , HH.option_ [HH.text "Recovered"]
-              ]
-            ]
-          , HH.div_ [
-              HH.span_ [HH.text "X axis scale"]
-            , withDSum (st.xAxis.projection) (\tX _ ->
-                case D3.toNType tX of
-                  Left _ -> 
-                    HH.select_ [ HH.option [HP.selected true] [HH.text "Date"] ]
-                  Right _ ->
-                    HH.select [HE.onSelectedIndexChange (map SetXNumScale <<< indexToNScale)]
-                    [ HH.option_ [HH.text "Linear"]
-                    , HH.option  [HP.selected true] [HH.text "Log"]
-                    ]
-              )
-            ]
-          ]
-        , HH.div_ [
-            HH.span_ [HH.text "Y axis"]
-          , HH.select [HE.onSelectedIndexChange (map SetYBase <<< indexToBase)]
-            [ HH.option_ [HH.text "Time"]
-            , HH.option  [HP.selected true] [HH.text "Confirmed Cases"]
-            , HH.option_ [HH.text "Deaths"]
-            , HH.option_ [HH.text "Recovered"]
-            ]
-          ]
-        , HH.div_ [
-            HH.span_ [HH.text "Y axis scale"]
-          , withDSum (st.yAxis.projection) (\tY _ ->
-              case D3.toNType tY of
-                Left _ -> 
-                  HH.select_ [ HH.option [HP.selected true] [HH.text "Date"] ]
-                Right _ ->
-                  HH.select [HE.onSelectedIndexChange (map SetYNumScale <<< indexToNScale)]
-                  [ HH.option_ [HH.text "Linear"]
-                  , HH.option  [HP.selected true] [HH.text "Log"]
-                  ]
-            )
-          ]
+      , HH.div [classProp "axes"] [
+          axisPicker "X axis" st.xAxis (Some.some bTime) SetXBase SetXNumScale
+        , axisPicker "Y axis" st.xAxis (Some.some bTime) SetYBase SetYNumScale
         ]
       ]
     ]
@@ -189,7 +134,42 @@ render dat st =
         , filter: ""
         }
       where
-        opts = map (\cty -> { label: cty, value: cty }) (O.keys dat.counts)
+        opts = O.keys dat.counts <#> \cty ->
+                  { label: cty, value: cty }
+    projLabel dp = withDSum dp (\_ -> projectionLabel)
+    title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
+
+axisPicker
+    :: forall c m.
+       String       -- ^ x or y
+    -> AxisState
+    -> Some BaseProjection      -- ^ default
+    -> (Some BaseProjection -> Action)
+    -> (NScale -> Action)
+    -> H.ComponentHTML Action c m
+axisPicker lab ax b0 raiseBase raiseScale = HH.div [classProp "axis-options"] [
+      HH.div [classProp "base-projection"] [
+        HH.span_ [HH.text lab]
+      , HH.select [HE.onSelectedIndexChange (map raiseBase <<< indexToBase)] $
+          allBaseProjections <#> \sbp -> withSome sbp (\bp ->
+            HH.option [HP.selected (sbp == b0)] [HH.text (baseProjectionLabel bp)]
+          )
+      ]
+    , HH.div [classProp "axis-scale"] [
+        HH.span_ [HH.text (lab <> " scale")]
+      , withDSum (ax.projection) (\t _ ->
+          case D3.toNType t of
+            Left _ -> 
+              HH.select_ [ HH.option [HP.selected true] [HH.text "Date"] ]
+            Right _ ->
+              HH.select [HE.onSelectedIndexChange (map raiseScale <<< indexToNScale)]
+              [ HH.option_ [HH.text "Linear"]
+              , HH.option  [HP.selected true] [HH.text "Log"]
+              ]
+        )
+      ]
+    ]
+  where
     indexToBase :: Int -> Maybe (Some BaseProjection)
     indexToBase = case _ of
       0 -> Just (Some.some bTime)
@@ -202,14 +182,6 @@ render dat st =
       0 -> Just (DProd Linear)
       1 -> Just (DProd Log)
       _ -> Nothing
-
--- axisPicker
---     :: forall c m.
---        String       -- ^ x or y
---     -> 
---     -> AxisState
---     -> H.ComponentHTML Action c m
--- axisPicker lab st =
 
 handleAction
     :: forall o m. MonadEffect m

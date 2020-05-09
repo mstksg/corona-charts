@@ -6,7 +6,6 @@ import Prelude
 import Data.Maybe
 import Type.Equality
 import Unsafe.Coerce
-import Data.BSum
 
 newtype Equiv a b = Equiv (forall p. (TypeEquals a b => p) -> p)
 
@@ -35,8 +34,6 @@ equivFromF _ = unsafeCoerce
 
 refl :: forall a. a ~ a
 refl = Equiv \x -> x
-
-type OneOf a = BSum (Equiv a)
 
 class Decide f where
     decide :: forall a b. f a -> f b -> Maybe (a ~ b)
