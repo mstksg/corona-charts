@@ -3,68 +3,39 @@ module D3.Scatter where
 
 import Prelude
 
-import Effect
-import Type.Equality
-import Web.DOM.Element (Element)
-import Type.Equiv
+import D3.Scatter.Type
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
-import Foreign.Object as O
+import Data.Either
 import Data.Maybe
+import Data.ModifiedJulianDay (Day)
 import Data.Tuple
+import Effect
+import Foreign.Object as O
+import Type.Equality
+import Type.Handler
+import Data.Function.Uncurried
+import Type.Equiv
+import Web.DOM.Element (Element)
 
 foreign import data D3Scatter :: Type
 
 foreign import mkSvg    :: Element -> Effect D3Scatter
 foreign import clearSvg :: D3Scatter -> Effect Unit
 
-type Point a b = { x :: a, y :: b }
+foreign import _drawData
+    :: forall a b.
+     Fn6 (HandleFunc1 SType OnSType) 
+         (HandleFunc1 Scale OnScale)
+         (SType a)
+         (SType b)
+         D3Scatter
+         (ScatterPlot a b)
+         (Effect Unit)
 
-type SeriesData a b =
-    { name   :: String
-    , values :: Array (Point a b)
-    }
+drawData_ :: forall a b. SType a -> SType b -> D3Scatter -> ScatterPlot a b -> Effect Unit
+drawData_ = runFn6 _drawData handle1 handle1 
 
-data Scale a = Date   (Equiv a JSDate)
-             | Linear (Equiv a Number)
-             | Log    (Equiv a Number)
+drawData :: forall a b. STypeable a => STypeable b => D3Scatter -> ScatterPlot a b -> Effect Unit
+drawData = drawData_ sType sType
 
-sDate :: Scale JSDate
-sDate = Date refl
-
-sLinear :: Scale Number
-sLinear = Linear refl
-
-sLog :: Scale Number
-sLog = Log refl
-
-type AxisConf a = { scale :: Scale a, label :: String }
-
-type ScatterPlot a b =
-        { xAxis  :: AxisConf a
-        , yAxis  :: AxisConf b
-        , series :: Array (SeriesData a b)
-        }
-
-type SomeScatterPlot = forall r. (forall a b. ScatterPlot a b -> r) -> r
-
-foreign import _drawData :: forall a b. ForAny ScaleHandler -> D3Scatter -> ScatterPlot a b -> Effect Unit
-
-drawData :: forall a b. D3Scatter -> ScatterPlot a b -> Effect Unit
-drawData = _drawData onScale
-
-type OnScale a = forall r.
-        { date   :: Equiv a JSDate -> r
-        , linear :: Equiv a Number -> r
-        , log    :: Equiv a Number -> r
-        } -> r
-
-onScale :: forall a. Scale a -> OnScale a
-onScale = case _ of
-    Date   refl -> \h -> h.date   refl
-    Linear refl -> \h -> h.linear refl
-    Log    refl -> \h -> h.log    refl
-
-type ForAny f = forall a. f a
-
-type ScaleHandler a = Scale a -> OnScale a

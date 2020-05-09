@@ -4,7 +4,6 @@ module Corona.Chart where
 import Prelude
 
 import Apexcharts (createChart, render, Apexchart, Apexoptions)
-import Data.Const
 import Apexcharts.Chart as C
 import Apexcharts.Chart.Zoom as Z
 import Apexcharts.Common as CC
@@ -15,9 +14,10 @@ import Control.Apply
 import Control.Monad.ST as ST
 import Corona.JHU (Counts, Country, CoronaData)
 import Corona.JHU as JHU
-import D3.Scatter (ScatterPlot(..), Point(..), Scale(..), AxisConf(..))
+import D3.Scatter.Type
 import Data.Array as A
 import Data.Array.ST as MA
+import Data.Const
 import Data.Dated (Dated(..))
 import Data.Dated as D
 import Data.Foldable
@@ -33,6 +33,7 @@ import Data.ModifiedJulianDay (Day(..))
 import Data.ModifiedJulianDay as MJD
 import Data.NonEmpty as NE
 import Data.Options
+import Data.Semiring
 import Data.Sequence as Seq
 import Data.Sequence.NonEmpty as NESeq
 import Data.Set (Set)
@@ -50,14 +51,11 @@ import Type.Chain as C
 import Type.Equality
 import Type.Equiv
 
-newtype Duration = Duration Number
-newtype Percent  = Percent Number
-
 data BaseProjection a =
-        Time (Equiv a JSDate)
-      | Confirmed (Equiv a Number)
-      | Deaths (Equiv a Number)
-      | Recovered (Equiv a Number)
+        Time      (a ~ Day)
+      | Confirmed (a ~ Int)
+      | Deaths    (a ~ Int)
+      | Recovered (a ~ Int)
 
 type Projection b = forall r.
         (forall a. { base       :: BaseProjection a
@@ -67,24 +65,15 @@ type Projection b = forall r.
 
 data Condition a = AtLeast a | AtMost a
 
--- type SomeCondition = forall r. (forall a. { condition :: Condition a, projection :: Projection a } -> r ) -> r
-
--- type Refuted a = a -> Void
-
-
 data Operation a b =
-        Delta     (Equiv a Number) (Equiv b Number)  -- ^ dx/dt
-      | PGrowth   (Equiv a Number) (Equiv b Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
-      | Window    (Equiv a Number) (Equiv b Number) Int -- ^ moving average of x over t, window (2n+1)
+        Delta     (NType a) (a ~ b)       -- ^ dx/dt
+      | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
+      | Window    (NType a) (b ~ Number ) Int -- ^ moving average of x over t, window (2n+1)
+      -- | PGrowth   (a ~ Number) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
+      -- | Window    (a ~ Number) (b ~ Number) Int -- ^ moving average of x over t, window (2n+1)
       -- | DaysSince SomeCondition (Equiv a JSDate) (Equiv b Duration)
             -- ^ says since x has met a condition
       -- | Chain     (forall r. (forall c. Operation a c -> Operation c b -> r) -> r)
-
-reflTo :: forall a b. Equiv a b -> a -> b
-reflTo r = r to
-
-reflFrom :: forall a b. Equiv a b -> b -> a
-reflFrom r = r from
 
 percentGrowth
     :: Number
@@ -135,46 +124,74 @@ applyOperation
     -> Dated a
     -> Dated b
 applyOperation = case _ of
-    Delta ran rbn -> \(Dated x) -> Dated
+        -- Delta     (NType a) (a ~ b)       -- ^ dx/dt
+    Delta num rab -> \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
-        , values: withConsec
-                    (\y0 y1 -> reflFrom rbn (reflTo ran y1 - reflTo ran y0))
+        , values: case num of
+            NInt rac ->
+                withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
+                  x.values
+            NNumber rac ->
+                withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
+                  x.values
+            NPercent rac ->
+                withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
+                  x.values
+        }
+    PGrowth num rbp -> \(Dated x) -> Dated
+        { start: MJD.addDays 1 x.start
+        , values: case num of
+            NInt rac ->
+                withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
+                                (toNumber $ equivTo rac y0)
+                                (toNumber $ equivTo rac y1))
+                    x.values
+            NNumber rac ->
+                withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
+                                (equivTo rac y0)
+                                (equivTo rac y1))
+                    x.values
+            NPercent rac ->
+                withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
+                                (unPercent $ equivTo rac y0)
+                                (unPercent $ equivTo rac y1))
                     x.values
         }
-    PGrowth ran rbp -> \(Dated x) -> Dated
-        { start: MJD.addDays 1 x.start
-        , values: withConsec
-                    (\y0 y1 -> reflFrom rbp $
-                        percentGrowth (reflTo ran y0) (reflTo ran y1)
-                    )
-                    x.values
-        }
-    Window ran rbp n -> \(Dated x) -> Dated
+    Window num rbn n -> \(Dated x) -> Dated
         { start: MJD.addDays n x.start
-        , values: withWindow n
-                    (\ys -> reflFrom rbp $
-                        sum (map (reflTo ran) ys) / toNumber (length ys)
-                    )
+        , values: case num of
+            NInt rac ->
+                withWindow n (\ys -> equivFrom rbn $
+                        toNumber (sum (map (equivTo rac) ys)) / toNumber (n*2+1))
+                    x.values
+            NNumber rac ->
+                withWindow n (\ys -> equivFrom rbn $
+                        sum (map (equivTo rac) ys) / toNumber (n*2+1))
+                    x.values
+            NPercent rac ->
+                withWindow n (\ys -> equivFrom rbn $
+                        sum (map (unPercent <<< equivTo rac) ys) / toNumber (n*2+1))
                     x.values
         }
     -- DaysSince c refl refl' -> ?e
 
+
 applyBaseProjection
     :: forall a. 
        BaseProjection a
-    -> Dated (Counts Number)
+    -> Dated (Counts Int)
     -> Dated a
 applyBaseProjection = case _ of
-    Time refl      -> mapWithIndex (\i _ -> reflFrom refl (MJD.toJSDate i))
-    Confirmed refl -> map (\c -> reflFrom refl c.confirmed)
-    Deaths    refl -> map (\c -> reflFrom refl c.deaths   )
-    Recovered refl -> map (\c -> reflFrom refl c.recovered)
+    Time      refl -> mapWithIndex (\i _ -> equivFrom refl i)
+    Confirmed refl -> map (\c -> equivFrom refl c.confirmed)
+    Deaths    refl -> map (\c -> equivFrom refl c.deaths   )
+    Recovered refl -> map (\c -> equivFrom refl c.recovered)
     
     
 applyProjection
     :: forall a.
        Projection a
-    -> Dated (Counts Number)
+    -> Dated (Counts Int)
     -> Dated a
 applyProjection spr = spr (\pr ->
           C.runChainF applyOperation pr.operations <<< applyBaseProjection pr.base
@@ -215,7 +232,7 @@ toSeries
     :: forall a b. 
        Projection a
     -> Projection b
-    -> Dated (Counts Number)
+    -> Dated (Counts Int)
     -> Array (Point a b)
 toSeries pX pY ps = D.datedValues $
     lift2 (\x y -> {x, y}) (applyProjection pX ps) (applyProjection pY ps)
@@ -241,4 +258,5 @@ toScatterPlot dat pX sX pY sY ctrys =
         }
 
 
-foreign import incrDate    :: Int -> JSDate -> JSDate
+foreign import incrDate  :: Int -> JSDate -> JSDate
+-- foreign import traceTime :: forall a b. DebugWarning => a -> (Unit -> b) -> b

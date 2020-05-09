@@ -7,12 +7,14 @@ import Corona.Chart
 import Corona.JHU
 import Data.Array as A
 import D3.Scatter as D3
+import D3.Scatter.Type as D3
 import Data.JSDate (JSDate)
 import Data.Maybe
 import Data.Set (Set)
 import Data.Set as S
 import Data.Symbol (SProxy(..))
 import Effect.Class
+import Data.ModifiedJulianDay (Day)
 import Foreign.Object as O
 import Halogen as H
 import Halogen.HTML as HH
@@ -41,7 +43,7 @@ type State a b =
 data Action =
         SetCountries (Set Country)
 
-type TempState = State JSDate Number
+type TempState = State Day Number
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query               Void                         Unit
@@ -73,17 +75,25 @@ initialState :: forall i. i -> TempState
 initialState _ = {
       xAxis: {
         projection: \f -> f { base: Time refl
-                            , operations: C.Nil refl
+                            , operations: C.nil
                             }
       , scale: D3.sDate
       }
     , yAxis: {
         projection: \f -> f { base: Confirmed refl
-                            , operations: C.Nil refl
+                            , operations: C.cons (Window D3.nInt refl 2)
+                                        (C.cons (Delta D3.nInt refl) C.nil)
+      -- | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
                             }
       , scale: D3.sLog
       }
-  , countries: initialCountries
+    -- , yAxis: {
+    --     projection: \f -> f { base: Confirmed refl
+    --                         , operations: C.Nil refl
+    --                         }
+    --   , scale: D3.sLog
+    --   }
+    , countries: initialCountries
     }
 
 render :: forall m. MonadEffect m => CoronaData -> TempState -> H.ComponentHTML Action ChildSlots m
@@ -114,7 +124,7 @@ handleAction dat = case _ of
       H.modify_ $ \s -> s { countries = cs }
       st :: TempState <- H.get
       _ <- H.query _scatter unit $ Scatter.Query
-        { update: \f -> f (
+        { update: \f -> f D3.sType D3.sType (
               toScatterPlot
                 dat
                 st.xAxis.projection

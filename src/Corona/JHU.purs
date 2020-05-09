@@ -34,7 +34,7 @@ type Country = String
 
 type CoronaData =
     { start  :: Day
-    , counts :: O.Object (Array (Counts Number))
+    , counts :: O.Object (Array (Counts Int))
     }
 
 type Counts a =
@@ -79,7 +79,7 @@ fetchCoronaData = runExceptT do
 
 type CSVData =
     { start  :: Day
-    , counts :: O.Object (Array Number)
+    , counts :: O.Object (Array Int)
     }
 
 
@@ -95,10 +95,10 @@ buildData xs = case A.uncons xs of
       let vals = A.mapMaybe go ht.tail
           counts = O.fromFoldableWith (A.zipWith (+)) vals
       pure { start, counts }
-    go :: Array Country -> Maybe (Tuple Country (Array Number))
+    go :: Array Country -> Maybe (Tuple Country (Array Int))
     go val = do
        country <- val A.!! 1
-       valnum  <- traverse (map toNumber <<< flip parseInt (toRadix 10)) (A.drop 4 val)
+       valnum  <- traverse (flip parseInt (toRadix 10)) (A.drop 4 val)
        pure (Tuple country valnum)
 
 fetchData :: String -> Aff (Either String CSVData)

@@ -4,6 +4,7 @@ module Halogen.Scatter where
 import Prelude
 
 import D3.Scatter
+import D3.Scatter.Type
 import Data.Foldable
 import Data.Int
 import Data.Maybe
@@ -26,7 +27,7 @@ newtype Query a = Query { update :: SomeScatterPlot, next :: a }
 
 component
     :: forall q i o m. MonadEffect m
-     => H.Component HH.HTML Query i o m
+    => H.Component HH.HTML Query i o m
 component =
   H.mkComponent
   { initialState
@@ -75,7 +76,7 @@ handleQuery (Query q) = do
     s <- H.get
     liftEffect case s.chart of
       Nothing -> pure unit
-      Just c  -> q.update (drawData c)
+      Just c  -> q.update (\a b -> drawData_ a b c)
     pure (Just q.next)
 
 scatterRef ∷ H.RefLabel
