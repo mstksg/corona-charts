@@ -16,6 +16,7 @@ You can edit this file as you like.
   , "css"
   , "halogen-css"
   , "sorted-arrays"
+  , "undefined"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

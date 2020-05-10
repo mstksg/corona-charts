@@ -5,13 +5,13 @@ import Prelude
 
 import Corona.Chart
 import Corona.JHU
-import Halogen.HTML.Core as HH
 import D3.Scatter as D3
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
-import Data.JSDate (JSDate)
 import Data.Either
+import Data.Exists
+import Data.JSDate (JSDate)
 import Data.Maybe
 import Data.ModifiedJulianDay (Day)
 import Data.Set (Set)
@@ -21,8 +21,9 @@ import Effect.Class
 import Foreign.Object as O
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.HTML.Elements as HH
 import Halogen.HTML.CSS as HC
+import Halogen.HTML.Core as HH
+import Halogen.HTML.Elements as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.MultiSelect as MultiSelect
@@ -33,8 +34,7 @@ import Type.DMap as DM
 import Type.DProd
 import Type.DSum
 import Type.Equiv
-import Type.Some (Some(..), withSome)
-import Type.Some as Some
+import Type.GCompare
 
 
 type AxisState =
@@ -60,8 +60,8 @@ lookupScale st ns = case D3.toNType st of
 
 data Action =
         SetCountries (Set Country)
-      | SetXBase     (Some BaseProjection)
-      | SetYBase     (Some BaseProjection)
+      | SetXBase     (Exists BaseProjection)
+      | SetYBase     (Exists BaseProjection)
       | SetXNumScale NScale
       | SetYNumScale NScale
 
@@ -122,8 +122,8 @@ render dat st = HH.main_ [
               MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
           ]
         , HH.div [classProp "axes"] [
-            axisPicker "X axis" st.xAxis (Some.some bTime) SetXBase SetXNumScale
-          , axisPicker "Y axis" st.xAxis (Some.some bTime) SetYBase SetYNumScale
+            axisPicker "X axis" st.xAxis (mkExists bTime)      SetXBase SetXNumScale
+          , axisPicker "Y axis" st.yAxis (mkExists bConfirmed) SetYBase SetYNumScale
           ]
         ]
       ]
@@ -145,17 +145,17 @@ axisPicker
     :: forall c m.
        String       -- ^ x or y
     -> AxisState
-    -> Some BaseProjection      -- ^ default
-    -> (Some BaseProjection -> Action)
+    -> Exists BaseProjection      -- ^ default
+    -> (Exists BaseProjection -> Action)
     -> (NScale -> Action)
     -> H.ComponentHTML Action c m
 axisPicker lab ax b0 raiseBase raiseScale = HH.div [classProp "axis-options"] [
       HH.div [classProp "base-projection"] [
         HH.span_ [HH.text lab]
       , HH.select [HE.onSelectedIndexChange (map raiseBase <<< indexToBase)] $
-          allBaseProjections <#> \sbp -> withSome sbp (\bp ->
-            HH.option [HP.selected (sbp == b0)] [HH.text (baseProjectionLabel bp)]
-          )
+          allBaseProjections <#> \sbp -> runExists (\bp ->
+            HH.option [HP.selected (WrEx sbp == WrEx b0)] [HH.text (baseProjectionLabel bp)]
+          ) sbp
       ]
     , HH.div [classProp "axis-scale"] [
         HH.span_ [HH.text (lab <> " scale")]
@@ -172,12 +172,12 @@ axisPicker lab ax b0 raiseBase raiseScale = HH.div [classProp "axis-options"] [
       ]
     ]
   where
-    indexToBase :: Int -> Maybe (Some BaseProjection)
+    indexToBase :: Int -> Maybe (Exists BaseProjection)
     indexToBase = case _ of
-      0 -> Just (Some.some bTime)
-      1 -> Just (Some.some bConfirmed)
-      2 -> Just (Some.some bDeaths)
-      3 -> Just (Some.some bRecovered)
+      0 -> Just (mkExists bTime)
+      1 -> Just (mkExists bConfirmed)
+      2 -> Just (mkExists bDeaths)
+      3 -> Just (mkExists bRecovered)
       _ -> Nothing
     indexToNScale :: Int -> Maybe NScale
     indexToNScale = case _ of
@@ -197,13 +197,13 @@ handleAction dat = case _ of
     SetXBase sb -> do
       H.modify_ $ \st -> st
         { xAxis = st.xAxis
-            { projection = withSome sb (flip setBase st.xAxis.projection) }
+            { projection = runExists (flip setBase st.xAxis.projection) sb }
         }
       reRender dat
     SetYBase sb -> do
       H.modify_ $ \st -> st
         { yAxis = st.yAxis
-            { projection = withSome sb (flip setBase st.yAxis.projection) }
+            { projection = runExists (flip setBase st.yAxis.projection) sb }
         }
       reRender dat
     SetXNumScale s -> do

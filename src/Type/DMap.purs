@@ -3,26 +3,25 @@ module Type.DMap where
 
 import Prelude
 
+import Data.Exists
 import Data.Map (Map)
 import Data.Map as M
 import Data.Maybe
 import Type.DSum
 import Type.Equiv
 import Type.GCompare
-import Type.Some (Some)
-import Type.Some as Some
 import Unsafe.Coerce
 
-newtype DMap k f = DMap (Map (Some k) (Some f))
+newtype DMap k f = DMap (Map (WrEx k) (Exists f))
 
 empty :: forall k f. DMap k f
 empty = DMap M.empty
 
 singleton :: forall k f a. k a -> f a -> DMap k f
-singleton k v = DMap (M.singleton (Some.some k) (Some.some v))
+singleton k v = DMap (M.singleton (mkWrEx k) (mkExists v))
 
 insert :: forall k f a. GOrd k => k a -> f a -> DMap k f -> DMap k f
-insert k v (DMap mp) = DMap (M.insert (Some.some k) (Some.some v) mp)
+insert k v (DMap mp) = DMap (M.insert (mkWrEx k) (mkExists v) mp)
 
 insertWith
     :: forall k f a. GOrd k
@@ -31,14 +30,14 @@ insertWith
      -> f a
      -> DMap k f
      -> DMap k f
-insertWith f k v (DMap mp) = DMap (M.insertWith go (Some.some k) (Some.some v) mp)
+insertWith f k v (DMap mp) = DMap (M.insertWith go (mkWrEx k) (mkExists v) mp)
   where
-    go x y = Some.withSome x (\x' ->
-               Some.withSome y (\y' ->
-                 Some.some (f (unsafeCoerce x') (unsafeCoerce y'))
-               )
-             )
+    go x y = runExists (\x' ->
+        runExists (\y' ->
+          mkExists (f (unsafeCoerce x') (unsafeCoerce y'))
+        ) y
+      ) x
 
 lookup :: forall k f a. GOrd k => k a -> DMap k f -> Maybe (f a)
-lookup k (DMap mp) = map (\x -> Some.withSome x unsafeCoerce)
-                         (M.lookup (Some.some k) mp)
+lookup k (DMap mp) = map (runExists unsafeCoerce)
+                         (M.lookup (mkWrEx k) mp)

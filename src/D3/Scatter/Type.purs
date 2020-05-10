@@ -19,8 +19,7 @@ import Type.Equality
 import Type.Equiv
 import Type.GCompare
 import Type.Handler
-import Type.Some (Some)
-import Type.Some as Some
+import Data.Exists
 import Web.DOM.Element (Element)
 
 -- | interval, days since

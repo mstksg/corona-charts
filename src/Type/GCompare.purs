@@ -5,6 +5,7 @@ import Prelude
 
 import Type.Equiv
 import Data.Maybe
+import Data.Exists
 
 class Decide f <= GEq f where
     geq :: forall a b. f a -> f b -> Maybe (a ~ b)
@@ -22,4 +23,23 @@ toOrdering = case _ of
 
 class GEq f <= GOrd f where
     gcompare :: forall a b. f a -> f b -> GOrdering a b
+
+newtype WrEx k = WrEx (Exists k)
+
+mkWrEx :: forall k a. k a -> WrEx k
+mkWrEx = WrEx <<< mkExists
+
+instance eqSome :: GEq f => Eq (WrEx f) where
+    eq (WrEx sx) (WrEx sy) = runExists (\x ->
+        runExists (\y ->
+          isJust (geq x y)
+        ) sy
+      ) sx
+
+instance ordSome :: GOrd f => Ord (WrEx f) where
+    compare (WrEx sx) (WrEx sy) = runExists (\x ->
+        runExists (\y ->
+          toOrdering (gcompare x y)
+        ) sy
+      ) sx
 

@@ -3,13 +3,6 @@ module Corona.Chart where
 
 import Prelude
 
-import Apexcharts (createChart, render, Apexchart, Apexoptions)
-import Apexcharts.Chart as C
-import Apexcharts.Chart.Zoom as Z
-import Apexcharts.Common as CC
-import Apexcharts.Series as SE
-import Apexcharts.Xaxis as X
-import Apexcharts.Yaxis as Y
 import Control.Apply
 import Control.Monad.ST as ST
 import Corona.JHU (Counts, Country, CoronaData)
@@ -20,6 +13,7 @@ import Data.Array.ST as MA
 import Data.Const
 import Data.Dated (Dated(..))
 import Data.Dated as D
+import Data.Exists
 import Data.Foldable
 import Data.FunctorWithIndex
 import Data.Int
@@ -52,8 +46,6 @@ import Type.Chain as C
 import Type.Equality
 import Type.Equiv
 import Type.GCompare
-import Type.Some (Some(..))
-import Type.Some as Some
 
 data BaseProjection a =
         Time      (a ~ Day)
@@ -95,12 +87,12 @@ instance decideBaseProjection :: Decide BaseProjection where
 instance geqBaseProjection :: GEq BaseProjection where
     geq = decide
 
-allBaseProjections :: Array (Some BaseProjection)
+allBaseProjections :: Array (Exists BaseProjection)
 allBaseProjections = [
-      Some.some (Time refl)
-    , Some.some (Confirmed refl)
-    , Some.some (Deaths refl)
-    , Some.some (Recovered refl)
+      mkExists (Time refl)
+    , mkExists (Confirmed refl)
+    , mkExists (Deaths refl)
+    , mkExists (Recovered refl)
     ]
 
 

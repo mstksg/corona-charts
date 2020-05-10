@@ -5,16 +5,25 @@ import Prelude
 
 import Type.Equiv
 import Type.Equality
+import Undefined
 
 data Chain f a b =
       Nil (a ~ b)
-    | Cons (forall r. (forall c. f c b -> Chain f a c -> r) -> r)
+    | Cons (forall r. (forall c. f a c -> Chain f c b -> r) -> r)
 
 nil :: forall f a. Chain f a a
 nil = Nil refl
 
-cons :: forall f a b c. f b c -> Chain f a b -> Chain f a c
+cons :: forall f a b c. f a b -> Chain f b c -> Chain f a c
 cons x xs = Cons (\f -> f x xs)
+
+singleton :: forall f a b. f a b -> Chain f a b
+singleton x = cons x nil
+
+snoc :: forall f a b c. Chain f a b -> f b c -> Chain f a c
+snoc = case _ of
+    Nil refl -> \x -> cons (equivFromF2 refl x) nil
+    Cons f   -> \y -> f (\x xs -> cons x (snoc xs y))
 
 runChain
     :: forall f p a b.
@@ -27,7 +36,7 @@ runChain f = go
     go :: forall c d. Chain f c d -> p c -> p d
     go = case _ of
       Nil refl -> equivToF refl
-      Cons g   -> \x -> g (\y c -> f y (go c x))
+      Cons g   -> \x -> g (\y c -> go c (f y x))
 
 -- data Last f a b =
 --         CLNil  (a ~ b)
