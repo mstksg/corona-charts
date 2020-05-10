@@ -14,13 +14,13 @@ module Type.Some where
 -- withSome :: forall f r. Some f -> (forall a. f a -> r) -> r
 -- withSome (Some f) = f
 
--- newtype Some2 f = Some2 (forall r. (forall a b. f a b -> r) -> r)
+newtype Some2 f = Some2 (forall r. (forall a b. f a b -> r) -> r)
 
--- some2 :: forall f a b. f a b -> Some2 f
--- some2 x = Some2 (\f -> f x)
+some2 :: forall f a b. f a b -> Some2 f
+some2 x = Some2 (\f -> f x)
 
--- withSome2 :: forall f r. Some2 f -> (forall a b. f a b -> r) -> r
--- withSome2 (Some2 f) = f
+withSome2 :: forall f r. Some2 f -> (forall a b. f a b -> r) -> r
+withSome2 (Some2 f) = f
 
 -- instance eqSome :: GEq f => Eq (Some f) where
 --     eq sx sy = withSome sx (\x ->

@@ -33,6 +33,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.CSS as HC
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Util
 import Web.DOM.Element as W
 import Web.DOM.HTMLCollection as HTMLCollection
 import Web.HTML.HTMLOptionElement as Option
@@ -126,8 +127,6 @@ render st =
     selectedItems  = A.fromFoldable $ L.mapMaybe
       (\i -> map (\lv -> { ix: i, label: lv.label }) $ A.index st.options i) 
       (L.fromFoldable st.selected)
-    classProp :: forall r a. String -> HP.IProp (class :: String | r) a
-    classProp cl = HP.class_ (HH.ClassName cl)
 
 handleAction :: forall a o m. MonadEffect m => Action -> H.HalogenM (State a) Action () (Output a) m Unit
 handleAction = case _ of
