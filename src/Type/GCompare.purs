@@ -24,6 +24,9 @@ toOrdering = case _ of
 class GEq f <= GOrd f where
     gcompare :: forall a b. f a -> f b -> GOrdering a b
 
+class GShow f where
+    gshow :: forall a. f a -> String
+
 newtype WrEx k = WrEx (Exists k)
 
 mkWrEx :: forall k a. k a -> WrEx k
@@ -43,3 +46,5 @@ instance ordSome :: GOrd f => Ord (WrEx f) where
         ) sy
       ) sx
 
+instance showSome :: GShow f => Show (WrEx f) where
+    show (WrEx sx) = runExists gshow sx

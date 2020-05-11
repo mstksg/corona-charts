@@ -5,12 +5,14 @@ import Prelude
 
 import Corona.Chart
 import Corona.JHU
+import Corona.UI.NumericOp as NumericOp
 import D3.Scatter as D3
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Either
 import Data.Exists
+import Data.Functor.Compose
 import Data.JSDate (JSDate)
 import Data.Maybe
 import Data.ModifiedJulianDay (Day)
@@ -18,8 +20,10 @@ import Data.Set (Set)
 import Data.Set as S
 import Data.Symbol (SProxy(..))
 import Effect.Class
+import Effect.Class.Console
 import Foreign.Object as O
 import Halogen as H
+import Halogen.ChainPicker as ChainPicker
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as HC
 import Halogen.HTML.Core as HH
@@ -29,6 +33,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.MultiSelect as MultiSelect
 import Halogen.Query.EventSource as ES
 import Halogen.Scatter as Scatter
+import Halogen.Util as HU
 import Type.Chain as C
 import Type.DMap as DM
 import Type.DProd
@@ -48,6 +53,9 @@ type State =
     , countries :: Set Country
     }
 
+data Axis = XAxis | YAxis
+derive instance eqAxis :: Eq Axis
+derive instance ordAxis :: Ord Axis
 
 lookupScale
     :: forall a.
@@ -60,15 +68,21 @@ lookupScale st ns = case D3.toNType st of
 
 data Action =
         SetCountries (Set Country)
-      | SetXBase     (Exists BaseProjection)
-      | SetYBase     (Exists BaseProjection)
-      | SetXNumScale NScale
-      | SetYNumScale NScale
+      | SetBase      Axis (Exists BaseProjection)
+      | SetOps       Axis (Exists SType)
+      | SetNumScale  Axis NScale
+
+type OpIx = { axis :: Axis, tagIn :: WrEx D3.SType }
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query               Void                         Unit
         , multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
+        , opselect    :: H.Slot (ChainPicker.WrappedQuery Operation SType)
+                            (ChainPicker.Output SType)
+                            OpIx
         )
+
+-- data Query f tag a r =
 
 initialCountries :: Set Country
 initialCountries = S.fromFoldable ["US", "Egypt", "Italy"]
@@ -122,8 +136,8 @@ render dat st = HH.main_ [
               MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
           ]
         , HH.div [classProp "axes"] [
-            axisPicker "X axis" st.xAxis (mkExists bTime)      SetXBase SetXNumScale
-          , axisPicker "Y axis" st.yAxis (mkExists bConfirmed) SetYBase SetYNumScale
+            axisPicker XAxis st.xAxis (mkExists bTime)
+          , axisPicker YAxis st.yAxis (mkExists bConfirmed)
           ]
         ]
       ]
@@ -142,29 +156,42 @@ render dat st = HH.main_ [
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
 
 axisPicker
-    :: forall c m.
-       String       -- ^ x or y
+    :: forall m.
+       Axis
     -> AxisState
     -> Exists BaseProjection      -- ^ default
-    -> (Exists BaseProjection -> Action)
-    -> (NScale -> Action)
-    -> H.ComponentHTML Action c m
-axisPicker lab ax b0 raiseBase raiseScale = HH.div [classProp "axis-options"] [
+    -> H.ComponentHTML Action ChildSlots m
+axisPicker axis aState b0 = HH.div [classProp "axis-options"] [
       HH.div [classProp "base-projection"] [
-        HH.span_ [HH.text lab]
-      , HH.select [HE.onSelectedIndexChange (map raiseBase <<< indexToBase)] $
+        HH.span_ [HH.text label]
+      , HH.select [HE.onSelectedIndexChange (map (SetBase axis) <<< indexToBase)] $
           allBaseProjections <#> \sbp -> runExists (\bp ->
             HH.option [HP.selected (WrEx sbp == WrEx b0)] [HH.text (baseProjectionLabel bp)]
           ) sbp
       ]
+    , HH.div [classProp "axis-op-chain"] [
+        HH.span_ [HH.text (label <> " operations")]
+      , withDSum aState.projection (\_ spr ->
+          withProjection spr (\pr ->
+            let tBase = baseType pr.base
+            in  HH.slot _opselect
+                  {axis: axis, tagIn: mkWrEx tBase}
+                  (chainPicker tBase)
+                  unit
+                  $ \(ChainPicker.ChainUpdate u) ->
+                      Just (SetOps axis u)
+
+          )
+        )
+      ]
     , HH.div [classProp "axis-scale"] [
-        HH.span_ [HH.text (lab <> " scale")]
-      , withDSum (ax.projection) (\t _ ->
+        HH.span_ [HH.text (label <> " scale")]
+      , withDSum aState.projection (\t _ ->
           case D3.toNType t of
             Left _ -> 
               HH.select_ [ HH.option [HP.selected true] [HH.text "Date"] ]
             Right _ ->
-              HH.select [HE.onSelectedIndexChange (map raiseScale <<< indexToNScale)]
+              HH.select [HE.onSelectedIndexChange (map (SetNumScale axis) <<< indexToNScale)]
               [ HH.option_ [HH.text "Linear"]
               , HH.option  [HP.selected true] [HH.text "Log"]
               ]
@@ -184,52 +211,80 @@ axisPicker lab ax b0 raiseBase raiseScale = HH.div [classProp "axis-options"] [
       0 -> Just (DProd Linear)
       1 -> Just (DProd Log)
       _ -> Nothing
+    label :: String
+    label = case axis of
+      XAxis -> "X axis"
+      YAxis -> "Y axis"
+
+chainPicker
+    :: forall a i m.
+       SType a  -- ^ initial initial type
+    -> H.Component HH.HTML (ChainPicker.WrappedQuery Operation SType) i (ChainPicker.Output SType) m
+chainPicker = ChainPicker.wrappedComponent $ DProd (\t -> Compose $
+      case D3.toNType t of
+        Left  _  -> Nothing
+        Right nt -> Just $ ChainPicker.Picker
+          { component: HU.trimapComponent
+                  (\(ChainPicker.SQ f) -> NumericOp.QueryOp f)
+                  identity
+                  (\(NumericOp.ChangeEvent t) -> t)
+                  (NumericOp.component nt)
+          , initialOut: mkExists t
+          }
+    )
 
 handleAction
     :: forall o m. MonadEffect m
      => CoronaData
      -> Action
      -> H.HalogenM State Action ChildSlots o m Unit
-handleAction dat = case _ of
-    SetCountries cs -> do
-      H.modify_ $ \st -> st { countries = cs }
-      reRender dat
-    SetXBase sb -> do
-      H.modify_ $ \st -> st
-        { xAxis = st.xAxis
-            { projection = runExists (flip setBase st.xAxis.projection) sb }
-        }
-      reRender dat
-    SetYBase sb -> do
-      H.modify_ $ \st -> st
-        { yAxis = st.yAxis
-            { projection = runExists (flip setBase st.yAxis.projection) sb }
-        }
-      reRender dat
-    SetXNumScale s -> do
-      H.modify_ $ \st -> st { xAxis = st.xAxis { numScale = s } }
-      reRender dat
-    SetYNumScale s -> do
-      H.modify_ $ \st -> st { yAxis = st.yAxis { numScale = s } }
-      reRender dat
-
-setBase :: forall a b r. BaseProjection a -> DSum SType Projection -> DSum SType Projection
-setBase base dp = withDSum dp (\tB pr ->
-      withProjection pr (\pr ->
-        let tC = baseType pr.base
-        in  case decide tA tC of
-              Just refl -> dsum tB $ projection {
-                  base: equivToF refl base
-                , operations: pr.operations
-                }
-              Nothing   -> dsum tA $ projection {
-                  base: base
-                , operations: C.nil
-                }
+handleAction dat act = do
+    case act of
+      SetCountries cs -> H.modify_ $ \st -> st { countries = cs }
+      SetBase ax sb -> H.modify_ $ \st ->
+        case ax of
+          XAxis -> st
+            { xAxis = st.xAxis
+                { projection = runExists (flip setBase st.xAxis.projection) sb }
+            }
+          YAxis -> st
+            { yAxis = st.yAxis
+                { projection = runExists (flip setBase st.yAxis.projection) sb }
+            }
+      SetOps ax _ -> do
+        dsp <- case ax of
+          XAxis -> H.gets (_.xAxis.projection)
+          YAxis -> H.gets (_.yAxis.projection)
+        withDSum dsp (\tOut proj -> withProjection proj (\pr -> do
+            let tIn = baseType pr.base
+            qres <- H.query _opselect { axis: ax, tagIn: mkWrEx tIn }
+                  $ ChainPicker.someQuery tIn (ChainPicker.AskSelected identity)
+            case qres of
+              Nothing       -> log "no response from component"
+              Just (Left e) -> log $ "type mismatch: " <> runExists show e
+              Just (Right dsc) -> withDSum dsc (\tNewOut chain ->
+                H.modify_ $ \st ->
+                  case ax of
+                    XAxis -> st
+                      { xAxis = st.xAxis
+                          { projection = dsum tNewOut $ projection
+                              { base: pr.base, operations: chain }
+                          }
+                      }
+                    YAxis -> st
+                      { yAxis = st.yAxis
+                          { projection = dsum tNewOut $ projection
+                              { base: pr.base, operations: chain }
+                          }
+                      }
+              )
+        )
       )
-    )
-  where
-    tA = baseType base
+      SetNumScale ax s -> H.modify_ $ \st ->
+        case ax of
+          XAxis -> st { xAxis = st.xAxis { numScale = s } }
+          YAxis -> st { yAxis = st.yAxis { numScale = s } }
+    reRender dat
 
 reRender
     :: forall o m. MonadEffect m
@@ -259,4 +314,7 @@ _scatter = SProxy
 
 _multi :: SProxy "multiselect"
 _multi = SProxy
+
+_opselect :: SProxy "opselect"
+_opselect = SProxy
 

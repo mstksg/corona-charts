@@ -108,8 +108,21 @@ instance gordSType :: GOrd SType where
         EQ -> GLT   -- ???
         GT -> GGT
 
-derive instance eqSType :: Eq (SType a)
-derive instance ordSType :: Ord (SType a)
+instance eqSType :: Eq (SType a) where
+    eq x y = isJust (geq x y)
+instance ordSType :: Ord (SType a) where
+    compare x y = toOrdering (gcompare x y)
+
+
+instance showSType :: Show (SType a) where
+    show = case _ of
+      SDay _ -> "SDay"
+      SDays _ -> "SDays"
+      SInt _ -> "SInt"
+      SNumber _ -> "SNumber"
+      SPercent _ -> "SPercent"
+instance gshowSType :: GShow SType where
+    gshow = show
 
 sTypeIx :: forall a. SType a -> Int
 sTypeIx = case _ of

@@ -36,6 +36,7 @@ import Data.Tuple
 import Data.Void
 import Debug.Trace
 import Effect.Aff.Class (class MonadAff, liftAff)
+import Type.DSum
 import Effect.Class
 import Foreign.Object as O
 import Halogen as H
@@ -294,15 +295,15 @@ baseProjectionLabel = case _ of
 
 operationLabel :: forall a b. Operation a b -> String
 operationLabel = case _ of
-    Delta   _ _   -> "Daily Increase in"
+    Delta   _ _   -> "Daily Change in"
     PGrowth _ _   -> "Daily Percent Growth in"
-    Window  _ _ n -> "Moving Average (size " <> show (2*n+1) <> ") of"
+    Window  _ _ n -> "Moving Average (±" <> show n <> ") of"
 
 operationsLabel :: forall a b. C.Chain Operation a b -> String
 operationsLabel c = res
   where
     go :: forall r s. Operation r s -> Const String r -> Const String s
-    go o (Const s) = Const (s <> " " <> operationLabel o)
+    go o (Const s) = Const (operationLabel o <> " " <> s)
     Const res = C.runChain go c (Const "")
 
 projectionLabel :: forall a. Projection a -> String
@@ -345,6 +346,30 @@ toScatterPlot dat pX sX pY sY ctrys =
               }
         }
 
+setBase :: forall a. BaseProjection a -> DSum SType Projection -> DSum SType Projection
+setBase base dp = withDSum dp (\tB pr ->
+      withProjection pr (\pr ->
+        let tC = baseType pr.base
+        in  case decide tA tC of
+              Just refl -> dsum tB $ projection {
+                  base: equivToF refl base
+                , operations: pr.operations
+                }
+              Nothing   -> dsum tA $ projection {
+                  base: base
+                , operations: C.nil
+                }
+      )
+    )
+  where
+    tA = baseType base
+
+setOperations :: forall a b c. SType a -> C.Chain Operation a c -> Projection b -> Maybe (Projection c)
+setOperations tA chain spr = withProjection spr (\pr -> do
+      let tQ = baseType pr.base
+      refl <- decide tA tQ
+      pure $ projection { base: equivFromF refl pr.base, operations: chain }
+    )
 
 foreign import incrDate  :: Int -> JSDate -> JSDate
 -- foreign import traceTime :: forall a b. DebugWarning => a -> (Unit -> b) -> b

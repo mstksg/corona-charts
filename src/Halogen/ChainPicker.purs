@@ -7,6 +7,7 @@ import CSS as CSS
 import Control.Alternative
 import Control.Monad.Except
 import Control.Monad.Maybe.Trans
+import Control.Monad.State
 import Control.Monad.State.Class
 import Control.MonadZero as MZ
 import Data.Array as A
@@ -23,6 +24,7 @@ import Data.List as L
 import Data.Map (Map)
 import Data.Map as M
 import Data.Maybe
+import Data.Newtype
 import Data.Sequence (Seq)
 import Data.Sequence as Seq
 import Data.Set (Set)
@@ -34,6 +36,7 @@ import Data.String.Regex.Flags as Regex
 import Data.Symbol (SProxy(..))
 import Data.Traversable
 import Data.Tuple
+import Debug.Trace
 import Effect.Class
 import Effect.Class.Console (log)
 import Halogen as H
@@ -42,6 +45,7 @@ import Halogen.HTML.CSS as HC
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Util as HU
+import Type.Ap
 import Type.Chain (Chain)
 import Type.Chain as C
 import Type.DMap (DMap)
@@ -49,6 +53,7 @@ import Type.DMap as DM
 import Type.DProd
 import Type.DSum
 import Type.Equiv
+import Type.GCompare
 import Type.Some
 import Undefined
 import Web.DOM.Element as W
@@ -57,65 +62,75 @@ import Web.HTML.HTMLOptionElement as Option
 import Web.HTML.HTMLSelectElement as Select
 import Web.UIEvent.MouseEvent as ME
 
-
--- returns an @f a b@ with the @b@ hidden
-data SubQuery f tag a r = SQ    (DSum tag (f a) -> r)
-                        | SWhat r
+-- | returns an @f a b@ with the @b@ hidden
+data SubQuery f tag a r = SQ (DSum tag (f a) -> r)
 
 instance functorSubQuery :: Functor (SubQuery f tag a) where
     map f = case _ of
       SQ    g -> SQ (f <<< g)
-      SWhat x -> SWhat (f x)
+instance applySubQuery :: Apply (SubQuery f tag a) where
+    apply (SQ f) (SQ g) = SQ $ \x -> (f x) (g x)
+instance applicativeSubQuery :: Applicative (SubQuery f tag a) where
+    pure x = SQ (\_ -> x)
 
-newtype SomeSubQuery f tag r
-  = SSQ { typeMismatch :: Exists tag -> r
-        , typeMatch    :: forall q. (forall a. tag a -> SubQuery f tag a r -> q) -> q
-        }
-      -- ^ should re really enforce?
-
-someSubQuery
-    :: forall f tag r a.
-       tag a
-    -> SubQuery f tag a r
-    -> SomeSubQuery f tag (Either (Exists tag) r)
-someSubQuery t q = SSQ
-    { typeMismatch: Left
-    , typeMatch: \f -> f t (Right <$> q)
+newtype SomeQuery f tag r = SomeQuery
+    { typeMismatch :: Exists tag -> r
+    , typeMatch    :: forall q. (forall a. tag a -> f a r -> q) -> q
     }
 
+type SomeSubQuery f tag = SomeQuery (SubQuery f tag) tag
+
 -- | Picker of chain link @f@ with input @a@
-newtype Picker f tag m a = Picker (H.Component HH.HTML (SubQuery f tag a) Unit Unit m)
+newtype Picker f tag m a = Picker
+    { component :: H.Component HH.HTML (SubQuery f tag a) Unit (Exists tag) m
+    , initialOut :: Exists tag
+    }
 
 -- | A way to select an appropriate 'Picker' based on a given type tag
 -- type PickerMap tag f q m = DMap tag (Picker f q m)
-type PickerMap f tag m = DProd tag (Picker f tag m)
+type PickerMap f tag m = DProd tag (Compose Maybe (Picker f tag m))
+
+type ChildIx tag = { ix :: Int, tagIn :: WrEx tag }
 
 type ChildSlots f tag =
-        ( chainLink :: H.Slot (SomeSubQuery f tag) Unit Int
-        )
+    ( chainLink :: H.Slot (SomeSubQuery f tag) (Exists tag) (ChildIx tag)
+    )
 
-type State tag =
-      { tagChain :: Seq (Exists tag)    -- ^ the *input* types of each link
-      }
+newtype TagLink tag a b = TagLink
+    { tagIn  :: tag a
+    , tagOut :: tag b
+    }
 
-data Action =
-          AddLink
-        | RemoveLink
-        | TriggerUpdate
+type State tag a =
+    { tagChain :: DSum tag (Chain (TagLink tag) a)
+    }
+
+data Action tag =
+          AddLink (Exists tag)      -- ^ field: initial output of new field link
+        | RemoveLink (Exists tag)   -- ^ field: new final output
+        | TriggerUpdate { ix :: Int, outputType :: Exists tag }
 
 data Query f tag a r =
         AskSelected (DSum tag (Chain f a) -> r)
 
-data Output = ChainUpdate
+instance functorQuery :: Functor (Query f tag a) where
+    map f = case _ of
+      AskSelected    g -> AskSelected (f <<< g)
+instance applyQuery :: Apply (Query f tag a) where
+    apply (AskSelected f) (AskSelected g) = AskSelected $ \x -> (f x) (g x)
+instance applicativeQuery :: Applicative (Query f tag a) where
+    pure x = AskSelected (\_ -> x)
+
+data Output tag = ChainUpdate (Exists tag)      -- ^ new output type
 
 component
-     :: forall f tag a m i. Decide tag
-     => PickerMap f tag m
-     -> tag a
-     -> H.Component HH.HTML (Query f tag a) i Output m
+    :: forall f tag a m i. GOrd tag => GShow tag
+    => PickerMap f tag m
+    -> tag a
+    -> H.Component HH.HTML (Query f tag a) i (Output tag) m
 component picker t0 =
   H.mkComponent
-    { initialState
+    { initialState: initialState t0
     , render: render picker t0
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction t0
@@ -123,87 +138,140 @@ component picker t0 =
         }
     }
 
-initialState :: forall i tag. i -> State tag
-initialState _ = { tagChain: Seq.empty }
+type WrappedQuery f tag = SomeQuery (Query f tag) tag
+
+wrappedComponent
+    :: forall f tag a m i. GOrd tag => GShow tag
+    => PickerMap f tag m
+    -> tag a                   -- ^ initial initial type
+    -> H.Component HH.HTML (WrappedQuery f tag) i (Output tag) m
+wrappedComponent picker t0 = HU.hoistQuery
+    (unSomeQuery t0)
+    (component picker t0)
+
+
+initialState :: forall tag a i. tag a -> i -> State tag a
+initialState t0 _ = { tagChain: dsum t0 C.nil }
 
 render
-    :: forall tag f m a. Decide tag
+    :: forall tag f m a. GOrd tag => GShow tag
     => PickerMap f tag m
     -> tag a            -- ^ first type
-    -> State tag
-    -> H.ComponentHTML Action (ChildSlots f tag) m
+    -> State tag a
+    -> H.ComponentHTML (Action tag) (ChildSlots f tag) m
 render pickerMap t0 s = HH.div_ [
-      HH.div [HU.classProp "op-list"] $ flip mapWithIndex tList $ \i sT -> runExists (\t ->
-          let Picker comp = runDProd pickerMap t
-          in  HH.slot _chainLink i (HU.hoistQuery (unSomeSubQuery t) comp) unit (const (Just TriggerUpdate))
+      HH.div [HU.classProp "op-list"] <<< A.catMaybes <<< flip mapWithIndex inList $ \i sT -> runExists (\t ->
+          unwrap (runDProd pickerMap t) <#> \(Picker { component }) ->
+            let cix = { ix: i, tagIn: mkWrEx t }
+            in  trace (show cix) $ const $
+                  HH.slot _chainLink { ix: i, tagIn: mkWrEx t }
+                    (HU.hoistQuery (unSomeQuery t) component)
+                    unit
+                    $ \tOut -> Just (TriggerUpdate { ix: i, outputType: tOut })
       ) sT
     , HH.div [HU.classProp "op-buttons"] $ A.catMaybes $ [
-        Just $ HH.button [
-            HP.type_ HP.ButtonButton
-          , HE.onClick (\_ -> Just AddLink)
-          , HU.classProp "add-op"
-          ]
-          [ HH.text "Add Operation" ]
-      , if Seq.null s.tagChain
-          then Nothing
-          else Just $ HH.button [
+        runExists (\lastOut ->
+          unwrap (runDProd pickerMap lastOut) <#> \(Picker { initialOut }) ->
+            HH.button [
               HP.type_ HP.ButtonButton
-            , HE.onClick (\_ -> Just RemoveLink)
-            , HU.classProp "remove-op"
+            , HE.onClick (\_ -> Just (AddLink initialOut))
+            , HU.classProp "add-op"
             ]
-            [ HH.text "Remove Operation" ]
+            [ HH.text "Add Operation" ]
+        ) (fromMaybe (mkExists t0) (A.last outList))
+      , A.last inList <#> \tLast ->
+          HH.button [
+            HP.type_ HP.ButtonButton
+          , HE.onClick (\_ -> Just (RemoveLink tLast))
+          , HU.classProp "remove-op"
+          ]
+          [ HH.text "Remove Operation" ]
       ]
     ]
   where
-    tList = A.cons (mkExists t0) (A.fromFoldable s.tagChain)
+    inList  = withDSum s.tagChain (\_ ->
+                C.foldMapChain (\(TagLink t) -> [mkExists t.tagIn])
+              )
+    outList = withDSum s.tagChain (\_ ->
+                C.foldMapChain (\(TagLink t) -> [mkExists t.tagOut])
+              )
 
-unSomeSubQuery
-    :: forall f tag a r. Decide tag
-    => tag a
-    -> SomeSubQuery f tag r
-    -> SubQuery f tag a r
-unSomeSubQuery tExpected (SSQ ssq) = ssq.typeMatch (\tActual sq ->
-    case decide tExpected tActual of
-      Nothing   -> SWhat (ssq.typeMismatch (mkExists tExpected))
-      Just refl -> equivFromF2 refl sq
-  )
+-- | output type of final component
+lastOutput :: forall tag a. tag a -> Seq (Exists tag) -> Exists tag
+lastOutput t0 chain = case Seq.last chain of
+    Nothing -> mkExists t0
+    Just t  -> t
 
 handleAction
-    :: forall f tag m a.
-       tag a    -- ^ initial type
-    -> Action
-    -> H.HalogenM (State tag) Action (ChildSlots f tag) Output m Unit
-handleAction t0 = case _ of
-    AddLink -> do
-      st <- H.get
-      runExists (\tLast -> do
-          res <- H.query _chainLink (length st.tagChain) $ someSubQuery
-            tLast
-            (SQ identity)
-          case res of
-            Nothing         -> pure unit    -- ^ component returned nothing?
-            Just (Left _)   -> pure unit    -- ^ type mismatch error...should probably show
-            Just (Right sx) -> withDSum sx (\tX _ ->
-                H.put $ st {
-                    tagChain = Seq.snoc st.tagChain (mkExists tX)
-                  }
+    :: forall f tag m a. Decide tag => GShow tag
+    => tag a    -- ^ initial type
+    -> Action tag
+    -> H.HalogenM (State tag a) (Action tag) (ChildSlots f tag) (Output tag) m Unit
+handleAction t0 act = do
+    case act of
+      AddLink newInitialOutput -> runExists (\tNewOut ->
+        H.modify_ $ \st ->
+          { tagChain: withDSum st.tagChain (\tOldOut c -> dsum tNewOut $ C.snoc c
+              (TagLink { tagIn: tOldOut, tagOut: tNewOut})
+            )
+          }
+      ) newInitialOutput
+      RemoveLink _ -> H.modify_ $ \st ->
+        { tagChain : withDSum st.tagChain (\_ c ->
+            case C.unsnoc c of
+              Left _ -> dsum t0 (C.Nil refl)       -- this shouldn't ever happen, type error
+              Right us  -> withAp us (\xs (TagLink tl) ->   -- ^ this should be equal to the removelink field
+                dsum tl.tagIn xs
               )
-        ) (lastTag st.tagChain)
-    RemoveLink -> H.modify_ $ \st -> st
-      { tagChain = fold (Seq.init (st.tagChain)) }
-    TriggerUpdate -> H.raise ChainUpdate
-  where
-    lastTag chain = case Seq.last chain of
-      Nothing -> mkExists t0
-      Just t  -> t
+          )
+        }
+      TriggerUpdate { ix, outputType } -> do
+        st <- H.get
+        withDSum st.tagChain (\_ c -> withAp (C.splitAt ix c) (\xs ys ->
+            -- A -> B -> C -> D -> E
+            -- | 0  | 1  | 2  | 3  |
+            -- { xs | ys           }   <- let's say component 1 changes
+            -- { xs | z  : zs      }
+            --
+            -- if its new output is not C (the output of ix 1), then we
+            -- replace with:
+            --
+            -- A -> B -> C'
+            -- | 0  | 1  |
+            --
+            -- and keep only the head of ys (z)
+            --
+            -- so everything depends on the head of ys, aka z
+            case ys of
+              C.Nil refl -> pure unit       -- <- hmm.... this shouldn't ever happen
+              C.Cons ays -> withAp ays (\(TagLink z) zs ->
+                  runExists (\tNew ->
+                    case decide tNew z.tagOut of
+                      Nothing ->
+                        let zNew = TagLink { tagIn: z.tagIn, tagOut: tNew }
+                        in  H.put { tagChain: dsum tNew (C.snoc xs zNew) }
+                      Just refl -> pure unit        -- we're all good
+                  ) outputType
+                )
+          )
+        )
+    s <- H.get
+    traceM ( A.fold $
+        withDSum s.tagChain (\_ ->
+                C.foldMapChain (\(TagLink t) -> ["{", gshow t.tagIn, " -> ",
+                               gshow t.tagOut, "}"])
+              )
+
+      )
+    H.raise <<< ChainUpdate =<< lastTag t0
 
 data AssembleError tag =
-      AECompType
+      AEOutType
         { ix       :: Int
         , expected :: Exists tag
         , actual   :: Exists tag
         }
-    | AEChainType
+    | AEInType
         { ix       :: Int
         , expected :: Exists tag
         , actual   :: Exists tag
@@ -213,49 +281,92 @@ data AssembleError tag =
         , expected :: Exists tag
         }
 
+instance showAssembleError :: GShow tag => Show (AssembleError tag) where
+    show = case _ of
+      AEOutType r -> A.fold
+        [ "Output type mismatch at index " , show r.ix
+        , "; Expected " , runExists gshow r.expected
+        , ", got " , runExists gshow r.expected
+        ]
+      AEInType r -> A.fold
+        [ "Input type mismatch at index " , show r.ix
+        , "; Expected " , runExists gshow r.expected
+        , ", got " , runExists gshow r.expected
+        ]
+      AENoResponse r -> A.fold
+        [ "Component at index " , show r.ix
+        , " outputted no result; expecting ", runExists gshow r.expected
+        ]
+
 handleQuery
-    :: forall f tag m a o r. Decide tag
+    :: forall f tag m a o r. Decide tag => GOrd tag => GShow tag
     => tag a
     -> Query f tag a r
-    -> H.HalogenM (State tag) Action (ChildSlots f tag) o m (Maybe r)
+    -> PhatMonad f tag a o m (Maybe r)
 handleQuery t0 = case _ of
     AskSelected f -> assembleChain t0 <#> case _ of
-      Left  _  -> Nothing     -- how to log error?
+      Left  e  -> trace (show e) (const Nothing)     -- how to log error?
       Right xs -> Just (f xs)
 
+type PhatMonad f tag a o m = H.HalogenM (State tag a) (Action tag) (ChildSlots f tag) o m
+
 assembleChain
-    :: forall f tag a m o. Decide tag
+    :: forall f tag a m o. GOrd tag
     => tag a
-    -> H.HalogenM (State tag) Action (ChildSlots f tag) o m (Either (AssembleError tag) (DSum tag (Chain f a)))
+    -> PhatMonad f tag a o m (Either (AssembleError tag) (DSum tag (Chain f a)))
 assembleChain t0 = do
     s0 <- H.get
-    runExceptT $ go t0 0 s0.tagChain
+    withDSum s0.tagChain (\tLast chain ->
+      runExceptT <<< flip evalStateT 0 $ dsum tLast <$> C.hoistChainA go chain
+    )
   where
-    go  :: forall b.
-           tag b
-        -> Int
-        -> Seq (Exists tag)
-        -> ExceptT (AssembleError tag) (H.HalogenM (State tag) Action (ChildSlots f tag) o m) (DSum tag (Chain f b))
-    go t1 i tags = do
-      res <- lift $ H.query _chainLink i $ someSubQuery t1 (SQ identity)
+    go  :: forall r s.
+           TagLink tag r s
+        -> StateT Int (ExceptT (AssembleError tag) (PhatMonad f tag a o m)) (f r s)
+    go (TagLink { tagIn, tagOut }) = do
+      i <- get
+      modify_ (_ + 1)
+      res <- lift $ lift $ H.query
+        _chainLink
+        { ix: i, tagIn: mkWrEx tagIn }
+        (someQuery tagIn (SQ identity))
       case res of
-        Nothing       -> throwError $ AENoResponse { ix: i, expected: mkExists t1 }
-        Just (Left e) -> throwError $ AECompType { ix: i, expected: mkExists t1, actual: e }
+        Nothing       -> throwError $ AENoResponse { ix: i, expected: mkExists tagIn }
+        Just (Left e) -> throwError $ AEInType { ix: i, expected: mkExists tagIn, actual: e }
         Just (Right dsr) -> withDSum dsr (\t2 r ->
-            case Seq.uncons tags of
-              Nothing -> pure $ dsum t2 (C.singleton r)
-              Just (Tuple st2' ts) -> runExists (\t2' ->
-                  case decide t2 t2' of   -- TODO: i don't even need to check, do i?
-                    Nothing -> throwError $
-                      AEChainType { ix: i, expected: mkExists t2, actual: mkExists t2' }
-                    Just refl -> do
-                      drest <- go t2 (i + 1) ts
-                      withDSum drest (\tLast rest ->
-                        pure $ dsum tLast (C.cons r rest)
-                      )
-                ) st2'
+            case decide tagOut t2 of
+              Nothing -> throwError $
+                AEOutType { ix: i, expected: mkExists tagOut, actual: mkExists t2 }
+              Just refl -> pure $ equivFromF refl r
           )
+
+-- | last output
+lastTag :: forall f tag a o m. tag a -> PhatMonad f tag a o m (Exists tag)
+lastTag t0 = H.gets $ \s0 -> withDSum s0.tagChain (\tLast _ -> mkExists tLast)
+
+someQuery
+    :: forall f tag r a. Functor (f a)
+    => tag a
+    -> f a r
+    -> SomeQuery f tag (Either (Exists tag) r)
+someQuery t q = SomeQuery
+    { typeMismatch: Left
+    , typeMatch: \f -> f t (Right <$> q)
+    }
+
+unSomeQuery
+    :: forall f tag a r. Applicative (f a) => Decide tag
+    => tag a
+    -> SomeQuery f tag r
+    -> f a r
+unSomeQuery tExpected (SomeQuery {typeMatch, typeMismatch}) = typeMatch (\tActual sq ->
+    case decide tExpected tActual of
+      Nothing   -> pure (typeMismatch (mkExists tExpected))
+      Just refl -> equivFromF2 refl sq
+  )
+
 
 _chainLink :: SProxy "chainLink"
 _chainLink = SProxy
 
+-- foreign import logMe :: forall a. a -> String

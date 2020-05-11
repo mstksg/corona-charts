@@ -44,8 +44,8 @@ refl = Equiv \x -> x
 class Decide f where
     decide :: forall a b. f a -> f b -> Maybe (a ~ b)
 
-instance eqEquiv :: Eq (Equiv a b) where
-    eq _ _ = true
+-- instance eqEquiv :: Eq (Equiv a b) where
+--     eq _ _ = true
 
-instance ordEquiv :: Ord (Equiv a b) where
-    compare _ _ = EQ
+-- instance ordEquiv :: Ord (Equiv a b) where
+--     compare _ _ = EQ
