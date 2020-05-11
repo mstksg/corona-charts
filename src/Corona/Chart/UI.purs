@@ -3,9 +3,10 @@ module Corona.Chart.UI where
 
 import Prelude
 
+import Data.Int
 import Corona.Chart
+import Corona.Chart.UI.NumericOp as NumericOp
 import Corona.JHU
-import Corona.UI.NumericOp as NumericOp
 import D3.Scatter as D3
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
@@ -87,6 +88,7 @@ type ChildSlots =
 -- data Query f tag a r =
 
 initialCountries :: Set Country
+-- initialCountries = S.fromFoldable ["US"]
 initialCountries = S.fromFoldable ["US", "Egypt", "Italy"]
 
 component :: forall f i o m. MonadEffect m => CoronaData -> H.Component HH.HTML f i o m
@@ -104,9 +106,14 @@ initialState :: forall i. i -> State
 initialState _ = {
       xAxis: {
         projection: dsum D3.sDay $ projection {
-          base: Time refl
+            base: Time refl
           , operations: C.nil
           }
+        -- projection: dsum D3.sDays $ projection {
+        --   base: Time refl
+        --   , operations: C.cons (DaysSince refl refl testConf (AtLeast (toNumber 100)))
+        --       C.nil
+        --   }
       , numScale: NScale (DProd D3.Log)
       }
     , yAxis: {
@@ -118,6 +125,11 @@ initialState _ = {
       }
     , countries: initialCountries
     }
+  where
+    testConf = dsum D3.nInt $ projection 
+      { base: Confirmed refl
+      , operations: C.nil
+      }
 
 classProp :: forall r a. String -> HP.IProp (class :: String | r) a
 classProp cl = HP.class_ (HH.ClassName cl)

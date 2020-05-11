@@ -1,5 +1,5 @@
 
-module Corona.UI.NumericOp where
+module Corona.Chart.UI.NumericOp where
 
 import Prelude
 

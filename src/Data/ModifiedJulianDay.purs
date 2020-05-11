@@ -3,6 +3,7 @@ module Data.ModifiedJulianDay where
 
 import Prelude
 import Data.Maybe
+import Data.Newtype
 import Data.Time as T
 import Data.Time.Duration as D
 import Data.Enum
@@ -19,6 +20,10 @@ newtype Day = Day Int
 
 derive instance eqDay :: Eq Day
 derive instance ordDay :: Ord Day
+derive instance ntDay :: Newtype Day _
+
+instance showDay :: Show Day where
+    show (Day x) = "Day " <> show x
 
 addDays :: Int -> Day -> Day
 addDays x (Day y) = Day (x + y)

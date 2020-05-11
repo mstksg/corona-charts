@@ -20,6 +20,7 @@ import Data.Int
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
 import Data.List as L
+import Data.List.Lazy as LL
 import Data.List.NonEmpty as NE
 import Data.Map as M
 import Data.Maybe
@@ -48,6 +49,7 @@ import Type.DSum
 import Type.Equality
 import Type.Equiv
 import Type.GCompare
+import Undefined
 
 data BaseProjection a =
         Time      (a ~ Day)
@@ -138,8 +140,6 @@ instance gshowProjection :: GShow Projection where
 instance showProjection :: Show (Projection a) where
     show = gshow
 
-data Condition a = AtLeast a | AtMost a
-
 data ToFractional a b =
       I2N (a ~ Int)     (b ~ Number)
     | N2N (a ~ Number)  (b ~ Number)
@@ -162,6 +162,13 @@ toFractionalOut = case _ of
     N2N _ r -> SNumber r
     P2P _ r -> SPercent r
 
+data Condition = AtLeast Number | AtMost Number
+
+instance showCondition :: Show Condition where
+    show = case _ of
+      AtLeast n -> "AtLeast " <> show n
+      AtMost  n -> "AtMost " <> show n
+
 data Operation a b =
         Delta     (NType a) (a ~ b)       -- ^ dx/dt
       | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
@@ -169,8 +176,9 @@ data Operation a b =
       | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
       -- | PGrowth   (a ~ Number) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
       -- | Window    (a ~ Number) (b ~ Number) Int -- ^ moving average of x over t, window (2n+1)
-      -- | DaysSince SomeCondition (Equiv a JSDate) (Equiv b Duration)
+      | DaysSince (a ~ Day) (b ~ Days) (DSum NType Projection) Condition
             -- ^ says since x has met a condition
+      -- SomeCondition (Equiv a JSDate) (Equiv b Duration)
       -- | Chain     (forall r. (forall c. Operation a c -> Operation c b -> r) -> r)
 
 instance gshow2Operation :: GShow2 Operation where
@@ -178,6 +186,7 @@ instance gshow2Operation :: GShow2 Operation where
       Delta   _ _ -> "Delta"
       PGrowth _ _ -> "PGrowth"
       Window  _ n -> "Window " <> show n
+      DaysSince _ _ p c -> "DaysSince (" <> show p <> ") (" <> show c <> ")"
 instance gshowOperation :: GShow (Operation a) where
     gshow = gshow2
 instance showOperation :: Show (Operation a b) where
@@ -188,19 +197,13 @@ operationInType = case _ of
     Delta   nt _ -> fromNType nt
     PGrowth nt _ -> fromNType nt
     Window  tf _ -> toFractionalIn tf
+    DaysSince r _ _ _ -> SDay r
 operationOutType :: forall a b. Operation a b -> SType b
 operationOutType = case _ of
     Delta   nt r -> equivToF r (fromNType nt)
     PGrowth _  r -> SPercent r
     Window  tf _ -> toFractionalOut tf
-
--- data Last f a b =
---         CLNil  (a ~ b)
---       | CLLast (forall r. (forall c. f a c -> r) -> r)
--- -- newtype InHelp a b = IH (SType a)
-
--- chainInType :: forall a b. C.Chain Operation a b -> SType a -> SType b
--- chainInType ops = C.runChain applyOperation pr.operations (IH
+    DaysSince _ r _ _ -> SDays r
 
 percentGrowth
     :: Number
@@ -249,45 +252,28 @@ windows n = case _ of
       Just (Tuple y ys) -> NESeq.Seq y (Seq.snoc ys x)
     
 applyOperation
-    :: forall a b. Operation a b
+    :: forall a b.
+       Dated (Counts Int)   -- ^ environment (all info)
+    -> Operation a b
     -> Dated a
     -> Dated b
-applyOperation = case _ of
+applyOperation env = case _ of
         -- Delta     (NType a) (a ~ b)       -- ^ dx/dt
     Delta num rab -> \(Dated x) -> Dated
-        { start: MJD.addDays 1 x.start
-        , values: case num of
-            NInt rac ->
-                withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
-                  x.values
-            NNumber rac ->
-                withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
-                  x.values
-            NPercent rac ->
-                withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
-                  x.values
+        { start: MJD.addDays (-1) x.start
+        , values: withConsec
+            (\y0 y1 -> equivTo rab (nTypeSubtract num y1 y0))
+            x.values
         }
     PGrowth num rbp -> \(Dated x) -> Dated
-        { start: MJD.addDays 1 x.start
-        , values: case num of
-            NInt rac ->
-                withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
-                                (toNumber $ equivTo rac y0)
-                                (toNumber $ equivTo rac y1))
-                    x.values
-            NNumber rac ->
-                withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
-                                (equivTo rac y0)
-                                (equivTo rac y1))
-                    x.values
-            NPercent rac ->
-                withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
-                                (unPercent $ equivTo rac y0)
-                                (unPercent $ equivTo rac y1))
-                    x.values
+        { start: MJD.addDays (-1) x.start
+        , values: withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
+                                (nTypeNumber num y0)
+                                (nTypeNumber num y1)
+                  ) x.values
         }
     Window tf n -> \(Dated x) -> Dated
-        { start: MJD.addDays n x.start
+        { start: MJD.addDays (-n) x.start
         , values: case tf of
             I2N rai rbn ->
               withWindow n (\ys -> equivFrom rbn $
@@ -301,21 +287,23 @@ applyOperation = case _ of
                 withWindow n (\ys -> equivFrom rbp $
                         sum (map (equivTo rap) ys) / Percent (toNumber (n*2+1)))
                     x.values
-            -- NInt rac ->
-            --     withWindow n (\ys -> equivFrom rbn $
-            --             toNumber (sum (map (equivTo rac) ys)) / toNumber (n*2+1))
-            --         x.values
-            -- NNumber rac ->
-            --     withWindow n (\ys -> equivFrom rbn $
-            --             sum (map (equivTo rac) ys) / toNumber (n*2+1))
-            --         x.values
-            -- NPercent rac ->
-            --     withWindow n (\ys -> equivFrom rbn $
-            --             sum (map (unPercent <<< equivTo rac) ys) / toNumber (n*2+1))
-            --         x.values
         }
-    -- DaysSince c refl refl' -> ?e
+    DaysSince rad rbds spr cond -> \(Dated x) -> withDSum spr (\nt pr ->
+      let refDat     = applyProjection pr env
+          emptyDated = Dated { start: x.start, values: [] }
+      in  maybe emptyDated (equivFromF rbds) do
+            Day cutoff <- D.findIndex (applyCondition cond <<< nTypeNumber nt) refDat
+            LL.head <<< flip D.mapMaybe (equivToF rad $ Dated x) $ \(Day d) ->
+                let daysSince = d - cutoff
+                in  if daysSince >= 0
+                      then Just (Days daysSince)
+                      else Nothing
+    )
 
+applyCondition :: Condition -> Number -> Boolean
+applyCondition = case _ of
+    AtLeast n -> (_ > n)
+    AtMost n  -> (_ < n)
 
 applyBaseProjection
     :: forall a. 
@@ -334,9 +322,9 @@ applyProjection
        Projection a
     -> Dated (Counts Int)
     -> Dated a
-applyProjection spr = withProjection spr (\pr ->
-          C.runChain applyOperation pr.operations <<< applyBaseProjection pr.base
-        )
+applyProjection spr allDat = withProjection spr (\pr ->
+          C.runChain (applyOperation allDat) pr.operations <<< applyBaseProjection pr.base
+        ) allDat
 
 baseProjectionLabel :: forall a. BaseProjection a -> String
 baseProjectionLabel = case _ of
@@ -350,6 +338,14 @@ operationLabel = case _ of
     Delta   _ _ -> "Daily Change in"
     PGrowth _ _ -> "Daily Percent Growth in"
     Window  _ n -> "Moving Average (+/-" <> show n <> ") of"
+    DaysSince _ _ p c -> withDSum p (\_ pp ->
+            "Days since " <> projectionLabel pp <> " is " <> conditionLabel c   -- ???
+        )
+
+conditionLabel :: Condition -> String
+conditionLabel = case _ of
+    AtLeast n -> "at least " <> show n
+    AtMost  n -> "at most " <> show n
 
 operationsLabel :: forall a b. C.Chain Operation a b -> String
 operationsLabel c = res
@@ -375,8 +371,8 @@ toSeries
     -> Projection b
     -> Dated (Counts Int)
     -> Array (Point a b)
-toSeries pX pY ps = D.datedValues $
-    lift2 (\x y -> {x, y}) (applyProjection pX ps) (applyProjection pY ps)
+toSeries pX pY ps = D.datedValues $ spy "xy" $
+    lift2 (\x y -> {x, y}) (spy "x" $ applyProjection pX ps) (spy "y" $ applyProjection pY ps)
 
 toScatterPlot
     :: forall a b.
@@ -424,4 +420,6 @@ setOperations tA chain spr = withProjection spr (\pr -> do
     )
 
 foreign import incrDate  :: Int -> JSDate -> JSDate
--- foreign import traceTime :: forall a b. DebugWarning => a -> (Unit -> b) -> b
+foreign import traceTime :: forall a b. DebugWarning => a -> (Unit -> b) -> b
+foreign import spy :: forall a. String -> a -> a
+

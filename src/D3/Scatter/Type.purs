@@ -5,6 +5,7 @@ import Prelude
 
 import Data.Either
 import Data.Enum
+import Data.Int
 import Data.Newtype
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
@@ -175,6 +176,18 @@ toNType = case _ of
     SInt     r -> Right $ NInt r
     SNumber  r -> Right $ NNumber r
     SPercent r -> Right $ NPercent r
+
+nTypeNumber :: forall a. NType a -> a -> Number
+nTypeNumber = case _ of
+    NInt   r -> toNumber <<< equivTo r
+    NNumber r -> equivTo r
+    NPercent r -> unPercent <<< equivTo r
+
+nTypeSubtract :: forall a. NType a -> a -> a -> a
+nTypeSubtract = case _ of
+    NInt     r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
+    NNumber  r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
+    NPercent r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
 
 -- nDays :: NType Days
 -- nDays = NDays refl

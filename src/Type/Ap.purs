@@ -1,7 +1,7 @@
 
 module Type.Ap where
 
-data Ap f g a b = Ap (forall r. (forall x. f a x -> g x b -> r) -> r)
+newtype Ap f g a b = Ap (forall r. (forall x. f a x -> g x b -> r) -> r)
 
 mkAp :: forall f g a b c. f a b -> g b c -> Ap f g a c
 mkAp x y = Ap (\f -> f x y)
