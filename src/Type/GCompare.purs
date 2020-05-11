@@ -27,6 +27,9 @@ class GEq f <= GOrd f where
 class GShow f where
     gshow :: forall a. f a -> String
 
+class GShow2 f where
+    gshow2 :: forall a b. f a b -> String
+
 newtype WrEx k = WrEx (Exists k)
 
 mkWrEx :: forall k a. k a -> WrEx k

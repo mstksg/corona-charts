@@ -5,6 +5,7 @@ import Prelude
 
 import Data.Either
 import Data.Enum
+import Data.Newtype
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
 import Data.Maybe
@@ -35,6 +36,7 @@ instance daySemiring :: Semiring Days where
     one = Days one
 instance dayRing :: Ring Days where
     sub (Days x) (Days y) = Days (x - y)
+
 
 newtype Percent  = Percent Number
 
@@ -142,6 +144,15 @@ data NType a =
       | NNumber  (a ~ Number)
       | NPercent (a ~ Percent)
 
+instance showNType :: Show (NType a) where
+    show = case _ of
+      NDays _ -> "NDays"
+      NInt _ -> "NInt"
+      NNumber _ -> "NNumber"
+      NPercent _ -> "NPercent"
+instance gshowNType :: GShow NType where
+    gshow = show
+
 fromNType :: forall a. NType a -> SType a
 fromNType = case _ of
     NInt     refl -> SInt refl
@@ -196,6 +207,16 @@ data Scale a = Date   (a ~ Day)
              | Linear (NType a)
              | Log    (NType a)
 
+instance gshowScale :: GShow Scale where
+    gshow = case _ of
+      Date _ -> "Date"
+      Linear _ -> "Linear"
+      Log _    -> "Log"
+instance showScale :: Show (Scale a) where
+    show = gshow
+
+
+
 defaultScale :: forall a. SType a -> Scale a
 defaultScale = case _ of
     SDay  refl    -> Date refl
@@ -211,13 +232,21 @@ sLinear = Linear nType
 sLog :: forall a. NTypeable a => Scale a
 sLog = Log nType
 
-type NScale = DProd NType Scale
+newtype NScale = NScale (DProd NType Scale)
+
+derive instance newtypeNScale :: Newtype NScale _
+
+instance showNScale :: Show NScale where
+    show (NScale x) = gshow (runDProd x nInt)
 
 toNScale :: forall a. Scale a -> Either (a ~ Day) NScale
 toNScale = case _ of
     Date refl -> Left refl
-    Linear n  -> Right (DProd Linear)
-    Log    n  -> Right (DProd Log)
+    Linear n  -> Right (NScale (DProd Linear))
+    Log    n  -> Right (NScale (DProd Log))
+
+runNScale :: forall a. NScale -> NType a -> Scale a
+runNScale (NScale x) = runDProd x
 
 type AxisConf a = { scale :: Scale a, label :: String }
 

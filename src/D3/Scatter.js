@@ -72,6 +72,18 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
     const fmtX = fmt(typeX);
     const fmtY = fmt(typeY);
 
+    const validVal = scale => val =>
+        !isNaN(val) && handleScale(scale)(
+          { date: (() => true)
+          , linear: (() => true)
+          , log: (() => val > 0)
+          }
+        );
+    const validX = validVal(scatter.xAxis.scale);
+    const validY = validVal(scatter.yAxis.scale);
+    const validPair = function(p) {
+        return validX(p.x) && validY(p.y);
+    }
     const convert = tp => val =>
         handleType(tp)(
             { day:     (() => fromMJD(val))
@@ -89,28 +101,29 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
 
     return function () {
         exports.clearSvg(svg)();
-        // console.log(scatter);
+        console.log(scatter);
         const width = 1000;
         const height = 600;
         const margin = { top: 20, right: 20, bottom: 20, left: 50 };
         const series = scatter.series.map(function(s) {
                 return { name: s.name
-                       , values: s.values.map(convertPair)
+                       , values: s.values.filter(validPair).map(convertPair)
                        };
             });
+        console.log(series);
 
         const allx = series.map(s => s.values.map(p => p.x) ).flat();
         const ally = series.map(s => s.values.map(p => p.y) ).flat();
 
         const x = scaleFunc(scatter.xAxis.scale)
-                        .domain(d3.extent(allx.filter(x => !isNaN(x) && x != 0))).nice()
+                        .domain(d3.extent(allx)).nice()
                         .range([margin.left, width - margin.right]);
         const y = scaleFunc(scatter.yAxis.scale)
-                        .domain(d3.extent(ally.filter(y => !isNaN(y) && y != 0))).nice()
+                        .domain(d3.extent(ally)).nice()
                         .range([height - margin.bottom, margin.top]);
 
         const line = d3.line()
-                            .defined(d => !isNaN(d.y) && d.y != 0 && !isNaN(d.x) && d.x != 0)
+                            // .defined(validPair)
                             .x(d => x(d.x))
                             .y(d => y(d.y));
 

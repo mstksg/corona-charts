@@ -19,6 +19,7 @@ import Data.ModifiedJulianDay (Day)
 import Data.Set (Set)
 import Data.Set as S
 import Data.Symbol (SProxy(..))
+import Debug.Trace
 import Effect.Class
 import Effect.Class.Console
 import Foreign.Object as O
@@ -64,7 +65,7 @@ lookupScale
     -> D3.Scale a
 lookupScale st ns = case D3.toNType st of
     Left  refl -> D3.Date refl
-    Right nt   -> runDProd ns nt
+    Right nt   -> D3.runNScale ns nt
 
 data Action =
         SetCountries (Set Country)
@@ -105,14 +106,14 @@ initialState _ = {
           base: Time refl
           , operations: C.nil
           }
-      , numScale: DProd D3.Log
+      , numScale: NScale (DProd D3.Log)
       }
     , yAxis: {
         projection: dsum D3.sInt $ projection {
             base: Confirmed refl
           , operations: C.Nil refl
           }
-      , numScale: DProd D3.Log
+      , numScale: NScale (DProd D3.Log)
       }
     , countries: initialCountries
     }
@@ -208,8 +209,8 @@ axisPicker axis aState b0 = HH.div [classProp "axis-options"] [
       _ -> Nothing
     indexToNScale :: Int -> Maybe NScale
     indexToNScale = case _ of
-      0 -> Just (DProd Linear)
-      1 -> Just (DProd Log)
+      0 -> Just (NScale (DProd Linear))
+      1 -> Just (NScale (DProd Log))
       _ -> Nothing
     label :: String
     label = case axis of
@@ -292,6 +293,7 @@ reRender
      -> H.HalogenM State Action ChildSlots o m Unit
 reRender dat = do
     st :: State <- H.get
+    traceM (show st)
     withDSum st.xAxis.projection (\tX pX ->
       withDSum st.yAxis.projection (\tY pY -> void $
         H.query _scatter unit $ Scatter.Query

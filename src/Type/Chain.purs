@@ -3,13 +3,16 @@ module Type.Chain where
 
 import Prelude
 
-import Data.Either
-import Data.Newtype
+import Data.Array as A
 import Data.Const
-import Type.Equiv
-import Type.Equality
-import Undefined
+import Data.Either
+import Data.Foldable
+import Data.Newtype
 import Type.Ap
+import Type.Equality
+import Type.Equiv
+import Type.GCompare
+import Undefined
 
 data Chain f a b =
       Nil (a ~ b)
@@ -121,3 +124,13 @@ splitAt n xs
           )
         )
 
+instance gshow2Chain :: GShow2 f => GShow2 (Chain f) where
+    gshow2 = brack
+         <<< intercalate ", "
+         <<< foldMapChain (A.singleton <<< gshow2)
+      where
+        brack x = "[" <> x <> "]"
+instance gshowChain :: GShow2 f => GShow (Chain f a) where
+    gshow = gshow2
+instance showChain :: GShow2 f => Show (Chain f a b) where
+    show = gshow

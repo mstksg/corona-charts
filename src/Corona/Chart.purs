@@ -26,6 +26,7 @@ import Data.Maybe
 import Data.ModifiedJulianDay (Day(..))
 import Data.ModifiedJulianDay as MJD
 import Data.NonEmpty as NE
+import Data.Number
 import Data.Options
 import Data.Semiring
 import Data.Sequence as Seq
@@ -36,7 +37,6 @@ import Data.Tuple
 import Data.Void
 import Debug.Trace
 import Effect.Aff.Class (class MonadAff, liftAff)
-import Type.DSum
 import Effect.Class
 import Foreign.Object as O
 import Halogen as H
@@ -44,6 +44,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource as ES
 import Type.Chain as C
+import Type.DSum
 import Type.Equality
 import Type.Equiv
 import Type.GCompare
@@ -60,6 +61,15 @@ baseType = case _ of
     Confirmed refl -> SInt refl
     Deaths    refl -> SInt refl
     Recovered refl -> SInt refl
+
+instance gshowBase :: GShow BaseProjection where
+    gshow = case _ of
+      Time      _ -> "Time"
+      Confirmed _ -> "Confirmed"
+      Deaths    _ -> "Deaths"
+      Recovered _ -> "Recovered"
+instance showBase :: Show (BaseProjection a) where
+    show = gshow
 
 bTime      :: BaseProjection Day
 bTime      = Time refl
@@ -121,6 +131,13 @@ projection
     -> Projection b
 projection x = Projection (\f -> f x)
 
+instance gshowProjection :: GShow Projection where
+    gshow spr = withProjection spr (\pr ->
+        "{" <> show pr.base <> "}: " <> show pr.operations
+      )
+instance showProjection :: Show (Projection a) where
+    show = gshow
+
 data Condition a = AtLeast a | AtMost a
 
 data Operation a b =
@@ -132,6 +149,16 @@ data Operation a b =
       -- | DaysSince SomeCondition (Equiv a JSDate) (Equiv b Duration)
             -- ^ says since x has met a condition
       -- | Chain     (forall r. (forall c. Operation a c -> Operation c b -> r) -> r)
+
+instance gshow2Operation :: GShow2 Operation where
+    gshow2 = case _ of
+      Delta   _ _   -> "Delta"
+      PGrowth _ _   -> "PGrowth"
+      Window  _ _ n -> "Window " <> show n
+instance gshowOperation :: GShow (Operation a) where
+    gshow = gshow2
+instance showOperation :: Show (Operation a b) where
+    show = gshow
 
 operationInType :: forall a b. Operation a b -> SType a
 operationInType = case _ of
@@ -156,7 +183,9 @@ percentGrowth
     :: Number
     -> Number
     -> Percent
-percentGrowth x y = Percent ((y - x) / x)
+percentGrowth x y
+    | x == zero = Percent nan
+    | otherwise = Percent ((y - x) / x)
 
 withConsec
     :: forall a b.
@@ -297,7 +326,7 @@ operationLabel :: forall a b. Operation a b -> String
 operationLabel = case _ of
     Delta   _ _   -> "Daily Change in"
     PGrowth _ _   -> "Daily Percent Growth in"
-    Window  _ _ n -> "Moving Average (±" <> show n <> ") of"
+    Window  _ _ n -> "Moving Average (\x00b1" <> show n <> ") of"
 
 operationsLabel :: forall a b. C.Chain Operation a b -> String
 operationsLabel c = res
@@ -347,8 +376,8 @@ toScatterPlot dat pX sX pY sY ctrys =
         }
 
 setBase :: forall a. BaseProjection a -> DSum SType Projection -> DSum SType Projection
-setBase base dp = withDSum dp (\tB pr ->
-      withProjection pr (\pr ->
+setBase base dp = withDSum dp (\tB spr ->
+      withProjection spr (\pr ->
         let tC = baseType pr.base
         in  case decide tA tC of
               Just refl -> dsum tB $ projection {

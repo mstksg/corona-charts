@@ -14,8 +14,12 @@ newtype DSum tag f = DSum
 dsum :: forall tag f a. tag a -> f a -> DSum tag f
 dsum k v = DSum (\f -> f k v)
 
+infix 1 dsum as :=>
+
 withDSum :: forall tag f r. DSum tag f -> (forall a. tag a -> f a -> r) -> r
 withDSum (DSum f) = f
+
+
 
 instance eqDSum :: (Decide tag, Decide f) => Eq (DSum tag f) where
     eq x y = withDSum x (\xA xB ->
@@ -30,3 +34,10 @@ instance ordDSum :: (GOrd tag, GOrd f) => Ord (DSum tag f) where
                         <> toOrdering (gcompare xB yB)
                     )
                   )
+instance showDSum :: (GShow tag, GShow f) => Show (DSum tag f) where
+    show ds = withDSum ds (\x y -> gshow x <> " :=> " <> gshow y)
+    -- x y = withDSum x (\xA xB ->
+    --            withDSum y (\yA yB ->
+    --              isJust (decide xA yA) && isJust (decide xB yB)
+    --            )
+    --          )
