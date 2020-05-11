@@ -158,6 +158,6 @@ assembleOp t0 = H.gets $ \st ->
     case st.currentOp of
       ODelta   -> D3.fromNType t0 `dsum` Delta   t0 refl
       OPGrowth -> D3.sPercent     `dsum` PGrowth t0 refl
-      OWindow  -> D3.sNumber      `dsum` Window  t0 refl (st.windowSize)
--- data Output = ChangeEvent (Exists D3.SType)
--- data Query a r = QueryOp (DSum D3.SType (Operation a) -> r)
+      OWindow  -> runExists (\tf ->
+               toFractionalOut tf `dsum` Window  tf (st.windowSize)
+        ) (toFractional t0)

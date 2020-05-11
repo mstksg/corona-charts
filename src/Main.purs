@@ -7,6 +7,7 @@ import Corona.JHU (fetchCoronaData)
 import Data.Either (Either(..))
 import Effect (Effect)
 import Effect.Class (liftEffect)
+import Effect.Class.Console
 import Effect.Exception (throwException, error)
 import Halogen.Aff as HA
 import Halogen.VDom.Driver (runUI)
@@ -17,6 +18,8 @@ main = HA.runHalogenAff do
     Right x -> pure x
     Left e  -> liftEffect (throwException (error e))
   body <- HA.awaitBody
+  -- log "\xb1"
+
   runUI (UI.component dat) unit body
 
 foreign import logMe :: forall a. a -> Effect Unit

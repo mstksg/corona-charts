@@ -50,6 +50,13 @@ instance percentSemiring :: Semiring Percent where
     one = Percent one
 instance percentRing :: Ring Percent where
     sub (Percent x) (Percent y) = Percent (x - y)
+instance percentCRing :: CommutativeRing Percent
+instance percentERing :: EuclideanRing Percent where
+    degree (Percent x) = degree x
+    div (Percent x) (Percent y) = Percent (div x y)
+    mod (Percent x) (Percent y) = Percent (mod x y)
+    
+
 
 data SType a =
         SDay     (a ~ Day)
@@ -139,14 +146,14 @@ sTypeIx = case _ of
 
 -- | subset of numeric stypes
 data NType a =
-        NDays    (a ~ Days)
-      | NInt     (a ~ Int)
+        -- NDays    (a ~ Days)
+        NInt     (a ~ Int)
       | NNumber  (a ~ Number)
       | NPercent (a ~ Percent)
 
 instance showNType :: Show (NType a) where
     show = case _ of
-      NDays _ -> "NDays"
+      -- NDays _ -> "NDays"
       NInt _ -> "NInt"
       NNumber _ -> "NNumber"
       NPercent _ -> "NPercent"
@@ -155,21 +162,22 @@ instance gshowNType :: GShow NType where
 
 fromNType :: forall a. NType a -> SType a
 fromNType = case _ of
-    NInt     refl -> SInt refl
-    NDays    refl -> SDays refl
-    NNumber  refl -> SNumber refl
-    NPercent refl -> SPercent refl
+    NInt     r -> SInt r
+    -- NDays    r -> SDays r
+    NNumber  r -> SNumber r
+    NPercent r -> SPercent r
 
-toNType :: forall a. SType a -> Either (a ~ Day) (NType a)
+toNType :: forall a. SType a -> Either (a ~ Day || a ~ Days) (NType a)
 toNType = case _ of
-    SDay     refl -> Left refl
-    SDays    refl -> Right $ NDays refl
-    SInt     refl -> Right $ NInt refl
-    SNumber  refl -> Right $ NNumber refl
-    SPercent refl -> Right $ NPercent refl
+    SDay     r -> Left (Left r)
+    SDays    r -> Left (Right r)
+    -- SDays    r -> Right $ NDays r
+    SInt     r -> Right $ NInt r
+    SNumber  r -> Right $ NNumber r
+    SPercent r -> Right $ NPercent r
 
-nDays :: NType Days
-nDays = NDays refl
+-- nDays :: NType Days
+-- nDays = NDays refl
 nInt :: NType Int
 nInt = NInt refl
 nNumber :: NType Number
@@ -179,8 +187,8 @@ nPercent = NPercent refl
 
 class NTypeable a where
     nType :: NType a
-instance ntDays :: NTypeable Days where
-    nType = nDays
+-- instance ntDays :: NTypeable Days where
+--     nType = nDays
 instance ntInt :: NTypeable Int where
     nType = nInt
 instance ntNumber :: NTypeable Number where
@@ -204,7 +212,7 @@ type SeriesData a b =
 infixr 1 type Either as ||
 
 data Scale a = Date   (a ~ Day)
-             | Linear (NType a)
+             | Linear (a ~ Days || NType a)
              | Log    (NType a)
 
 instance gshowScale :: GShow Scale where
@@ -219,16 +227,17 @@ instance showScale :: Show (Scale a) where
 
 defaultScale :: forall a. SType a -> Scale a
 defaultScale = case _ of
-    SDay  refl    -> Date refl
-    SDays refl    -> Linear (NDays refl)
-    SInt  refl    -> Linear (NInt  refl)  -- maybe log?
-    SNumber refl  -> Linear (NNumber refl)
-    SPercent refl -> Linear (NPercent refl)
+    SDay  r    -> Date r
+    SDays r    -> Linear (Left r)
+    -- SDays r    -> Linear (NDays r)
+    SInt  r    -> Log (NInt  r)  -- maybe log?
+    SNumber r  -> Log (NNumber r)
+    SPercent r -> Linear (Right (NPercent r))
 
 sDate :: Scale Day
 sDate = Date refl
 sLinear :: forall a. NTypeable a => Scale a
-sLinear = Linear nType
+sLinear = Linear (Right nType)
 sLog :: forall a. NTypeable a => Scale a
 sLog = Log nType
 
@@ -239,10 +248,12 @@ derive instance newtypeNScale :: Newtype NScale _
 instance showNScale :: Show NScale where
     show (NScale x) = gshow (runDProd x nInt)
 
-toNScale :: forall a. Scale a -> Either (a ~ Day) NScale
+toNScale :: forall a. Scale a -> Either (a ~ Day || a ~ Days) NScale
 toNScale = case _ of
-    Date refl -> Left refl
-    Linear n  -> Right (NScale (DProd Linear))
+    Date   r  -> Left  (Left r)
+    Linear dn -> case dn of
+      Left  d -> Left (Right d)
+      Right n -> Right (NScale (DProd (Linear <<< Right)))
     Log    n  -> Right (NScale (DProd Log))
 
 runNScale :: forall a. NScale -> NType a -> Scale a
@@ -268,7 +279,7 @@ type SomeScatterPlot =
 newtype OnScale a = OnScale
     (forall r.
         { date   :: a ~ Day -> r
-        , linear :: NType a -> r
+        , linear :: (a ~ Days || NType a) -> r
         , log    :: NType a -> r
         } -> r
     )

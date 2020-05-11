@@ -140,10 +140,33 @@ instance showProjection :: Show (Projection a) where
 
 data Condition a = AtLeast a | AtMost a
 
+data ToFractional a b =
+      I2N (a ~ Int)     (b ~ Number)
+    | N2N (a ~ Number)  (b ~ Number)
+    | P2P (a ~ Percent) (b ~ Percent)
+
+toFractional :: forall a. NType a -> Exists (ToFractional a)
+toFractional = case _ of
+    NInt r     -> mkExists (I2N r refl)
+    NNumber r  -> mkExists (N2N r r)
+    NPercent r -> mkExists (P2P r r)
+
+toFractionalIn :: forall a b. ToFractional a b -> SType a
+toFractionalIn = case _ of
+    I2N r _ -> SInt r
+    N2N r _ -> SNumber r
+    P2P r _ -> SPercent r
+toFractionalOut :: forall a b. ToFractional a b -> SType b
+toFractionalOut = case _ of
+    I2N _ r -> SNumber r
+    N2N _ r -> SNumber r
+    P2P _ r -> SPercent r
+
 data Operation a b =
         Delta     (NType a) (a ~ b)       -- ^ dx/dt
       | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
-      | Window    (NType a) (b ~ Number ) Int -- ^ moving average of x over t, window (2n+1)
+      -- | Window    (NType a) (b ~ Number ) Int -- ^ moving average of x over t, window (2n+1)
+      | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
       -- | PGrowth   (a ~ Number) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
       -- | Window    (a ~ Number) (b ~ Number) Int -- ^ moving average of x over t, window (2n+1)
       -- | DaysSince SomeCondition (Equiv a JSDate) (Equiv b Duration)
@@ -152,9 +175,9 @@ data Operation a b =
 
 instance gshow2Operation :: GShow2 Operation where
     gshow2 = case _ of
-      Delta   _ _   -> "Delta"
-      PGrowth _ _   -> "PGrowth"
-      Window  _ _ n -> "Window " <> show n
+      Delta   _ _ -> "Delta"
+      PGrowth _ _ -> "PGrowth"
+      Window  _ n -> "Window " <> show n
 instance gshowOperation :: GShow (Operation a) where
     gshow = gshow2
 instance showOperation :: Show (Operation a b) where
@@ -162,14 +185,14 @@ instance showOperation :: Show (Operation a b) where
 
 operationInType :: forall a b. Operation a b -> SType a
 operationInType = case _ of
-    Delta   nt _   -> fromNType nt
-    PGrowth nt _   -> fromNType nt
-    Window  nt _ _ -> fromNType nt
+    Delta   nt _ -> fromNType nt
+    PGrowth nt _ -> fromNType nt
+    Window  tf _ -> toFractionalIn tf
 operationOutType :: forall a b. Operation a b -> SType b
 operationOutType = case _ of
-    Delta   nt refl   -> equivToF refl (fromNType nt)
-    PGrowth _  refl   -> SPercent refl
-    Window  _  refl _ -> SNumber refl
+    Delta   nt r -> equivToF r (fromNType nt)
+    PGrowth _  r -> SPercent r
+    Window  tf _ -> toFractionalOut tf
 
 -- data Last f a b =
 --         CLNil  (a ~ b)
@@ -234,9 +257,6 @@ applyOperation = case _ of
     Delta num rab -> \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: case num of
-            NDays rac ->
-                withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
-                  x.values
             NInt rac ->
                 withConsec (\y0 y1 -> equivTo rab $ equivFrom rac $ equivTo rac y1 - equivTo rac y0)
                   x.values
@@ -250,11 +270,6 @@ applyOperation = case _ of
     PGrowth num rbp -> \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: case num of
-            NDays rac ->
-                withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
-                                (toNumber $ unDays $ equivTo rac y0)
-                                (toNumber $ unDays $ equivTo rac y1))
-                    x.values
             NInt rac ->
                 withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
                                 (toNumber $ equivTo rac y0)
@@ -271,25 +286,33 @@ applyOperation = case _ of
                                 (unPercent $ equivTo rac y1))
                     x.values
         }
-    Window num rbn n -> \(Dated x) -> Dated
+    Window tf n -> \(Dated x) -> Dated
         { start: MJD.addDays n x.start
-        , values: case num of
-            NDays rac ->
+        , values: case tf of
+            I2N rai rbn ->
+              withWindow n (\ys -> equivFrom rbn $
+                      toNumber (sum (map (equivTo rai) ys)) / toNumber (n*2+1))
+                  x.values
+            N2N ran rbn ->
                 withWindow n (\ys -> equivFrom rbn $
-                        sum (map (toNumber <<< unDays <<< equivTo rac) ys) / toNumber (n*2+1))
+                        sum (map (equivTo ran) ys) / toNumber (n*2+1))
                     x.values
-            NInt rac ->
-                withWindow n (\ys -> equivFrom rbn $
-                        toNumber (sum (map (equivTo rac) ys)) / toNumber (n*2+1))
+            P2P rap rbp ->
+                withWindow n (\ys -> equivFrom rbp $
+                        sum (map (equivTo rap) ys) / Percent (toNumber (n*2+1)))
                     x.values
-            NNumber rac ->
-                withWindow n (\ys -> equivFrom rbn $
-                        sum (map (equivTo rac) ys) / toNumber (n*2+1))
-                    x.values
-            NPercent rac ->
-                withWindow n (\ys -> equivFrom rbn $
-                        sum (map (unPercent <<< equivTo rac) ys) / toNumber (n*2+1))
-                    x.values
+            -- NInt rac ->
+            --     withWindow n (\ys -> equivFrom rbn $
+            --             toNumber (sum (map (equivTo rac) ys)) / toNumber (n*2+1))
+            --         x.values
+            -- NNumber rac ->
+            --     withWindow n (\ys -> equivFrom rbn $
+            --             sum (map (equivTo rac) ys) / toNumber (n*2+1))
+            --         x.values
+            -- NPercent rac ->
+            --     withWindow n (\ys -> equivFrom rbn $
+            --             sum (map (unPercent <<< equivTo rac) ys) / toNumber (n*2+1))
+            --         x.values
         }
     -- DaysSince c refl refl' -> ?e
 
@@ -324,9 +347,9 @@ baseProjectionLabel = case _ of
 
 operationLabel :: forall a b. Operation a b -> String
 operationLabel = case _ of
-    Delta   _ _   -> "Daily Change in"
-    PGrowth _ _   -> "Daily Percent Growth in"
-    Window  _ _ n -> "Moving Average (\x00b1" <> show n <> ") of"
+    Delta   _ _ -> "Daily Change in"
+    PGrowth _ _ -> "Daily Percent Growth in"
+    Window  _ n -> "Moving Average (+/-" <> show n <> ") of"
 
 operationsLabel :: forall a b. C.Chain Operation a b -> String
 operationsLabel c = res

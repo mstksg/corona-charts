@@ -64,8 +64,9 @@ lookupScale
     -> NScale
     -> D3.Scale a
 lookupScale st ns = case D3.toNType st of
-    Left  refl -> D3.Date refl
-    Right nt   -> D3.runNScale ns nt
+    Left (Left  r) -> D3.Date r
+    Left (Right r) -> D3.Linear (Left r)
+    Right nt       -> D3.runNScale ns nt
 
 data Action =
         SetCountries (Set Country)
@@ -209,7 +210,7 @@ axisPicker axis aState b0 = HH.div [classProp "axis-options"] [
       _ -> Nothing
     indexToNScale :: Int -> Maybe NScale
     indexToNScale = case _ of
-      0 -> Just (NScale (DProd Linear))
+      0 -> Just (NScale (DProd (Linear <<< Right)))
       1 -> Just (NScale (DProd Log))
       _ -> Nothing
     label :: String
