@@ -151,7 +151,7 @@ wrappedComponent picker t0 = HU.hoistQuery
 
 
 initialState :: forall tag a i. tag a -> i -> State tag a
-initialState t0 _ = { tagChain: dsum t0 C.nil }
+initialState t0 _ = { tagChain: t0 :=> C.nil }
 
 render
     :: forall tag f m a. GOrd tag => GShow tag
@@ -209,7 +209,7 @@ handleAction t0 act = do
     case act of
       AddLink newInitialOutput -> runExists (\tNewOut ->
         H.modify_ $ \st ->
-          { tagChain: withDSum st.tagChain (\tOldOut c -> dsum tNewOut $ C.snoc c
+          { tagChain: withDSum st.tagChain (\tOldOut c -> tNewOut :=> C.snoc c
               (TagLink { tagIn: tOldOut, tagOut: tNewOut})
             )
           }
@@ -217,9 +217,9 @@ handleAction t0 act = do
       RemoveLink _ -> H.modify_ $ \st ->
         { tagChain : withDSum st.tagChain (\_ c ->
             case C.unsnoc c of
-              Left _ -> dsum t0 (C.Nil refl)       -- this shouldn't ever happen, type error
+              Left _    -> t0 :=> C.Nil refl       -- this shouldn't ever happen, type error
               Right us  -> withAp us (\xs (TagLink tl) ->   -- ^ this should be equal to the removelink field
-                dsum tl.tagIn xs
+                tl.tagIn :=> xs
               )
           )
         }
@@ -247,7 +247,7 @@ handleAction t0 act = do
                     case decide tNew z.tagOut of
                       Nothing ->
                         let zNew = TagLink { tagIn: z.tagIn, tagOut: tNew }
-                        in  H.put { tagChain: dsum tNew (C.snoc xs zNew) }
+                        in  H.put { tagChain: tNew :=> C.snoc xs zNew }
                       Just refl -> pure unit        -- we're all good
                   ) outputType
                 )

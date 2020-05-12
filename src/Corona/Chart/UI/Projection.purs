@@ -4,6 +4,7 @@ module Corona.Chart.UI.Projection where
 import Prelude
 
 import Corona.Chart
+import Corona.Chart.UI.DateOp as DateOp
 import Corona.Chart.UI.NumericOp as NumericOp
 import Corona.JHU
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
@@ -70,6 +71,8 @@ data Output = Update State
 
 data Query r = QueryOp (State -> r)
 
+-- TODO: need a way to restrict output, and then maybe wrap it.  like the good
+-- old days
 component
     :: forall m. MonadEffect m
     => String
@@ -148,7 +151,15 @@ chainPicker
     -> H.Component HH.HTML (ChainPicker.WrappedQuery Operation SType) i (ChainPicker.Output SType) m
 chainPicker = ChainPicker.wrappedComponent $ DProd (\t -> Compose $
       case D3.toNType t of
-        Left  _  -> Nothing
+        Left (Left  r) -> Just $ ChainPicker.Picker
+          { component: HU.trimapComponent
+              ((\(ChainPicker.SQ f) -> DateOp.QueryOp f) <<< equivToF2 r)
+              identity
+              (\(DateOp.ChangeEvent e) -> e)
+              DateOp.component
+          , initialOut: mkExists D3.sDays
+          }
+        Left (Right _) -> Nothing
         Right nt -> Just $ ChainPicker.Picker
           { component: HU.trimapComponent
                   (\(ChainPicker.SQ f) -> NumericOp.QueryOp f)
@@ -178,7 +189,7 @@ handleAction act = do
               Just (Left e) -> log $ "type mismatch: " <> runExists show e
               Just (Right dsc) -> withDSum dsc (\tNewOut chain ->
                 H.modify_ $ \st ->
-                  st { projection = dsum tNewOut $ projection
+                  st { projection = tNewOut :=> projection
                          { base: pr.base, operations: chain }
                      }
               )

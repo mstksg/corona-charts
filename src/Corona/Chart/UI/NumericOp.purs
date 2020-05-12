@@ -8,7 +8,9 @@ import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Exists
 import Data.Int.Parse
+import Data.Int
 import Data.Maybe
+import Data.Number as N
 import Data.Ord
 import Halogen as H
 import Halogen.HTML as HH
@@ -84,7 +86,7 @@ render st = HH.div [HU.classProp "numeric-op"] $ A.catMaybes [
       1 -> Just OPGrowth
       2 -> Just OWindow
       _ -> Nothing
-    parseWindow = map abs <<< flip parseInt (toRadix 10)
+    parseWindow = map (abs <<< round) <<< N.fromString
 
 handleAction
     :: forall a m.
@@ -114,8 +116,8 @@ assembleOp
     -> H.HalogenM State Action () o m (DSum D3.SType (Operation a))
 assembleOp t0 = H.gets $ \st ->
     case st.currentOp of
-      ODelta   -> D3.fromNType t0 `dsum` Delta   t0 refl
-      OPGrowth -> D3.sPercent     `dsum` PGrowth t0 refl
+      ODelta   -> D3.fromNType t0 :=> Delta   t0 refl
+      OPGrowth -> D3.sPercent     :=> PGrowth t0 refl
       OWindow  -> runExists (\tf ->
-               toFractionalOut tf `dsum` Window  tf (st.windowSize)
+               toFractionalOut tf :=> Window  tf (st.windowSize)
         ) (toFractional t0)

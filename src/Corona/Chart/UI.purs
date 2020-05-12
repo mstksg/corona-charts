@@ -94,7 +94,7 @@ component dat =
 initialState :: forall i. i -> State
 initialState _ = {
       xAxis: {
-        projection: dsum D3.sDay $ projection {
+        projection: D3.sDay :=> projection {
             base: Time refl
           , operations: C.nil
           }
@@ -106,7 +106,7 @@ initialState _ = {
       , numScale: NScale (DProd D3.Log)
       }
     , yAxis: {
-        projection: dsum D3.sInt $ projection {
+      projection: D3.sInt :=> projection {
             base: Confirmed refl
           , operations: C.Nil refl
           }
@@ -115,7 +115,7 @@ initialState _ = {
     , countries: initialCountries
     }
   where
-    testConf = dsum D3.nInt $ projection
+    testConf = D3.nInt :=> projection
       { base: Confirmed refl
       , operations: C.nil
       }

@@ -65,6 +65,8 @@ baseType = case _ of
     Deaths    refl -> SInt refl
     Recovered refl -> SInt refl
 
+derive instance eqBase :: Eq (BaseProjection a)
+derive instance ordBase :: Ord (BaseProjection a)
 instance gshowBase :: GShow BaseProjection where
     gshow = case _ of
       Time      _ -> "Time"
@@ -165,6 +167,14 @@ toFractionalOut = case _ of
 
 data Condition a = AtLeast a | AtMost a
 
+derive instance eqCondition :: Eq a => Eq (Condition a)
+derive instance ordCondition :: Ord a => Ord (Condition a)
+
+instance functorCondition :: Functor Condition where
+    map f = case _ of
+      AtLeast x -> AtLeast (f x)
+      AtMost  x -> AtMost (f x)
+
 instance showCondition :: Show a => Show (Condition a) where
     show = case _ of
       AtLeast n -> "AtLeast " <> show n
@@ -175,21 +185,19 @@ gshowCondition nt = case _ of
       AtLeast n -> "AtLeast " <> nTypeShow nt n
       AtMost  n -> "AtMost "  <> nTypeShow nt n
 
+conditionValue :: forall a. Condition a -> a
+conditionValue = case _ of
+    AtLeast x -> x
+    AtMost  x -> x
 
 type ProjCond = DSum NType (Product Projection Condition)
 
 data Operation a b =
         Delta     (NType a) (a ~ b)       -- ^ dx/dt
       | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
-      -- | Window    (NType a) (b ~ Number ) Int -- ^ moving average of x over t, window (2n+1)
       | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
-      -- | PGrowth   (a ~ Number) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
-      -- | Window    (a ~ Number) (b ~ Number) Int -- ^ moving average of x over t, window (2n+1)
       | DaysSince (a ~ Day) (b ~ Days) ProjCond
-      -- (DSum NType Projection) Condition
             -- ^ says since x has met a condition
-      -- SomeCondition (Equiv a JSDate) (Equiv b Duration)
-      -- | Chain     (forall r. (forall c. Operation a c -> Operation c b -> r) -> r)
 
 instance gshow2Operation :: GShow2 Operation where
     gshow2 = case _ of
@@ -414,11 +422,11 @@ setBase base dp = withDSum dp (\tB spr ->
       withProjection spr (\pr ->
         let tC = baseType pr.base
         in  case decide tA tC of
-              Just refl -> dsum tB $ projection {
+              Just refl -> tB :=> projection {
                   base: equivToF refl base
                 , operations: pr.operations
                 }
-              Nothing   -> dsum tA $ projection {
+              Nothing   -> tA :=> projection {
                   base: base
                 , operations: C.nil
                 }
