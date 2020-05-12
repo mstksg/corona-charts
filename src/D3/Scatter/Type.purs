@@ -44,6 +44,10 @@ newtype Percent  = Percent Number
 unPercent :: Percent -> Number
 unPercent (Percent n) = n
 
+instance eqPercent :: Eq Percent where
+    eq (Percent x) (Percent y) = x == y
+instance ordPercent :: Ord Percent where
+    compare (Percent x) (Percent y) = compare x y
 instance percentSemiring :: Semiring Percent where
     add (Percent x) (Percent y) = Percent (x + y)
     zero = Percent zero
@@ -56,7 +60,8 @@ instance percentERing :: EuclideanRing Percent where
     degree (Percent x) = degree x
     div (Percent x) (Percent y) = Percent (div x y)
     mod (Percent x) (Percent y) = Percent (mod x y)
-    
+instance percentShow :: Show Percent where
+    show (Percent n) = show (n * toNumber 100) <> "%"
 
 
 data SType a =
@@ -188,6 +193,18 @@ nTypeSubtract = case _ of
     NInt     r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
     NNumber  r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
     NPercent r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
+
+nTypeCompare :: forall a. NType a -> a -> a -> Ordering
+nTypeCompare = case _ of
+    NInt     r -> \x y -> compare (equivTo r x) (equivTo r y)
+    NNumber  r -> \x y -> compare (equivTo r x) (equivTo r y)
+    NPercent r -> \x y -> compare (equivTo r x) (equivTo r y)
+
+nTypeShow :: forall a. NType a -> a -> String
+nTypeShow = case _ of
+    NInt     r -> show <<< equivTo r
+    NNumber  r -> show <<< equivTo r
+    NPercent r -> show <<< equivTo r
 
 -- nDays :: NType Days
 -- nDays = NDays refl

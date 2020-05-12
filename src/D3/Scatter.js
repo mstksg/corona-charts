@@ -64,7 +64,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
             , number:  (() => (Math.abs(val) < 1) ? val
                                     : (Math.abs(val) < 1000) ? val.toFixed(2) : fmtPrefix(val,4)
                        )
-            , percent: (() => ((Math.abs(val) < 1) ? val
+            , percent: (() => ((Math.abs(val) < 1) ? val.toFixed(2)
                                     : (Math.abs(val) < 1000) ? val.toFixed(1) : fmtPrefix(val,3)) + "%"
                        )
             }

@@ -3,63 +3,21 @@ module Corona.Chart.UI.NumericOp where
 
 import Prelude
 
-import CSS as CSS
-import Control.Alternative
-import Control.Monad.Except
-import Control.Monad.Maybe.Trans
-import Control.Monad.State.Class
-import Control.MonadZero as MZ
 import Corona.Chart
 import D3.Scatter.Type as D3
 import Data.Array as A
-import Data.Boolean
-import Data.Either
 import Data.Exists
-import Data.Foldable
-import Data.Functor
-import Data.Functor.Compose
-import Data.FunctorWithIndex
-import Data.FunctorWithIndex
 import Data.Int.Parse
-import Data.List as L
-import Data.Map (Map)
-import Data.Map as M
 import Data.Maybe
-import Data.Newtype
 import Data.Ord
-import Data.Sequence (Seq)
-import Data.Sequence as Seq
-import Data.Set (Set)
-import Data.Set as S
-import Data.String as String
-import Data.String.Pattern as String
-import Data.String.Regex as Regex
-import Data.String.Regex.Flags as Regex
-import Data.Symbol (SProxy(..))
-import Data.Traversable
-import Data.Tuple
-import Effect.Class
-import Effect.Class.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as HC
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Util as HU
-import Type.Chain (Chain)
-import Type.Chain as C
-import Type.DMap (DMap)
-import Type.DMap as DM
-import Type.DProd
 import Type.DSum
 import Type.Equiv
-import Type.Some
-import Undefined
-import Web.DOM.Element as W
-import Web.DOM.HTMLCollection as HTMLCollection
-import Web.HTML.HTMLOptionElement as Option
-import Web.HTML.HTMLSelectElement as Select
-import Web.UIEvent.MouseEvent as ME
 
 data NumericOp =
         ODelta

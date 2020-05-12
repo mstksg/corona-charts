@@ -15,6 +15,7 @@ import Data.Dated (Dated(..))
 import Data.Dated as D
 import Data.Exists
 import Data.Foldable
+import Data.Functor.Product
 import Data.FunctorWithIndex
 import Data.Int
 import Data.JSDate (JSDate)
@@ -162,12 +163,20 @@ toFractionalOut = case _ of
     N2N _ r -> SNumber r
     P2P _ r -> SPercent r
 
-data Condition = AtLeast Number | AtMost Number
+data Condition a = AtLeast a | AtMost a
 
-instance showCondition :: Show Condition where
+instance showCondition :: Show a => Show (Condition a) where
     show = case _ of
       AtLeast n -> "AtLeast " <> show n
       AtMost  n -> "AtMost " <> show n
+
+gshowCondition :: forall a. NType a -> Condition a -> String
+gshowCondition nt = case _ of
+      AtLeast n -> "AtLeast " <> nTypeShow nt n
+      AtMost  n -> "AtMost "  <> nTypeShow nt n
+
+
+type ProjCond = DSum NType (Product Projection Condition)
 
 data Operation a b =
         Delta     (NType a) (a ~ b)       -- ^ dx/dt
@@ -176,7 +185,8 @@ data Operation a b =
       | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
       -- | PGrowth   (a ~ Number) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
       -- | Window    (a ~ Number) (b ~ Number) Int -- ^ moving average of x over t, window (2n+1)
-      | DaysSince (a ~ Day) (b ~ Days) (DSum NType Projection) Condition
+      | DaysSince (a ~ Day) (b ~ Days) ProjCond
+      -- (DSum NType Projection) Condition
             -- ^ says since x has met a condition
       -- SomeCondition (Equiv a JSDate) (Equiv b Duration)
       -- | Chain     (forall r. (forall c. Operation a c -> Operation c b -> r) -> r)
@@ -186,7 +196,9 @@ instance gshow2Operation :: GShow2 Operation where
       Delta   _ _ -> "Delta"
       PGrowth _ _ -> "PGrowth"
       Window  _ n -> "Window " <> show n
-      DaysSince _ _ p c -> "DaysSince (" <> show p <> ") (" <> show c <> ")"
+      DaysSince _ _ pc -> withDSum pc (\t (Product (Tuple p c)) ->
+            "DaysSince (" <> show p <> ") (" <> gshowCondition t c <> ")"
+          )
 instance gshowOperation :: GShow (Operation a) where
     gshow = gshow2
 instance showOperation :: Show (Operation a b) where
@@ -197,13 +209,13 @@ operationInType = case _ of
     Delta   nt _ -> fromNType nt
     PGrowth nt _ -> fromNType nt
     Window  tf _ -> toFractionalIn tf
-    DaysSince r _ _ _ -> SDay r
+    DaysSince r _ _ -> SDay r
 operationOutType :: forall a b. Operation a b -> SType b
 operationOutType = case _ of
     Delta   nt r -> equivToF r (fromNType nt)
     PGrowth _  r -> SPercent r
     Window  tf _ -> toFractionalOut tf
-    DaysSince _ r _ _ -> SDays r
+    DaysSince _ r _ -> SDays r
 
 percentGrowth
     :: Number
@@ -288,11 +300,11 @@ applyOperation env = case _ of
                         sum (map (equivTo rap) ys) / Percent (toNumber (n*2+1)))
                     x.values
         }
-    DaysSince rad rbds spr cond -> \(Dated x) -> withDSum spr (\nt pr ->
+    DaysSince rad rbds spr -> \(Dated x) -> withDSum spr (\nt (Product (Tuple pr cond)) ->
       let refDat     = applyProjection pr env
           emptyDated = Dated { start: x.start, values: [] }
       in  maybe emptyDated (equivFromF rbds) do
-            Day cutoff <- D.findIndex (applyCondition cond <<< nTypeNumber nt) refDat
+            Day cutoff <- D.findIndex (applyCondition nt cond) refDat
             LL.head <<< flip D.mapMaybe (equivToF rad $ Dated x) $ \(Day d) ->
                 let daysSince = d - cutoff
                 in  if daysSince >= 0
@@ -300,10 +312,10 @@ applyOperation env = case _ of
                       else Nothing
     )
 
-applyCondition :: Condition -> Number -> Boolean
-applyCondition = case _ of
-    AtLeast n -> (_ > n)
-    AtMost n  -> (_ < n)
+applyCondition :: forall a. NType a -> Condition a -> a -> Boolean
+applyCondition nt = case _ of
+    AtLeast n -> \x -> nTypeCompare nt x n == GT
+    AtMost n  -> \x -> nTypeCompare nt x n == LT
 
 applyBaseProjection
     :: forall a. 
@@ -326,6 +338,9 @@ applyProjection spr allDat = withProjection spr (\pr ->
           C.runChain (applyOperation allDat) pr.operations <<< applyBaseProjection pr.base
         ) allDat
 
+baseProjection :: forall a. Projection a -> Exists BaseProjection
+baseProjection pr = withProjection pr (mkExists <<< _.base)
+
 baseProjectionLabel :: forall a. BaseProjection a -> String
 baseProjectionLabel = case _ of
     Time      _ -> "Time"
@@ -338,14 +353,14 @@ operationLabel = case _ of
     Delta   _ _ -> "Daily Change in"
     PGrowth _ _ -> "Daily Percent Growth in"
     Window  _ n -> "Moving Average (+/-" <> show n <> ") of"
-    DaysSince _ _ p c -> withDSum p (\_ pp ->
-            "Days since " <> projectionLabel pp <> " is " <> conditionLabel c   -- ???
+    DaysSince _ _ pc -> withDSum pc (\t (Product (Tuple p c)) ->
+            "Days since " <> projectionLabel p <> " is " <> conditionLabel t c   -- ???
         )
 
-conditionLabel :: Condition -> String
-conditionLabel = case _ of
-    AtLeast n -> "at least " <> show n
-    AtMost  n -> "at most " <> show n
+conditionLabel :: forall a. NType a -> Condition a -> String
+conditionLabel nt = case _ of
+    AtLeast n -> "at least " <> nTypeShow nt n
+    AtMost  n -> "at most " <> nTypeShow nt n
 
 operationsLabel :: forall a b. C.Chain Operation a b -> String
 operationsLabel c = res
