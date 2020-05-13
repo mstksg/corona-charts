@@ -103,36 +103,6 @@ component t0 =
   where
     pos = validPickOps t0
 
--- initialPickOp :: D3.SType a -> State a
--- initialPickOp _ = 
-
--- validPickOps :: forall m a. D3.SType a -> Array (SomePickOp m a)
--- validPickOps t0 = case t0 of
---     D3.SDay  _ -> [ D3.sDays :=> dayNumberPickOp ]
---     D3.SDays _ -> [ D3.sDays :=> dayNumberPickOp ]
---     D3.SInt  r -> [
---         t0          :=> deltaPickOp (D3.NInt r)
---       , D3.sPercent :=> pgrowthPickOp (D3.NInt r)
---       , D3.sNumber  :=> windowPickOp (I2N r refl)
---       , t0          :=> cutoffPickOp (D3.NInt r)
---       , D3.sDays    :=> dayNumberPickOp
---       ]
---     D3.SNumber r -> [
---         t0          :=> deltaPickOp (D3.NNumber r)
---       , D3.sPercent :=> pgrowthPickOp (D3.NNumber r)
---       , D3.sNumber  :=> windowPickOp (N2N r refl)
---       , t0          :=> cutoffPickOp (D3.NNumber r)
---       , D3.sDays    :=> dayNumberPickOp
---       ]
---     D3.SPercent r -> [
---         t0          :=> deltaPickOp (D3.NPercent r)
---       , D3.sPercent :=> pgrowthPickOp (D3.NPercent r)
---       , D3.sPercent :=> windowPickOp (P2P r refl)
---       , t0          :=> cutoffPickOp (D3.NPercent r)
---       , D3.sDays    :=> dayNumberPickOp
---       ]
-
-
 render
     :: forall m a.
        Array (SomePickOp m a)
@@ -166,21 +136,22 @@ handleAction
     -> Action
     -> H.HalogenM State Action (ChildSlots a) Output m Unit
 handleAction pos act = do
+    oldIx <- H.gets (_.pickOpIx)
     st <- H.get
     case act of
       SetPickOpIx i -> H.put { pickOpIx: i }
       TriggerUpdate -> pure unit
-    traceM =<< H.get
+    newIx <- H.gets (_.pickOpIx)
 
-    case pos A.!! st.pickOpIx of
+    case pos A.!! newIx of
       Nothing   -> log "hey what gives"
       Just dspo -> withDSum dspo (\t _ ->
         H.raise $ ChangeEvent (mkExists t)
       )
 
 handleQuery
-    :: forall a m r.
-       Query a r
+    :: forall a m r. MonadEffect m
+    => Query a r
     -> H.HalogenM State Action (ChildSlots a) Output m (Maybe r)
 handleQuery = case _ of
     QueryOp f -> do
@@ -189,14 +160,16 @@ handleQuery = case _ of
           SomePQState (\t op -> Tuple (t :=> op) op)
       for subSt $ \o -> do
         let Tuple r dso = withDSum o f
-        withDSum dso (\tNew oNew -> void $
-           H.query _pickOp st.pickOpIx $
-              SomePQState (\tOld oOld ->
-                  case decide tOld tNew of
-                    Nothing -> Tuple unit oOld
-                    Just r  -> Tuple unit (equivFromF r oNew)
-                )
-        )
+        -- this needs to be reworked better: setting op's needs to go to the
+        -- right index
+        -- withDSum dso (\tNew oNew -> void $
+        --    H.query _pickOp st.pickOpIx $
+        --       SomePQState (\tOld oOld ->
+        --           case decide tOld tNew of
+        --             Nothing -> trace "what the" $ const $ Tuple unit oOld
+        --             Just r  -> trace "ok huh" $ const $ Tuple unit (equivFromF r oNew)
+        --         )
+        -- )
         pure r
            
 _pickOp :: SProxy "pickOp"
@@ -232,7 +205,7 @@ deltaPickOp nt = PickOp {
         initialState: \_ -> unit
       , render: \_ -> HH.div [HU.classProp "daily-change"] []
       , eval: H.mkEval $ H.defaultEval {
-          handleAction = \_ -> pure unit
+          handleAction = \_ -> H.raise PickOpUpdate
         , handleQuery  = case _ of
             PQState f -> fakeState (Delta nt refl) f
         }
@@ -246,7 +219,7 @@ pgrowthPickOp nt = PickOp {
         initialState: \_ -> unit
       , render: \_ -> HH.div [HU.classProp "percent-growth"] []
       , eval: H.mkEval $ H.defaultEval {
-          handleAction = \_ -> pure unit
+          handleAction = \_ -> H.raise PickOpUpdate
         , handleQuery  = case _ of
             PQState f -> fakeState (PGrowth nt refl) f
         }

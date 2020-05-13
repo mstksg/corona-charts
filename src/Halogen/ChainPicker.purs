@@ -115,6 +115,18 @@ newtype TagLink tag a b = TagLink
     , tagOut :: tag b
     }
 
+instance gshow2TagLink :: GShow tag => GShow2 (TagLink tag) where
+    gshow2 (TagLink { tagIn, tagOut }) =
+        "TagLink { tagIn: " <> gshow tagIn
+                 <> ", tagOut: "
+                 <> gshow tagOut
+                 <> " }" 
+instance gshowTagLink :: GShow tag => GShow (TagLink tag a) where
+    gshow = gshow2
+instance showTagLink :: GShow tag => Show (TagLink tag a b) where
+    show = gshow
+
+
 type State tag a =
     { tagChain :: DSum tag (Chain (TagLink tag) a)
     }
@@ -144,7 +156,7 @@ instance applicativeQuery :: Applicative (Query f tag a) where
 data Output tag = ChainUpdate (Exists tag)      -- ^ new output type
 
 component
-    :: forall f tag a m i. GOrd tag => GShow tag
+    :: forall f tag a m i. GOrd tag => GShow tag => MonadEffect m
     => PickerMap f tag m
     -> tag a
     -> H.Component HH.HTML (Query f tag a) i (Output tag) m
@@ -161,7 +173,7 @@ component picker t0 =
 type WrappedQuery f tag = SomeQuery (Query f tag) tag
 
 wrappedComponent
-    :: forall f tag a m i. GOrd tag => GShow tag
+    :: forall f tag a m i. GOrd tag => GShow tag => MonadEffect m
     => PickerMap f tag m
     -> tag a                   -- ^ initial initial type
     -> H.Component HH.HTML (WrappedQuery f tag) i (Output tag) m
@@ -223,7 +235,7 @@ lastOutput t0 chain = case Seq.last chain of
     Just t  -> t
 
 handleAction
-    :: forall f tag m a. Decide tag => GShow tag
+    :: forall f tag m a. Decide tag => GShow tag => MonadEffect m
     => tag a    -- ^ initial type
     -> Action tag
     -> H.HalogenM (State tag a) (Action tag) (ChildSlots f tag) (Output tag) m Unit
@@ -247,6 +259,9 @@ handleAction t0 act = do
         }
       TriggerUpdate { ix, outputType } -> do
         st <- H.get
+        -- log $ "trigger update " <> show (WrEx outputType) <> " received from " <> show ix <> " with " <> show
+        --             st
+
         withDSum st.tagChain (\_ c -> withAp (C.splitAt ix c) (\xs ys ->
             -- A -> B -> C -> D -> E
             -- | 0  | 1  | 2  | 3  |
@@ -263,7 +278,7 @@ handleAction t0 act = do
             --
             -- so everything depends on the head of ys, aka z
             case ys of
-              C.Nil refl -> pure unit       -- <- hmm.... this shouldn't ever happen
+              C.Nil refl -> log "wee woo wee woo"   -- <- hmm.... this shouldn't ever happen
               C.Cons ays -> withAp ays (\(TagLink z) zs ->
                   runExists (\tNew ->
                     case decide tNew z.tagOut of
@@ -276,12 +291,6 @@ handleAction t0 act = do
           )
         )
     s <- H.get
-    -- traceM ( A.fold $
-    --     withDSum s.tagChain (\_ ->
-    --             C.foldMapChain (\(TagLink t) -> ["{", gshow t.tagIn, " -> ",
-    --                            gshow t.tagOut, "}"])
-    --           )
-    --   )
     H.raise <<< ChainUpdate =<< lastTag t0
 
 data AssembleError tag =
@@ -350,8 +359,8 @@ assembleChain t0 = do
         { ix: i, tagIn: mkWrEx tagIn }
         (someQuery tagIn subQueryAsk)
       case res of
-        Nothing       -> throwError $ AENoResponse { ix: i, expected: mkExists tagIn }
-        Just (Left e) -> throwError $ AEInType { ix: i, expected: mkExists tagIn, actual: e }
+        Nothing          -> throwError $ AENoResponse { ix: i, expected: mkExists tagIn }
+        Just (Left e)    -> throwError $ AEInType { ix: i, expected: mkExists tagIn, actual: e }
         Just (Right dsr) -> withDSum dsr (\t2 r ->
             case decide tagOut t2 of
               Nothing -> throwError $
@@ -380,7 +389,7 @@ unSomeQuery
     -> f a r
 unSomeQuery tExpected (SomeQuery {typeMatch, typeMismatch}) = typeMatch (\tActual sq ->
     case decide tExpected tActual of
-      Nothing   -> pure (typeMismatch tExpected)
+      Nothing   -> pure (typeMismatch tActual)
       Just refl -> equivFromF2 refl sq
   )
 

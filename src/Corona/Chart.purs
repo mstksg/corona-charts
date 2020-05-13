@@ -213,6 +213,7 @@ data Operation a b =
       | Cutoff    (NType a) (a ~ b) CutoffType (Condition a)
             -- maybe this should take all types?
       | DayNumber (b ~ Days) CutoffType
+      -- TODO: percent of max
 
 instance gshow2Operation :: GShow2 Operation where
     gshow2 = case _ of
