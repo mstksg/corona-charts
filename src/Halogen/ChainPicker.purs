@@ -173,22 +173,22 @@ render pickerMap t0 s = HH.div_ [
           ]
       ) sT
     , HH.div [HU.classProp "op-buttons"] $ A.catMaybes $ [
-        A.last inList <#> \tLast ->
-          HH.button [
-            HP.type_ HP.ButtonButton
-          , HE.onClick (\_ -> Just (RemoveLink tLast))
-          , HU.classProp "remove-op"
-          ]
-          [ HH.text "Remove Op" ]
-      , runExists (\lastOut ->
+        runExists (\lastOut ->
           unwrap (runDProd pickerMap lastOut) <#> \(Picker { initialOut }) ->
             HH.button [
               HP.type_ HP.ButtonButton
             , HE.onClick (\_ -> Just (AddLink initialOut))
             , HU.classProp "add-op"
             ]
-            [ HH.text "Add Op" ]
+            [ HH.text "Add" ]
         ) (fromMaybe (mkExists t0) (A.last outList))
+      , A.last inList <#> \tLast ->
+          HH.button [
+            HP.type_ HP.ButtonButton
+          , HE.onClick (\_ -> Just (RemoveLink tLast))
+          , HU.classProp "Remove"
+          ]
+          [ HH.text "Remove Op" ]
       ]
     ]
   where

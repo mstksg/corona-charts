@@ -3,9 +3,11 @@ module Type.GCompare where
 
 import Prelude
 
-import Type.Equiv
-import Data.Maybe
 import Data.Exists
+import Data.Functor.Product
+import Data.Maybe
+import Data.Tuple
+import Type.Equiv
 
 class Decide f <= GEq f where
     geq :: forall a b. f a -> f b -> Maybe (a ~ b)
@@ -51,3 +53,7 @@ instance ordSome :: GOrd f => Ord (WrEx f) where
 
 instance showSome :: GShow f => Show (WrEx f) where
     show (WrEx sx) = runExists gshow sx
+
+instance gshowProd :: (GShow f, GShow g) => GShow (Product f g) where
+    gshow (Product (Tuple f g)) =
+        "Product (Tuple (" <> gshow f <> ") (" <> gshow g <>"))"

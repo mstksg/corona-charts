@@ -192,38 +192,51 @@ conditionValue = case _ of
 
 type ProjCond = DSum NType (Product Projection Condition)
 
+showProjCond :: ProjCond -> String
+showProjCond pc = withDSum pc (\nt (Product (Tuple p c)) ->
+    show p <> " :=> " <> gshowCondition nt c
+    )
+
+data CutoffType = After | Before
+
+derive instance eqCutoffType :: Eq CutoffType
+derive instance ordCutoffType :: Ord CutoffType
+instance showCutoffType :: Show CutoffType where
+    show = case _ of
+      After  -> "After"
+      Before -> "Before"
+
 data Operation a b =
         Delta     (NType a) (a ~ b)       -- ^ dx/dt
       | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
       | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
-      | DaysSince (a ~ Day) (b ~ Days) ProjCond
-            -- ^ says since x has met a condition
+      | Cutoff    (NType a) (a ~ b) CutoffType (Condition a)
+      | DayNumber (b ~ Days) CutoffType
 
 instance gshow2Operation :: GShow2 Operation where
     gshow2 = case _ of
       Delta   _ _ -> "Delta"
       PGrowth _ _ -> "PGrowth"
       Window  _ n -> "Window " <> show n
-      DaysSince _ _ pc -> withDSum pc (\t (Product (Tuple p c)) ->
-            "DaysSince (" <> show p <> ") (" <> gshowCondition t c <> ")"
-          )
+      Cutoff nt _ co cond -> "Cutoff " <> show co <> " (" <> gshowCondition nt cond <> ")"
+      DayNumber _ c -> "DayNumber " <> show c
 instance gshowOperation :: GShow (Operation a) where
     gshow = gshow2
 instance showOperation :: Show (Operation a b) where
     show = gshow
 
-operationInType :: forall a b. Operation a b -> SType a
-operationInType = case _ of
-    Delta   nt _ -> fromNType nt
-    PGrowth nt _ -> fromNType nt
-    Window  tf _ -> toFractionalIn tf
-    DaysSince r _ _ -> SDay r
-operationOutType :: forall a b. Operation a b -> SType b
-operationOutType = case _ of
-    Delta   nt r -> equivToF r (fromNType nt)
-    PGrowth _  r -> SPercent r
-    Window  tf _ -> toFractionalOut tf
-    DaysSince _ r _ -> SDays r
+-- operationInType :: forall a b. Operation a b -> SType a
+-- operationInType = case _ of
+--     Delta   nt _ -> fromNType nt
+--     PGrowth nt _ -> fromNType nt
+--     Window  tf _ -> toFractionalIn tf
+--     DayNumber t _ _ -> t
+-- operationOutType :: forall a b. Operation a b -> SType b
+-- operationOutType = case _ of
+--     Delta   nt r -> equivToF r (fromNType nt)
+--     PGrowth _  r -> SPercent r
+--     Window  tf _ -> toFractionalOut tf
+--     DayNumber _ r _ -> SDays r
 
 percentGrowth
     :: Number
@@ -278,7 +291,6 @@ applyOperation
     -> Dated a
     -> Dated b
 applyOperation env = case _ of
-        -- Delta     (NType a) (a ~ b)       -- ^ dx/dt
     Delta num rab -> \(Dated x) -> Dated
         { start: MJD.addDays (-1) x.start
         , values: withConsec
@@ -308,18 +320,20 @@ applyOperation env = case _ of
                         sum (map (equivTo rap) ys) / Percent (toNumber (n*2+1)))
                     x.values
         }
-    DaysSince rad rbds spr -> \(Dated x) -> withDSum spr (\nt (Product (Tuple pr cond)) ->
-      let refDat     = applyProjection pr env
-          emptyDated = Dated { start: x.start, values: [] }
-      in  maybe emptyDated (equivFromF rbds) do
-            Day cutoff <- D.findIndex (applyCondition nt cond) refDat
-            LL.head <<< flip D.mapMaybe (equivToF rad $ Dated x) $ \(Day d) ->
-                let daysSince = d - cutoff
-                in  if daysSince >= 0
-                      then Just (Days daysSince)
-                      else Nothing
-    )
-
+    Cutoff nt rab co cond -> 
+      let dropper = case co of
+            After  -> D.dropUntil
+            Before -> D.dropUntilEnd
+      in  equivToF rab <<< dropper (applyCondition nt cond)
+    DayNumber rbds co -> \(Dated x) ->
+      let emptyDated = Dated { start: x.start, values: [] }
+      in  maybe emptyDated (equivFromF rbds) $
+            case co of
+              After  -> D.findHead (Dated x) <#> \{ day: d0 } ->
+                  mapWithIndex (\i _ -> Days $ MJD.diffDays i d0) (Dated x)
+              Before -> D.findLast (Dated x) <#> \{ day: dF } ->
+                  mapWithIndex (\i _ -> Days $ MJD.diffDays i dF) (Dated x)
+            
 applyCondition :: forall a. NType a -> Condition a -> a -> Boolean
 applyCondition nt = case _ of
     AtLeast n -> \x -> nTypeCompare nt x n == GT
@@ -351,7 +365,7 @@ baseProjection pr = withProjection pr (mkExists <<< _.base)
 
 baseProjectionLabel :: forall a. BaseProjection a -> String
 baseProjectionLabel = case _ of
-    Time      _ -> "Time"
+    Time      _ -> "Date"
     Confirmed _ -> "Confirmed Cases"
     Deaths    _ -> "Deaths"
     Recovered _ -> "Recovered Cases"
@@ -361,9 +375,18 @@ operationLabel = case _ of
     Delta   _ _ -> "Daily Change in"
     PGrowth _ _ -> "Daily Percent Growth in"
     Window  _ n -> "Moving Average (+/-" <> show n <> ") of"
-    DaysSince _ _ pc -> withDSum pc (\t (Product (Tuple p c)) ->
-            "Days since " <> projectionLabel p <> " is " <> conditionLabel t c <> " for" -- ???
-        )
+    Cutoff nt _ co cond -> fold
+        [ "(With only points "
+        , case co of
+            After -> "after"
+            Before -> "before"
+        , " being "
+        , conditionLabel nt cond
+        , ")"
+        ]
+    DayNumber _ c -> case c of
+      After  -> "Number of days since initial "
+      Before -> "Number of days until final "
 
 conditionLabel :: forall a. NType a -> Condition a -> String
 conditionLabel nt = case _ of

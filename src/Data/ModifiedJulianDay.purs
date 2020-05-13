@@ -28,6 +28,10 @@ instance showDay :: Show Day where
 addDays :: Int -> Day -> Day
 addDays x (Day y) = Day (x + y)
 
+-- | diffDays x y = x - y
+diffDays :: Day -> Day -> Int
+diffDays (Day x) (Day y) = x - y
+
 
 date0 :: D.Date
 date0 = D.canonicalDate

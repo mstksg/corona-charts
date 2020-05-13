@@ -12,7 +12,7 @@ import Data.Lazy as Lazy
 import Data.List as L
 import Data.List.Lazy as LL
 import Data.Maybe
-import Data.ModifiedJulianDay (Day(..))
+import Data.ModifiedJulianDay (Day(..), addDays, diffDays)
 import Data.ModifiedJulianDay as MJD
 import Data.Newtype
 
@@ -60,7 +60,7 @@ mapWithIndex
     -> Dated b
 mapWithIndex f (Dated x) = Dated
     { start: x.start
-    , values: A.mapWithIndex (\i -> f (MJD.addDays i x.start)) x.values
+    , values: A.mapWithIndex (\i -> f (addDays i x.start)) x.values
     }
 
 findIndex
@@ -68,7 +68,73 @@ findIndex
        (a -> Boolean)
     -> Dated a
     -> Maybe Day
-findIndex p (Dated x) = flip MJD.addDays x.start <$> A.findIndex p x.values
+findIndex p (Dated x) = flip addDays x.start <$> A.findIndex p x.values
+
+findLastIndex
+    :: forall a.
+       (a -> Boolean)
+    -> Dated a
+    -> Maybe Day
+findLastIndex p (Dated x) = flip addDays x.start <$> A.findLastIndex p x.values
+
+drop :: forall a.  Int -> Dated a -> Dated a
+drop i (Dated x) = Dated
+    { start: addDays i x.start
+    , values: A.drop i x.values
+    }
+
+dropEnd :: forall a.  Int -> Dated a -> Dated a
+dropEnd i (Dated x) = Dated $
+    x { values = A.dropEnd i x.values }
+
+take :: forall a.  Int -> Dated a -> Dated a
+take i (Dated x) = Dated $
+    x { values = A.take i x.values }
+
+takeEnd :: forall a.  Int -> Dated a -> Dated a
+takeEnd i (Dated x) = Dated
+    { start: addDays (A.length x.values - i) x.start
+    , values: A.takeEnd i x.values
+    }
+
+dropBefore :: forall a.  Day -> Dated a -> Dated a
+dropBefore d0 (Dated x) = Dated
+    { start: max d0 x.start
+    , values: A.drop (diffDays d0 x.start) x.values
+    }
+
+dropAfter :: forall a.  Day -> Dated a -> Dated a
+dropAfter d0 (Dated x) = Dated $ x
+    { values = A.take (diffDays d0 x.start) x.values
+    }
+
+findHead :: forall a. Dated a -> Maybe { day :: Day, value :: a }
+findHead (Dated x) = A.head x.values <#> \value ->
+                        { day: x.start, value }
+
+findLast :: forall a. Dated a -> Maybe { day :: Day, value :: a }
+findLast (Dated x) = A.last x.values <#> \value ->
+    { day: addDays (A.length x.values) x.start
+    , value
+    }
+
+dropUntil
+    :: forall a.
+       (a -> Boolean)
+    -> Dated a
+    -> Dated a
+dropUntil f (Dated xs) = case findIndex f (Dated xs) of
+    Nothing -> Dated (xs { values = [] })
+    Just i  -> dropBefore i (Dated xs)
+
+dropUntilEnd
+    :: forall a.
+       (a -> Boolean)
+    -> Dated a
+    -> Dated a
+dropUntilEnd f (Dated xs) = case findLastIndex f (Dated xs) of
+    Nothing -> Dated (xs { values = [] })
+    Just i  -> dropAfter i (Dated xs)
 
 mapMaybe
     :: forall a b.
@@ -100,5 +166,5 @@ mapMaybe f (Dated d0) = chompFalse (unwrap d0.start) (L.fromFoldable d0.values)
 
 toArray :: forall a. Dated a -> Array (Tuple Day a)
 toArray (Dated xs) = A.mapWithIndex
-        (\i x -> Tuple (MJD.addDays i xs.start) x)
+        (\i x -> Tuple (addDays i xs.start) x)
         xs.values
