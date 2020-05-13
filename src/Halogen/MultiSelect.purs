@@ -33,7 +33,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.CSS as HC
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Halogen.Util
+import Halogen.Util as HU
 import Web.DOM.Element as W
 import Web.DOM.HTMLCollection as HTMLCollection
 import Web.HTML.HTMLOptionElement as Option
@@ -74,8 +74,8 @@ component =
 
 render :: forall a m. State a -> H.ComponentHTML Action () m
 render st =
-    HH.div [classProp "multiselect"] [
-        HH.div [classProp "select-options"] [
+    HH.div [HU.classProp "multiselect"] [
+        HH.div [HU.classProp "select-options grid__col grid__col--1-of-2"] [
           HH.input [
             HP.type_ HP.InputText
           , HP.placeholder "type to filter"
@@ -92,36 +92,34 @@ render st =
         , HH.button [
               HP.type_ HP.ButtonButton
             , HE.onClick (\_ -> Just AddValues)
-            , classProp "add-button"
+            , HU.classProp "add-button"
             ]
             [ HH.text "Add" ]
         ]
-      , HH.div [classProp "selected"] $ 
+      , HH.div [HU.classProp "selected grid__col grid__col--1-of-2"] $ 
           if null st.selected
-            then [HH.text "(nothing selected yet)"]
+            then [ HH.span [HU.classProp "none-selected"]
+                   [ HH.text "(nothing selected yet)" ]
+                 ]
             else renderSelected
       ]
   where
     renderSelected = [
-        HH.ol [classProp "selected-list"] $
-          map (\il -> HH.li [classProp "selected-item"] [
+        HH.ul [HU.classProp "selected-list"] $
+          map (\il -> HH.li [
+                  HU.classProp "selected-item"
+                , HE.onClick $ \e ->
+                    if ME.buttons e == 0
+                      then Just (RemoveValue il.ix)
+                      else Nothing
+                ] [
                   HH.span_ [HH.text il.label]
-                , HH.text " "
-                , HH.a [
-                    HE.onClick $ \e ->
-                      if ME.buttons e == 0
-                        then Just (RemoveValue il.ix)
-                        else Nothing
-                  , classProp "remove-selected"
-                  , HC.style $
-                      CSS.key (CSS.Key (CSS.Plain "cursor")) "pointer"
-                  ] [ HH.text "x" ]
                 ]
               )
             selectedItems
       , HH.button [
           HE.onClick (\_ -> Just RemoveAll)
-        , classProp "clear-button"
+        , HU.classProp "clear-button"
         ] [HH.text "Clear Selection"]
       ]
     selectedItems  = A.fromFoldable $ L.mapMaybe

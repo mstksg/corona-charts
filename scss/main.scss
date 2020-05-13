@@ -1,0 +1,173 @@
+$sans: Helvetica Neue, Helvetica, Arial, sans-serif;
+$serif: Vollkorn, serif;
+$width: 1200px;
+// $width: 1024px;
+$breakpoint: get-breakpoint();
+
+@use 'ui.scss';
+
+body {
+  background: #fcfcfc;
+}
+
+div#main-container {
+  max-width: $width;
+  margin: 0 auto;
+  // margin: 10px 10px 100px 0;
+  // border: 1px black solid;
+  padding-right: 20px;
+}
+
+
+.clear {
+  clear: both;
+}
+
+html {
+  line-height: 125%;
+  font-family: $sans;
+  // font-family: $serif;
+  color: #1a1a1a;
+}
+
+p {
+  margin: 0;
+}
+
+h1 {
+  font-family: $serif;
+  font-size: 500%;
+  font-weight: 100;
+  line-height: normal;
+  margin: 0;
+  // @media (max-width: 800px) {
+  //   font-size: 10vw;
+  // }
+  // @media (max-width: $breakpoint) {
+  //   font-size: 400%;
+  //   line-height: 110%;
+  //   margin: 0.1em 0;
+  // }
+}
+
+h2 {
+  font-weight: normal;
+  // font-style: italic;
+  // font-weight: 100;
+  // font-size: 133%;
+  margin: 0;
+  // margin: 0 0 0.66em 0;
+  // letter-spacing: 0.1em;
+  line-height: normal;
+  // @media (max-width: $breakpoint) {
+  //   letter-spacing: 0em;
+  // }
+}
+
+
+// h2 {
+//   font-weight: normal;
+//   // font-style: italic;
+//   font-weight: 100;
+//   font-size: 133%;
+//   margin: 0 0 0.66em 0;
+//   letter-spacing: 0.1em;
+//   line-height: normal;
+//   @media (max-width: $breakpoint) {
+//     letter-spacing: 0em;
+//   }
+// }
+
+// .links {
+//   font-size: 110%;
+//   font-style: italic;
+// }
+
+// header {
+//   margin-bottom: 3.3em;
+// }
+
+// h3 {
+//   font-weight: normal;
+//   font-style: italic;
+//   font-size: 175%;
+//   margin: 0 0 0.25em 0;
+//   line-height: normal;
+// }
+
+// h4 {
+//   font-weight: normal;
+//   font-style: italic;
+//   font-size: 100%;
+//   margin: 0;
+//   line-height: normal;
+// }
+
+// .cvsection {
+//   margin: 0 0 2em 0;
+// }
+
+// .cvs-wide p {
+//   margin: 0 0 0.5em 0;
+// }
+
+// .cvline {
+//   margin: 0 0 0.5em 0;
+// }
+
+// .cventry-heading {
+//   margin: 0 0 0.1em 0;
+// }
+
+// .cventry-heading > span {
+//   margin: 0 0.5em 0 0;
+// }
+
+// .cventry-title {
+//   font-weight: bold;
+// }
+
+// .cventry-institution {
+//   font-style: italic;
+// }
+
+// .cvline-body strong {
+//   font-weight: normal;
+//   font-style: italic;
+// }
+
+// div#section-skills p {
+//   font-size: 95%;
+//   line-height: 125%;
+//   // font-style: italic;
+//   // font-family: $sans;
+// }
+
+// a {
+//   &:hover {
+//     background-color: #eee;
+//   }
+//   &:visited {
+//     color: #224;
+//   }
+
+//   text-decoration: none;
+//   border-bottom: 1px dotted #bbb;
+//   color: #447;
+// }
+
+// .cvsection-pretitle, .cvline-desc {
+//   text-align: right;
+//   @media (max-width: $breakpoint) {
+//     text-align: left;
+//     margin-top: 1em;
+//   }
+// }
+
+// .cvsection-pretitle a {
+//   font-size: 175%;
+//   margin-top: 0.1em;
+//   @media (max-width: $breakpoint) {
+//     display: none;
+//   }
+// }

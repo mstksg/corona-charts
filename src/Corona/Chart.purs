@@ -362,7 +362,7 @@ operationLabel = case _ of
     PGrowth _ _ -> "Daily Percent Growth in"
     Window  _ n -> "Moving Average (+/-" <> show n <> ") of"
     DaysSince _ _ pc -> withDSum pc (\t (Product (Tuple p c)) ->
-            "Days since " <> projectionLabel p <> " is " <> conditionLabel t c   -- ???
+            "Days since " <> projectionLabel p <> " is " <> conditionLabel t c <> " for" -- ???
         )
 
 conditionLabel :: forall a. NType a -> Condition a -> String

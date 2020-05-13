@@ -253,7 +253,13 @@ instance gshowScale :: GShow Scale where
 instance showScale :: Show (Scale a) where
     show = gshow
 
-
+validScales :: forall a. SType a -> Array (Scale a)
+validScales = case _ of
+    SDay r -> [Date r]
+    SDays r -> [Linear (Left r)]
+    SInt r -> [Linear (Right (NInt r)), Log (NInt r)]
+    SNumber r -> [Linear (Right (NNumber r)), Log (NNumber r)]
+    SPercent r -> [Linear (Right (NPercent r)), Log (NPercent r)]
 
 defaultScale :: forall a. SType a -> Scale a
 defaultScale = case _ of

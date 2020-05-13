@@ -8,6 +8,7 @@ import Corona.Chart.UI.NumericOp as NumericOp
 import Corona.JHU
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
+import Data.Int
 import Data.Array as A
 import Data.Either
 import Data.Exists
@@ -46,10 +47,11 @@ type AxisState =
 type State =
     { xAxis     :: Projection.State
     , yAxis     :: Projection.State
+    , zAxis     :: Projection.State
     , countries :: Set Country
     }
 
-data Axis = XAxis | YAxis
+data Axis = XAxis | YAxis | ZAxis
 derive instance eqAxis :: Eq Axis
 derive instance ordAxis :: Ord Axis
 
@@ -67,12 +69,14 @@ data Action =
         SetCountries (Set Country)
       | SetXProjection Projection.State
       | SetYProjection Projection.State
+      | SetZProjection Projection.State
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query    Void              Unit
         , multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
         , xProjection :: H.Slot Projection.Query Projection.Output Unit
         , yProjection :: H.Slot Projection.Query Projection.Output Unit
+        , zProjection :: H.Slot Projection.Query Projection.Output Unit
         )
 
 
@@ -98,17 +102,19 @@ initialState _ = {
             base: Time refl
           , operations: C.nil
           }
-        -- projection: dsum D3.sDays $ projection {
-        --   base: Time refl
-        --   , operations: C.cons (DaysSince refl refl testConf (AtLeast (toNumber 100)))
-        --       C.nil
-        --   }
       , numScale: NScale (DProd D3.Log)
       }
     , yAxis: {
-      projection: D3.sInt :=> projection {
+        projection: D3.sInt :=> projection {
             base: Confirmed refl
           , operations: C.Nil refl
+          }
+      , numScale: NScale (DProd D3.Log)
+      }
+    , zAxis: {
+        projection: D3.sDay :=> projection {
+            base: Time refl
+          , operations: C.nil
           }
       , numScale: NScale (DProd D3.Log)
       }
@@ -121,29 +127,31 @@ initialState _ = {
       }
 
 render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Action ChildSlots m
-render dat st = HH.main_ [
-      HH.h1_ [HH.text "COVID-19 Data"]
-    , HH.div [HU.classProp "ui"] [
-        HH.div [HU.classProp "plot"] [
-          HH.h2_ [HH.text title]
-        , HH.div [HU.classProp "d3"] [
-            HH.slot _scatter unit (Scatter.component) unit absurd
-          ]
-        ]
-      , HH.div [HU.classProp "options"] [
-          HH.div [HU.classProp "countries"] [
-            HH.slot _multiselect unit (MultiSelect.component) sel0 $ case _ of
-              MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
-          ]
-        , HH.div [HU.classProp "axes"] [
-            HH.slot _xProjection unit (Projection.component "X Axis")
-              st.xAxis
-              (\(Projection.Update s) -> Just (SetXProjection s))
-          , HH.slot _yProjection unit (Projection.component "Y Axis")
-              st.yAxis
-              (\(Projection.Update s) -> Just (SetYProjection s))
-          ]
-        ]
+render dat st = HH.div [HU.classProp "ui-wrapper"] [
+      HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
+        HH.h2_ [HH.text title]
+      ]
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
+        HH.slot _xProjection unit (Projection.component "Y Axis")
+          st.yAxis
+          (\(Projection.Update s) -> Just (SetYProjection s))
+      ]
+    , HH.div [HU.classProp "grid__col grid__col--4-of-5 plot"] [
+        HH.slot _scatter unit (Scatter.component hw) unit absurd
+      ]
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
+        HH.slot _zProjection unit (Projection.component "Time Axis")
+          st.zAxis
+          (\(Projection.Update s) -> Just (SetZProjection s))
+      ]
+    , HH.div [HU.classProp "grid__col grid__col--3-of-5 countries"] [
+        HH.slot _multiselect unit (MultiSelect.component) sel0 $ case _ of
+          MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
+      ]
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
+        HH.slot _yProjection unit (Projection.component "X Axis")
+          st.xAxis
+          (\(Projection.Update s) -> Just (SetXProjection s))
       ]
     ]
   where
@@ -158,6 +166,7 @@ render dat st = HH.main_ [
                   { label: cty, value: cty }
     projLabel dp = withDSum dp (\_ -> projectionLabel)
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
+    hw = { height: toNumber 600, width: toNumber 1000 }
 
 handleAction
     :: forall o m. MonadEffect m
@@ -169,6 +178,7 @@ handleAction dat act = do
       SetCountries cs  -> H.modify_ $ \st -> st { countries = cs }
       SetXProjection p -> H.modify_ $ \st -> st { xAxis     = p  }
       SetYProjection p -> H.modify_ $ \st -> st { yAxis     = p  }
+      SetZProjection p -> H.modify_ $ \st -> st { zAxis     = p  }
     reRender dat
 
 reRender
@@ -206,3 +216,6 @@ _xProjection = SProxy
 
 _yProjection :: SProxy "yProjection"
 _yProjection = SProxy
+
+_zProjection :: SProxy "zProjection"
+_zProjection = SProxy

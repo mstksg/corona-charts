@@ -20,7 +20,7 @@ import Web.DOM.Element (Element)
 
 foreign import data D3Scatter :: Type
 
-foreign import mkSvg    :: Element -> Effect D3Scatter
+foreign import _mkSvg   :: Fn2 Element { width :: Number, height :: Number } (Effect D3Scatter)
 foreign import clearSvg :: D3Scatter -> Effect Unit
 
 foreign import _drawData
@@ -39,3 +39,8 @@ drawData_ = runFn6 _drawData handle1 handle1
 drawData :: forall a b. STypeable a => STypeable b => D3Scatter -> ScatterPlot a b -> Effect Unit
 drawData = drawData_ sType sType
 
+mkSvg :: Element -> { width :: Number, height :: Number } -> Effect D3Scatter
+mkSvg = runFn2 _mkSvg
+
+--         const width = 1000;
+--         const height = 600;

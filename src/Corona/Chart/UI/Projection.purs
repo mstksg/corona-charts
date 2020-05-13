@@ -93,8 +93,9 @@ render
     -> State
     -> H.ComponentHTML Action ChildSlots m
 render label aState = HH.div [HU.classProp "axis-options"] [
-      HH.div [HU.classProp "base-projection"] [
-        HH.span_ [HH.text label]
+      HH.h3_ [HH.text label]
+    , HH.div [HU.classProp "base-projection"] [
+        HH.span_ [HH.text "Base Projection"]
       , HH.select [HE.onSelectedIndexChange (map SetBase <<< indexToBase)] $
           allBaseProjections <#> \sbp -> runExists (\bp ->
             let isSelected = withDSum aState.projection (\_ pr ->
@@ -104,7 +105,7 @@ render label aState = HH.div [HU.classProp "axis-options"] [
           ) sbp
       ]
     , HH.div [HU.classProp "axis-op-chain"] [
-        HH.span_ [HH.text (label <> " operations")]
+        HH.span_ [HH.text "Transformations"]
       , withDSum aState.projection (\_ spr ->
           withProjection spr (\pr ->
             let tBase = baseType pr.base
@@ -118,11 +119,13 @@ render label aState = HH.div [HU.classProp "axis-options"] [
         )
       ]
     , HH.div [HU.classProp "axis-scale"] [
-        HH.span_ [HH.text (label <> " scale")]
+        HH.span_ [HH.text "Scale"]
       , withDSum aState.projection (\t _ ->
           case D3.toNType t of
-            Left _ ->
+            Left (Left _) ->
               HH.select_ [ HH.option [HP.selected true] [HH.text "Date"] ]
+            Left (Right _) ->
+              HH.select_ [ HH.option [HP.selected true] [HH.text "Days"] ]
             Right _ ->
               HH.select [HE.onSelectedIndexChange (map SetNumScale <<< indexToNScale)]
               [ HH.option_ [HH.text "Linear"]

@@ -25,15 +25,15 @@ const fmtPrefix = function(i, n) {
     return pref + numberPart + suffices[sections];
 }
 
-exports.mkSvg = function(elem) {
+exports._mkSvg = function(elem, dim) {
     return function () {
-        const width = 1000;
-        const height = 600;
         const svg = d3.select(elem)
                 .append("svg")
-                .attr("viewBox", [0,0,width, height])
+                // .classed("svg-content-responsive",true)
+                // .attr("viewBox", [0,0,1000, 600])
+                .attr("viewBox", [0,0,dim.width, dim.height])
                 .style("overflow","visible");
-        return svg;
+        return { svg: svg, dimensions: dim } ;
     }
 }
 
@@ -47,7 +47,13 @@ exports.clearSvg = function(svg) {
 // , yAxis : { scale : Scale, label : String}
 // , series : [{ name : String, values: [{x, y}]}]
 // }
-exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter) {
+exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scatter) {
+    const svg = svgdat.svg;
+    const width = svgdat.dimensions.width;
+    const height = svgdat.dimensions.height;
+    // const width = 1000;
+    // const height = 600;
+
     const scaleFunc = scale =>
         handleScale(scale)(
             { date:   (() => d3.scaleUtc())
@@ -102,8 +108,6 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svg, scatter
     return function () {
         exports.clearSvg(svg)();
         console.log(scatter);
-        const width = 1000;
-        const height = 600;
         const margin = { top: 20, right: 20, bottom: 20, left: 50 };
         const series = scatter.series.map(function(s) {
                 return { name: s.name
