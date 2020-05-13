@@ -71,4 +71,27 @@
     }
     margin-bottom: 1rem;
   }
+
+  ul {
+    list-style-type: none;
+    padding: 0.1rem;
+    margin: 0;
+    // text-align: center;
+    li {
+      display: block;
+      // margin: 0.3rem 0.3rem;
+      // margin: 0;
+      // padding: 0;
+      // background: #dde;
+      // padding: 0.4rem 0.8rem;
+      // border-radius: 3px;
+      // font-size: 95%;
+      // cursor: pointer;
+
+      // &:hover {
+      //   background: #e7e7f3;
+      // }
+
+    }
+  }
 }

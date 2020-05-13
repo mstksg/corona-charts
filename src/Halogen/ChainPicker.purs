@@ -160,12 +160,14 @@ render
     -> State tag a
     -> H.ComponentHTML (Action tag) (ChildSlots f tag) m
 render pickerMap t0 s = HH.div_ [
-      HH.div [HU.classProp "op-list"] <<< A.catMaybes <<< flip mapWithIndex inList $ \i sT -> runExists (\t ->
-          unwrap (runDProd pickerMap t) <#> \(Picker { component }) ->
+      HH.ul [HU.classProp "op-list"] <<< A.catMaybes <<< flip mapWithIndex inList $ \i sT -> runExists (\t ->
+        unwrap (runDProd pickerMap t) <#> \(Picker { component }) ->
+          HH.li_ [
             HH.slot _chainLink { ix: i, tagIn: mkWrEx t }
               (HU.hoistQuery (unSomeQuery t) component)
               unit
               $ \tOut -> Just (TriggerUpdate { ix: i, outputType: tOut })
+          ]
       ) sT
     , HH.div [HU.classProp "op-buttons"] $ A.catMaybes $ [
         runExists (\lastOut ->
