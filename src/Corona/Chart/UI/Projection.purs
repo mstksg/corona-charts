@@ -153,25 +153,25 @@ chainPicker
        SType a  -- ^ initial initial type
     -> H.Component HH.HTML (ChainPicker.WrappedQuery Operation SType) i (ChainPicker.Output SType) m
 chainPicker = ChainPicker.wrappedComponent $ DProd (\t -> Compose $
-      case D3.toNType t of
-        Left (Left  r) -> Just $ ChainPicker.Picker
-          { component: HU.trimapComponent
-              ((\(ChainPicker.SQ f) -> DateOp.QueryOp f) <<< equivToF2 r)
-              identity
-              (\(DateOp.ChangeEvent e) -> e)
-              DateOp.component
-          , initialOut: mkExists D3.sDays
-          }
-        Left (Right _) -> Nothing
-        Right nt -> Just $ ChainPicker.Picker
-          { component: HU.trimapComponent
-                  (\(ChainPicker.SQ f) -> NumericOp.QueryOp f)
-                  identity
-                  (\(NumericOp.ChangeEvent e) -> e)
-                  (NumericOp.component nt)
-          , initialOut: mkExists t
-          }
-    )
+    case D3.toNType t of
+      Left (Left  r) -> Just $ ChainPicker.Picker
+        { component: HU.trimapComponent
+            ((\(ChainPicker.SQ f) -> DateOp.QueryOp f) <<< equivToF2 r)
+            identity
+            (\(DateOp.ChangeEvent e) -> e)
+            DateOp.component
+        , initialOut: mkExists D3.sDays
+        }
+      Left (Right _) -> Nothing
+      Right nt -> Just $ ChainPicker.Picker
+        { component: HU.trimapComponent
+                (\(ChainPicker.SQ f) -> NumericOp.QueryOp f)
+                identity
+                (\(NumericOp.ChangeEvent e) -> e)
+                (NumericOp.component nt)
+        , initialOut: mkExists t
+        }
+  )
 
 handleAction
     :: forall m. MonadEffect m

@@ -73,11 +73,14 @@ instance applySubQuery :: Apply (SubQuery f tag a) where
 instance applicativeSubQuery :: Applicative (SubQuery f tag a) where
     pure x = SQ (\_ -> x)
 
+-- | Wrap over the input type of a query.  if given a wrong type,
+-- 'typeMismatch' is called
 newtype SomeQuery f tag r = SomeQuery
-    { typeMismatch :: Exists tag -> r
+    { typeMismatch :: forall a. tag a -> r
     , typeMatch    :: forall q. (forall a. tag a -> f a r -> q) -> q
     }
 
+-- | Query of some unknown input type
 type SomeSubQuery f tag = SomeQuery (SubQuery f tag) tag
 
 -- | Picker of chain link @f@ with input @a@
@@ -170,22 +173,22 @@ render pickerMap t0 s = HH.div_ [
           ]
       ) sT
     , HH.div [HU.classProp "op-buttons"] $ A.catMaybes $ [
-        runExists (\lastOut ->
+        A.last inList <#> \tLast ->
+          HH.button [
+            HP.type_ HP.ButtonButton
+          , HE.onClick (\_ -> Just (RemoveLink tLast))
+          , HU.classProp "remove-op"
+          ]
+          [ HH.text "Remove Op" ]
+      , runExists (\lastOut ->
           unwrap (runDProd pickerMap lastOut) <#> \(Picker { initialOut }) ->
             HH.button [
               HP.type_ HP.ButtonButton
             , HE.onClick (\_ -> Just (AddLink initialOut))
             , HU.classProp "add-op"
             ]
-            [ HH.text "Add Operation" ]
+            [ HH.text "Add Op" ]
         ) (fromMaybe (mkExists t0) (A.last outList))
-      , A.last inList <#> \tLast ->
-          HH.button [
-            HP.type_ HP.ButtonButton
-          , HE.onClick (\_ -> Just (RemoveLink tLast))
-          , HU.classProp "remove-op"
-          ]
-          [ HH.text "Remove Operation" ]
       ]
     ]
   where
@@ -349,7 +352,7 @@ someQuery
     -> f a r
     -> SomeQuery f tag (Either (Exists tag) r)
 someQuery t q = SomeQuery
-    { typeMismatch: Left
+    { typeMismatch: Left <<< mkExists
     , typeMatch: \f -> f t (Right <$> q)
     }
 
@@ -360,7 +363,7 @@ unSomeQuery
     -> f a r
 unSomeQuery tExpected (SomeQuery {typeMatch, typeMismatch}) = typeMatch (\tActual sq ->
     case decide tExpected tActual of
-      Nothing   -> pure (typeMismatch (mkExists tExpected))
+      Nothing   -> pure (typeMismatch tExpected)
       Just refl -> equivFromF2 refl sq
   )
 
