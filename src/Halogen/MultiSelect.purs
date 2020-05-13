@@ -61,21 +61,25 @@ data Query a r =
 
 data Output a = SelectionChanged (Array a)
 
-component :: forall a m. MonadEffect m => H.Component HH.HTML (Query a) (State a) (Output a) m
-component =
+component
+    :: forall a m. MonadEffect m
+    => String
+    -> H.Component HH.HTML (Query a) (State a) (Output a) m
+component lab =
   H.mkComponent
     { initialState: identity
-    , render
+    , render: render lab
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction
         , handleQuery  = handleQuery
         }
     }
 
-render :: forall a m. State a -> H.ComponentHTML Action () m
-render st =
+render :: forall a m. String -> State a -> H.ComponentHTML Action () m
+render lab st =
     HH.div [HU.classProp "multiselect"] [
-        HH.div [HU.classProp "select-options grid__col grid__col--1-of-2"] [
+        HH.h3_ [HH.text lab]
+      , HH.div [HU.classProp "select-options grid__col grid__col--1-of-2"] [
           HH.input [
             HP.type_ HP.InputText
           , HP.placeholder "type to filter"

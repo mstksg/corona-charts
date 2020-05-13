@@ -4,8 +4,6 @@ $width: 1200px;
 // $width: 1024px;
 $breakpoint: get-breakpoint();
 
-@use 'ui.scss';
-
 body {
   background: #fcfcfc;
 }
@@ -62,6 +60,14 @@ h2 {
   // @media (max-width: $breakpoint) {
   //   letter-spacing: 0em;
   // }
+}
+
+h3 {
+    font-family: $serif;
+    margin: 0 0 0.75rem 0;
+    display: block;
+    border-width: 0 0 1px 0;
+    border-style: solid;
 }
 
 

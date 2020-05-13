@@ -12,23 +12,63 @@
 
     ul {
       list-style-type: none;
+      padding: 0.1rem;
+      margin: 0 0 0.75rem 0;
       // text-align: center;
       li {
         display: inline-block;
         margin: 0.3rem 0.3rem;
         background: #dde;
         padding: 0.4rem 0.8rem;
-        font-weight: bold;
         border-radius: 3px;
+        font-size: 95%;
         cursor: pointer;
 
         &:hover {
           background: #e7e7f3;
         }
-        
+
       }
     }
   }
 
+  border-style: solid;
+  margin: 1.5rem 0.2rem;
+  padding: 0.6rem;
+  border-width: 1px;
+  border-radius: 2px;
+  background-color: #fff7f7;
 
+  h3 {
+    margin-bottom: 1rem;
+  }
+
+  // .multiselect-title {
+  //   padding-left: 0;
+  // }
+
+}
+
+.axis-options {
+  border-style: solid;
+  margin: 1.5rem 0.2rem;
+  padding: 0.6rem;
+  border-width: 1px;
+  border-radius: 2px;
+  background-color: #f7f7ff;
+
+  .base-projection, .axis-op-chain, .axis-scale {
+    span {
+      display: block;
+      width: 100%;
+      font-style: italic;
+      font-size: 85%;
+      margin: 0;
+    }
+    select {
+        display: block;
+        width: 100%;
+    }
+    margin-bottom: 1rem;
+  }
 }

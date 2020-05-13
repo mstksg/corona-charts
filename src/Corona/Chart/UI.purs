@@ -145,7 +145,7 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
           (\(Projection.Update s) -> Just (SetZProjection s))
       ]
     , HH.div [HU.classProp "grid__col grid__col--3-of-5 countries"] [
-        HH.slot _multiselect unit (MultiSelect.component) sel0 $ case _ of
+        HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
           MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
