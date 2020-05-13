@@ -1,20 +1,22 @@
 
 module Data.ModifiedJulianDay where
 
-import Prelude
+import Data.Array as A
+import Data.Boolean
+import Data.Date as D
+import Data.DateTime as DT
+import Data.Enum
+import Data.Function.Uncurried
+import Data.Int
+import Data.JSDate (JSDate)
+import Data.JSDate as JSDate
+import Data.Lens.Prism
+import Data.List as L
 import Data.Maybe
 import Data.Newtype
 import Data.Time as T
 import Data.Time.Duration as D
-import Data.Enum
-import Data.DateTime as DT
-import Data.Int
-import Data.Boolean
-import Data.JSDate (JSDate)
-import Data.Array as A
-import Data.Date as D
-import Data.List as L
-import Data.JSDate as JSDate
+import Prelude
 
 newtype Day = Day Int
 
@@ -23,7 +25,10 @@ derive instance ordDay :: Ord Day
 derive instance ntDay :: Newtype Day _
 
 instance showDay :: Show Day where
-    show (Day x) = "Day " <> show x
+    show (Day x) = "fromModifiedJulianDay " <> show x
+
+fromModifiedJulianDay :: Int -> Day
+fromModifiedJulianDay = Day
 
 addDays :: Int -> Day -> Day
 addDays x (Day y) = Day (x + y)
@@ -32,6 +37,14 @@ addDays x (Day y) = Day (x + y)
 diffDays :: Day -> Day -> Int
 diffDays (Day x) (Day y) = x - y
 
+fromISO8601 :: String -> Maybe Day
+fromISO8601 = fromJSDate <=< runFn3 _parseIso Just (const Nothing)
+
+toISO8601 :: Day -> String
+toISO8601 = _toIso <<< toJSDate
+
+iso8601 :: Prism' String Day
+iso8601 = prism' toISO8601 fromISO8601
 
 date0 :: D.Date
 date0 = D.canonicalDate
@@ -52,3 +65,6 @@ fromDate d = Day (round n)
 
 fromJSDate :: JSDate -> Maybe Day
 fromJSDate = map fromDate <<< JSDate.toDate
+
+foreign import _parseIso :: forall r. Fn3 (JSDate -> r) (Unit -> r) String r
+foreign import _toIso :: JSDate -> String

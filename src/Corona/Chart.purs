@@ -190,22 +190,15 @@ instance showCondition :: Show a => Show (Condition a) where
       AtLeast n -> "AtLeast " <> show n
       AtMost  n -> "AtMost " <> show n
 
-gshowCondition :: forall a. NType a -> Condition a -> String
-gshowCondition nt = case _ of
-      AtLeast n -> "AtLeast " <> nTypeShow nt n
-      AtMost  n -> "AtMost "  <> nTypeShow nt n
+gshowCondition :: forall a. SType a -> Condition a -> String
+gshowCondition t = case _ of
+      AtLeast n -> "AtLeast " <> sTypeShow t n
+      AtMost  n -> "AtMost "  <> sTypeShow t n
 
 conditionValue :: forall a. Condition a -> a
 conditionValue = case _ of
     AtLeast x -> x
     AtMost  x -> x
-
-type ProjCond = DSum NType (Product Projection Condition)
-
-showProjCond :: ProjCond -> String
-showProjCond pc = withDSum pc (\nt (Product (Tuple p c)) ->
-    show p <> " :=> " <> gshowCondition nt c
-    )
 
 data CutoffType = After | Before
 
@@ -221,11 +214,12 @@ data Operation a b =
       | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
       | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
       | PMax      (NType a) (b ~ Percent)   -- ^ rescale to make max = 1 or -1
-      | Restrict  (NType a) (a ~ b) CutoffType (Condition a)    -- ^ restrict before/after condition
+      | Restrict  (SType a) (a ~ b) CutoffType (Condition a)    -- ^ restrict before/after condition
             -- maybe this should take all types?
       | Take      (a ~ b) Int CutoffType    -- ^ take n
       | DayNumber (b ~ Days) CutoffType     -- ^ day number
       | PointDate (b ~ Day)     -- ^ day associated with point
+      -- TODO: take based on date window
 
 instance gshow2Operation :: GShow2 Operation where
     gshow2 = case _ of
@@ -283,7 +277,7 @@ withWindow n f = L.toUnfoldable
              <<< map f
              <<< windows n
              <<< L.fromFoldable
-      
+
 windows
     :: forall a.
        Int  -- ^ 2*n+1
@@ -300,7 +294,7 @@ windows n = case _ of
     go xs x = case Seq.uncons (NESeq.tail xs) of
       Nothing           -> NESeq.singleton x
       Just (Tuple y ys) -> NESeq.Seq y (Seq.snoc ys x)
-    
+
 applyOperation
     :: forall a b.
        Operation a b
@@ -334,9 +328,9 @@ applyOperation = case _ of
           maxAbs = maybe (toNumber 1) unwrap <<< flip foldMap ys $ \y ->
                      if y == zero
                        then Nothing
-                       else Just (Max y)
+                       else Just (Max (abs y))
       in  equivFromF rbp $ Percent <<< (_ / maxAbs) <$> ys
-    Restrict nt rab co cond -> 
+    Restrict nt rab co cond ->
       let dropper = case co of
             After  -> D.dropUntil
             Before -> D.dropUntilEnd
@@ -355,14 +349,14 @@ applyOperation = case _ of
               Before -> D.findLast (Dated x) <#> \{ day: dF } ->
                   mapWithIndex (\i _ -> Days $ MJD.diffDays i dF) (Dated x)
     PointDate rbd -> equivFromF rbd <<< mapWithIndex const
-            
-applyCondition :: forall a. NType a -> Condition a -> a -> Boolean
-applyCondition nt = case _ of
-    AtLeast n -> \x -> nTypeCompare nt x n == GT
-    AtMost n  -> \x -> nTypeCompare nt x n == LT
+
+applyCondition :: forall a. SType a -> Condition a -> a -> Boolean
+applyCondition t = case _ of
+    AtLeast n -> \x -> sTypeCompare t x n == GT
+    AtMost n  -> \x -> sTypeCompare t x n == LT
 
 applyBaseProjection
-    :: forall a. 
+    :: forall a.
        BaseProjection a
     -> Dated (Counts Int)
     -> Dated a
@@ -371,8 +365,8 @@ applyBaseProjection = case _ of
     Confirmed refl -> map (\c -> equivFrom refl c.confirmed)
     Deaths    refl -> map (\c -> equivFrom refl c.deaths   )
     Recovered refl -> map (\c -> equivFrom refl c.recovered)
-    
-    
+
+
 applyProjection
     :: forall a.
        Projection a
@@ -398,29 +392,30 @@ operationLabel = case _ of
     PGrowth _ _ -> "Daily Percent Growth in"
     Window  _ n -> "Moving Average (+/-" <> show n <> ") of"
     PMax _ _    -> "Percent of maximum in"
-    Restrict nt _ co cond -> fold
+    Restrict t _ co cond -> fold
         [ "(With only points "
         , case co of
             After -> "after"
             Before -> "before"
         , " being "
-        , conditionLabel nt cond
+        , conditionLabel t cond
         , ")"
         ]
-    Take r n c -> 
+    Take r n c ->
       let cStr = case c of
-            After -> "first"
-            Before -> "last"
-      in  "Only keeping the " <> cStr <> " " <> show n <> " points of"
+            After -> "last"
+            Before -> "first"
+      in  "Keeping the " <> cStr <> " " <> show n <> " points of"
     DayNumber _ c -> case c of
       After  -> "Number of days since initial"
       Before -> "Number of days until final"
     PointDate _ -> "Observed date for value of"
 
-conditionLabel :: forall a. NType a -> Condition a -> String
-conditionLabel nt = case _ of
-    AtLeast n -> "at least " <> nTypeShow nt n
-    AtMost  n -> "at most " <> nTypeShow nt n
+-- | TODO: pretty print
+conditionLabel :: forall a. SType a -> Condition a -> String
+conditionLabel t = case _ of
+    AtLeast n -> "at least " <> sTypeShow t n
+    AtMost  n -> "at most " <> sTypeShow t n
 
 operationsLabel :: forall a b. C.Chain Operation a b -> String
 operationsLabel c = res
@@ -441,7 +436,7 @@ toAxisConf spr scl =
       }
 
 toSeries
-    :: forall a b. 
+    :: forall a b.
        Projection a
     -> Projection b
     -> Dated (Counts Int)
@@ -463,7 +458,7 @@ toScatterPlot dat pX sX pY sY ctrys =
         , yAxis  : toAxisConf pY sY
         , series : flip A.mapMaybe (A.fromFoldable ctrys) $ \ctry -> do
             cdat <- O.lookup ctry dat.counts
-            pure 
+            pure
               { name : ctry
               , values : toSeries pX pY (Dated { start: dat.start, values: cdat })
               }

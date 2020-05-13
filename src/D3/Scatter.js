@@ -64,7 +64,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
 
     const fmt = tp => val =>
         handleType(tp)(
-            { day:     (() => val.toLocaleDateString("en-US", {month:"numeric",day:"numeric"}))
+            { day:     (() => val.toLocaleDateString(undefined, {month:"numeric",day:"numeric"}))
             , days:    (() => val)
             , "int":   (() => (Math.abs(val) < 1000) ? val : fmtPrefix(val,4))
             , number:  (() => (Math.abs(val) < 1) ? val
@@ -134,7 +134,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
         const xAxis = function(g) {
             g.attr("transform", `translate(0,${height - margin.bottom})`)
                 // .call(d3.axisBottom(x).ticks(width/80).tickSizeOuter(0));
-                .call(d3.axisBottom(x))
+                .call(d3.axisBottom(x).ticks(10,",d"))
                 .call(g => g.append("text")
                             .attr("x", width - margin.right)
                             .attr("y", -3)

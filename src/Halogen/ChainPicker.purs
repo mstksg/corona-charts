@@ -215,9 +215,9 @@ render pickerMap t0 s = HH.div_ [
           HH.button [
             HP.type_ HP.ButtonButton
           , HE.onClick (\_ -> Just (RemoveLink tLast))
-          , HU.classProp "Remove"
+          , HU.classProp "remove-op"
           ]
-          [ HH.text "Remove Op" ]
+          [ HH.text "Remove" ]
       ]
     ]
   where

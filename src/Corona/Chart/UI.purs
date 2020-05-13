@@ -4,18 +4,17 @@ module Corona.Chart.UI where
 import Prelude
 
 import Corona.Chart
-import Corona.Chart.UI.NumericOp as NumericOp
+import Corona.Chart.UI.Projection as Projection
 import Corona.JHU
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
-import Data.Int
 import Data.Array as A
 import Data.Either
 import Data.Exists
 import Data.Functor.Compose
+import Data.Int
 import Data.Maybe
 import Data.Set (Set)
-import Corona.Chart.UI.Projection as Projection
 import Data.Set as S
 import Data.Symbol (SProxy(..))
 import Debug.Trace

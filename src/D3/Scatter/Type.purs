@@ -30,6 +30,11 @@ newtype Days = Days Int
 unDays :: Days -> Int
 unDays (Days n) = n
 
+derive instance eqDays :: Eq Days
+derive instance ordDays :: Ord Days
+instance showDays :: Show Days where
+    show (Days n) = "Days " <> show n
+
 instance daySemiring :: Semiring Days where
     add (Days x) (Days y) = Days (x + y)
     zero = Days zero
@@ -37,7 +42,6 @@ instance daySemiring :: Semiring Days where
     one = Days one
 instance dayRing :: Ring Days where
     sub (Days x) (Days y) = Days (x - y)
-
 
 newtype Percent  = Percent Number
 
@@ -61,7 +65,8 @@ instance percentERing :: EuclideanRing Percent where
     div (Percent x) (Percent y) = Percent (div x y)
     mod (Percent x) (Percent y) = Percent (mod x y)
 instance percentShow :: Show Percent where
-    show (Percent n) = show (n * toNumber 100) <> "%"
+    -- show (Percent n) = show (n * toNumber 100) <> "%"
+    show (Percent n) = "Percent " <> show n
 
 
 data SType a =
@@ -148,6 +153,21 @@ sTypeIx = case _ of
     SPercent _ -> 4
 
 
+sTypeShow :: forall a. SType a -> a -> String
+sTypeShow = case _ of
+    SDay     r -> show <<< equivTo r
+    SDays    r -> show <<< equivTo r
+    SInt     r -> show <<< equivTo r
+    SNumber  r -> show <<< equivTo r
+    SPercent r -> show <<< equivTo r
+
+sTypeCompare :: forall a. SType a -> a -> a -> Ordering
+sTypeCompare = case _ of
+    SDay     r -> \x y -> compare (equivTo r x) (equivTo r y)
+    SDays    r -> \x y -> compare (equivTo r x) (equivTo r y)
+    SInt     r -> \x y -> compare (equivTo r x) (equivTo r y)
+    SNumber  r -> \x y -> compare (equivTo r x) (equivTo r y)
+    SPercent r -> \x y -> compare (equivTo r x) (equivTo r y)
 
 
 -- | subset of numeric stypes
@@ -199,18 +219,6 @@ nTypeSubtract = case _ of
     NInt     r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
     NNumber  r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
     NPercent r -> \x y -> equivFrom r (equivTo r x - equivTo r y)
-
-nTypeCompare :: forall a. NType a -> a -> a -> Ordering
-nTypeCompare = case _ of
-    NInt     r -> \x y -> compare (equivTo r x) (equivTo r y)
-    NNumber  r -> \x y -> compare (equivTo r x) (equivTo r y)
-    NPercent r -> \x y -> compare (equivTo r x) (equivTo r y)
-
-nTypeShow :: forall a. NType a -> a -> String
-nTypeShow = case _ of
-    NInt     r -> show <<< equivTo r
-    NNumber  r -> show <<< equivTo r
-    NPercent r -> show <<< equivTo r
 
 -- nDays :: NType Days
 -- nDays = NDays refl

@@ -6,22 +6,26 @@ import Prelude
 
 import Control.Monad.State.Class as State
 import Corona.Chart
+import D3.Scatter.Type (SType(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
+import Data.Date as D
 import Data.Either
+import Data.Enum
 import Data.Exists
 import Data.Functor.Product
 import Data.FunctorWithIndex
 import Data.Int
 import Data.Int.Parse
 import Data.Maybe
-import Debug.Trace
 import Data.ModifiedJulianDay (Day)
+import Data.ModifiedJulianDay as MJD
 import Data.Number as N
 import Data.Ord
 import Data.Symbol (SProxy(..))
 import Data.Traversable
 import Data.Tuple
+import Debug.Trace
 import Effect.Class
 import Effect.Class.Console
 import Halogen as H
@@ -37,30 +41,49 @@ import Type.DSum
 import Type.Equiv
 import Undefined
 
-validPickOps :: forall m a. D3.SType a -> Array (SomePickOp m a)
+validPickOps :: forall m a. SType a -> Array (SomePickOp m a)
 validPickOps t0 = case t0 of
-    D3.SDay  _ -> [ D3.sDays :=> dayNumberPickOp ]
-    D3.SDays _ -> [ D3.sDays :=> dayNumberPickOp ]
-    D3.SInt  r -> [
+    SDay  _ -> [
+        t0       :=> restrictPickOp t0
+      , t0       :=> takePickOp
+      , D3.sDays :=> dayNumberPickOp 
+      , D3.sDay  :=> pointDatePickOp
+      ]
+    SDays _ -> [
+        t0       :=> restrictPickOp t0
+      , t0       :=> takePickOp
+      , D3.sDays :=> dayNumberPickOp 
+      , D3.sDay  :=> pointDatePickOp
+      ]
+    SInt  r -> [
         t0          :=> deltaPickOp (D3.NInt r)
       , D3.sPercent :=> pgrowthPickOp (D3.NInt r)
       , D3.sNumber  :=> windowPickOp (I2N r refl)
-      , t0          :=> restrictPickOp (D3.NInt r)
+      , D3.sPercent :=> pmaxPickOp (D3.NInt r)
+      , t0          :=> restrictPickOp t0
+      , t0          :=> takePickOp
       , D3.sDays    :=> dayNumberPickOp
+      , D3.sDay     :=> pointDatePickOp
       ]
-    D3.SNumber r -> [
+    SNumber r -> [
         t0          :=> deltaPickOp (D3.NNumber r)
       , D3.sPercent :=> pgrowthPickOp (D3.NNumber r)
       , D3.sNumber  :=> windowPickOp (N2N r refl)
-      , t0          :=> restrictPickOp (D3.NNumber r)
+      , D3.sPercent :=> pmaxPickOp (D3.NNumber r)
+      , t0          :=> restrictPickOp t0
+      , t0          :=> takePickOp
       , D3.sDays    :=> dayNumberPickOp
+      , D3.sDay     :=> pointDatePickOp
       ]
-    D3.SPercent r -> [
+    SPercent r -> [
         t0          :=> deltaPickOp (D3.NPercent r)
       , D3.sPercent :=> pgrowthPickOp (D3.NPercent r)
       , D3.sPercent :=> windowPickOp (P2P r refl)
-      , t0          :=> restrictPickOp (D3.NPercent r)
+      , D3.sPercent :=> pmaxPickOp (D3.NPercent r)
+      , t0          :=> restrictPickOp t0
+      , t0          :=> takePickOp
       , D3.sDays    :=> dayNumberPickOp
+      , D3.sDay     :=> pointDatePickOp
       ]
 
 type State =
@@ -68,7 +91,7 @@ type State =
     }
 
 newtype SomePickOpQuery a r = SomePQState
-  (forall b. D3.SType b -> Operation a b -> Tuple r (Operation a b))
+  (forall b. SType b -> Operation a b -> Tuple r (Operation a b))
   -- ^ it could possibly change the result type?  nah.  not in this case. we
   -- ignore if result type is different
 
@@ -78,18 +101,18 @@ type ChildSlots a =
                            Int
         )
 
-data Output = ChangeEvent (Exists D3.SType)
+data Output = ChangeEvent (Exists SType)
 
 data Action = SetPickOpIx Int
             | TriggerUpdate
 
 data Query a r = QueryOp
-  (forall b. D3.SType b -> Operation a b
-      -> Tuple r (DSum D3.SType (Operation a)))
+  (forall b. SType b -> Operation a b
+      -> Tuple r (DSum SType (Operation a)))
 
 component
     :: forall a i m. MonadEffect m
-    => D3.SType a
+    => SType a
     -> H.Component HH.HTML (Query a) i Output m
 component t0 =
     H.mkComponent
@@ -181,12 +204,11 @@ _pickOp = SProxy
 
 
 
-
 data PickOpQuery a b r = PQState (Operation a b -> Tuple r (Operation a b))
 
 data PickOpOutput = PickOpUpdate
 
-type SomePickOp m a = DSum D3.SType (PickOp m a)
+type SomePickOp m a = DSum SType (PickOp m a)
 
 newtype PickOp m a b = PickOp
       { label     :: String
@@ -198,6 +220,7 @@ fakeState
      => s -> (s -> Tuple r s) -> m (Maybe r)
 fakeState x f = pure (Just (fst (f x)))
 
+-- | Delta     (NType a) (a ~ b)       -- ^ dx/dt
 deltaPickOp :: forall m a. D3.NType a -> PickOp m a a
 deltaPickOp nt = PickOp {
       label: "Daily Change"
@@ -212,6 +235,7 @@ deltaPickOp nt = PickOp {
       }
     }
 
+-- | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
 pgrowthPickOp :: forall m a. D3.NType a -> PickOp m a D3.Percent
 pgrowthPickOp nt = PickOp {
       label: "Percent Growth"
@@ -226,6 +250,7 @@ pgrowthPickOp nt = PickOp {
       }
     }
 
+-- | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
 windowPickOp :: forall m a b. ToFractional a b -> PickOp m a b
 windowPickOp tf = PickOp {
       label: "Moving Average"
@@ -246,16 +271,31 @@ windowPickOp tf = PickOp {
         , handleQuery  = case _ of
             PQState f -> do
               i <- State.get
-              case f (Window tf i) of
-                Tuple x (Window _ j) -> do
-                  H.put j
-                  pure $ Just x
-                _ -> pure Nothing
+              let Tuple x new = f (Window tf i)
+              case new of
+                Window _ j -> H.put j
+                _          -> pure unit
+              pure (Just x)
         }
       }
     }
   where
     parseWindow = map (abs <<< round) <<< N.fromString
+
+-- | PMax      (NType a) (b ~ Percent)   -- ^ rescale to make max = 1 or -1
+pmaxPickOp :: forall m a. D3.NType a -> PickOp m a D3.Percent
+pmaxPickOp nt = PickOp {
+      label: "Percent of Maximum"
+    , component: H.mkComponent {
+        initialState: \_ -> unit
+      , render: \_ -> HH.div [HU.classProp "percent-of-maximum"] []
+      , eval: H.mkEval $ H.defaultEval {
+          handleAction = \_ -> H.raise PickOpUpdate
+        , handleQuery  = case _ of
+            PQState f -> fakeState (PMax nt refl) f
+        }
+      }
+    }
 
 type RestrictState  a =
       { cutoffType :: CutoffType
@@ -267,13 +307,23 @@ data RestrictAction a = RASetType CutoffType
                       | RASetLimit a
 
 
-restrictPickOp :: forall m a. D3.NType a -> PickOp m a a
-restrictPickOp nt = PickOp {
+-- | Restrict  (SType a) (a ~ b) CutoffType (Condition a)    -- ^ restrict before/after condition
+restrictPickOp :: forall m a. SType a -> PickOp m a a
+restrictPickOp t = PickOp {
       label: "Restrict"
     , component: H.mkComponent {
         initialState: \_ ->
             { cutoffType: After
-            , condition: AtLeast $ D3.numberNType nt (toNumber 100)
+            , condition: AtLeast $ case t of
+                SDay r -> equivFrom r $ MJD.fromDate $
+                            D.canonicalDate
+                              (toEnumWithDefaults bottom top 2020)
+                              D.January
+                              (toEnumWithDefaults bottom top 22)
+                SDays r -> equivFrom r $ D3.Days 0
+                SInt r -> equivFrom r $ 100
+                SNumber r -> equivFrom r $ toNumber 100
+                SPercent r -> equivFrom r $ D3.Percent 0.2
             }
       , render: \st -> HH.div [HU.classProp "restrict"] [
           HH.span_ [HH.text "Keep points..."]
@@ -292,9 +342,9 @@ restrictPickOp nt = PickOp {
               in  HH.option [HP.selected isSelected] [HH.text (showCond c)]
         , HH.div [HU.classProp "cond-num-picker"] [
             HH.input [
-              HP.type_ HP.InputNumber
-            , HP.value (showCondValue (conditionValue st.condition))
-            , HE.onValueInput (map RASetLimit <<< parseCondValue)
+              HP.type_ inputType
+            , HP.value (inputShow (conditionValue st.condition))
+            , HE.onValueInput (map RASetLimit <<< inputParse)
             ]
           ]
         ]
@@ -311,25 +361,16 @@ restrictPickOp nt = PickOp {
         , handleQuery  = case _ of
             PQState f -> do
               st <- State.get
-              case f (Restrict nt refl st.cutoffType st.condition) of
-                Tuple x (Restrict _ _ ct cond) -> do
-                  H.put { cutoffType: ct, condition: cond }
-                  pure $ Just x
-                _ -> pure Nothing
+              let Tuple x new = f (Restrict t refl st.cutoffType st.condition)
+              case new of
+                Restrict _ _ ct cond -> H.put { cutoffType: ct, condition: cond }
+                _                    -> pure unit
+              pure (Just x)
         }
       }
     }
   where
-    showCondValue = case nt of
-      D3.NInt r -> show <<< equivTo r
-      D3.NNumber r -> show <<< equivTo r
-      D3.NPercent r -> show <<< (_ * toNumber 100) <<< D3.unPercent <<< equivTo r
-    parseCondValue :: String -> Maybe a
-    parseCondValue = case nt of
-      D3.NInt    r -> map (equivFrom r <<< round) <<< N.fromString
-      D3.NNumber r -> map (equivFrom r) <<< N.fromString
-      D3.NPercent r -> map (equivFrom r <<< D3.Percent <<< (_ / toNumber 100))
-                   <<< N.fromString
+    { inputType, inputParse, inputShow } = inputField t
     showCutoff = case _ of
       After  -> "after"
       Before -> "before"
@@ -337,13 +378,65 @@ restrictPickOp nt = PickOp {
       AtLeast _ -> "at least"
       AtMost  _ -> "at most"
 
+type TakeState  a =
+      { cutoffType :: CutoffType
+      , amount     :: Int
+      }
 
-condList :: Array (Condition Unit)
-condList = [AtLeast unit, AtMost unit]
+data TakeAction a = TASetType CutoffType
+                  | TASetAmount Int
 
-cutoffList :: Array CutoffType
-cutoffList = [After, Before]
+-- | Take      (a ~ b) Int CutoffType    -- ^ take n
+takePickOp :: forall m a. PickOp m a a
+takePickOp = PickOp {
+      label: "Take Amount"
+    , component: H.mkComponent {
+        initialState: \_ ->
+            { cutoffType: Before
+            , amount: 30
+            }
+      , render: \st -> HH.div [HU.classProp "take-amount"] [
+          HH.span_ [HH.text "Keep only the..."]
+        , HH.select [ HU.classProp "cutoff-list"
+                    , HE.onSelectedIndexChange (map TASetType <<< (cutoffList A.!! _))
+                    ] $
+            cutoffList <#> \c ->
+              let isSelected = c == st.cutoffType
+              in  HH.option [HP.selected isSelected] [HH.text (showCutoff c)]
+        , HH.div [HU.classProp "cond-num-picker"] [
+            HH.input [
+              HP.type_ HP.InputNumber
+            , HP.value (show st.amount)
+            , HE.onValueInput (map TASetAmount <<< parseAmount)
+            ]
+          ]
+        , HH.span_ [HH.text "...points"]
+        ]
+      , eval: H.mkEval $ H.defaultEval {
+          handleAction = \act -> do
+            H.modify_ $
+              case act of
+                TASetType co -> _ { cutoffType = co }
+                TASetAmount v -> _ { amount = v }
+            H.raise PickOpUpdate
+        , handleQuery  = case _ of
+            PQState f -> do
+              st <- State.get
+              let Tuple x new = f (Take refl st.amount st.cutoffType)
+              case new of
+                Take _ amt ct -> H.put { cutoffType: ct, amount: amt }
+                _             -> pure unit
+              pure (Just x)
+        }
+      }
+    }
+  where
+    parseAmount = map round <<< N.fromString
+    showCutoff = case _ of
+      After  -> "first"
+      Before -> "last"
 
+-- | DayNumber (b ~ Days) CutoffType     -- ^ day number
 dayNumberPickOp :: forall m a b. PickOp m a D3.Days
 dayNumberPickOp = PickOp {
       label: "Day Count"
@@ -363,11 +456,11 @@ dayNumberPickOp = PickOp {
         , handleQuery  = case _ of
             PQState f -> do
               c <- State.get
-              case f (DayNumber refl c) of
-                Tuple x (DayNumber _ d) -> do
-                  H.put d
-                  pure $ Just x
-                _ -> pure Nothing
+              let Tuple x new = f (DayNumber refl c)
+              case new of
+                DayNumber _ d -> H.put d
+                _             -> pure unit
+              pure (Just x)
         }
       }
     }
@@ -376,3 +469,52 @@ dayNumberPickOp = PickOp {
       After  -> "first day"
       Before -> "last day"
 
+-- | PointDate (b ~ Day)     -- ^ day associated with point
+pointDatePickOp :: forall m a. PickOp m a Day
+pointDatePickOp = PickOp {
+      label: "Date Observed"
+    , component: H.mkComponent {
+        initialState: \_ -> unit
+      , render: \_ -> HH.div [HU.classProp "date-observed"] []
+      , eval: H.mkEval $ H.defaultEval {
+          handleAction = \_ -> H.raise PickOpUpdate
+        , handleQuery  = case _ of
+            PQState f -> fakeState (PointDate refl) f
+        }
+      }
+    }
+
+
+condList :: Array (Condition Unit)
+condList = [AtLeast unit, AtMost unit]
+
+cutoffList :: Array CutoffType
+cutoffList = [After, Before]
+
+type InputField a =
+    { inputType  :: HP.InputType
+    , inputParse :: String -> Maybe a
+    , inputShow  :: a -> String
+    }
+
+inputField :: forall a. SType a -> InputField a
+inputField t =
+    { inputType: case t of
+        SDay _ -> HP.InputDate
+        _         -> HP.InputNumber
+    , inputParse: case t of
+        SDay r -> equivFromF r <<< MJD.fromISO8601
+        SDays r -> map (equivFrom r <<< D3.Days <<< round) <<< N.fromString
+        SInt    r -> map (equivFrom r <<< round) <<< N.fromString
+        SNumber r -> map (equivFrom r) <<< N.fromString
+        SPercent r -> map (equivFrom r <<< D3.Percent <<< (_ / toNumber 100))
+                     <<< N.fromString
+    , inputShow: case t of
+        SDay r -> MJD.toISO8601 <<< equivTo r
+        SDays r -> show <<< D3.unDays <<< equivTo r
+        SInt r -> show <<< equivTo r
+        SNumber r -> showPrecision <<< equivTo r
+        SPercent r -> showPrecision <<< (_ * toNumber 100) <<< D3.unPercent <<< equivTo r
+    }
+  where
+    showPrecision x = if toNumber (round x) == x then show (round x) else show x

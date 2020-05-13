@@ -5,8 +5,6 @@ import Prelude
 
 import Control.Monad.State.Class as State
 import Corona.Chart
-import Corona.Chart.UI.DateOp as DateOp
-import Corona.Chart.UI.NumericOp as NumericOp
 import Corona.Chart.UI.Op as Op
 import Corona.JHU
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
