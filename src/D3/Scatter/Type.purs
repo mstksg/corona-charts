@@ -188,6 +188,12 @@ nTypeNumber = case _ of
     NNumber r -> equivTo r
     NPercent r -> unPercent <<< equivTo r
 
+numberNType :: forall a. NType a -> Number -> a
+numberNType = case _ of
+    NInt r -> equivFrom r <<< round
+    NNumber r -> equivFrom r
+    NPercent r -> equivFrom r <<< Percent
+
 nTypeSubtract :: forall a. NType a -> a -> a -> a
 nTypeSubtract = case _ of
     NInt     r -> \x y -> equivFrom r (equivTo r x - equivTo r y)

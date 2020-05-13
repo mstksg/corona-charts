@@ -3,9 +3,11 @@ module Corona.Chart.UI.Projection where
 
 import Prelude
 
+import Control.Monad.State.Class as State
 import Corona.Chart
 import Corona.Chart.UI.DateOp as DateOp
 import Corona.Chart.UI.NumericOp as NumericOp
+import Corona.Chart.UI.Op as Op
 import Corona.JHU
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
@@ -17,6 +19,7 @@ import Data.Maybe
 import Data.Set (Set)
 import Data.Set as S
 import Data.Symbol (SProxy(..))
+import Data.Tuple
 import Debug.Trace
 import Effect.Class
 import Effect.Class.Console
@@ -69,7 +72,7 @@ data Action =
 
 data Output = Update State
 
-data Query r = QueryOp (State -> r)
+data Query r = QueryOp (State -> Tuple r State)
 
 -- TODO: need a way to restrict output, and then maybe wrap it.  like the good
 -- old days
@@ -88,8 +91,8 @@ component label =
     }
 
 render
-    :: forall m.
-       String     -- ^ axis label
+    :: forall m. MonadEffect m
+    => String     -- ^ axis label
     -> State
     -> H.ComponentHTML Action ChildSlots m
 render label aState = HH.div [HU.classProp "axis-options"] [
@@ -148,29 +151,28 @@ render label aState = HH.div [HU.classProp "axis-options"] [
       1 -> Just (NScale (DProd Log))
       _ -> Nothing
 
+-- component
+--     :: forall a i m. MonadEffect m
+--     => D3.SType a
+--     -> H.Component HH.HTML (Query a) i Output m
+
 chainPicker
-    :: forall a i m.
-       SType a  -- ^ initial initial type
+    :: forall a i m. MonadEffect m
+    => SType a  -- ^ initial initial type
     -> H.Component HH.HTML (ChainPicker.WrappedQuery Operation SType) i (ChainPicker.Output SType) m
-chainPicker = ChainPicker.wrappedComponent $ DProd (\t -> Compose $
-    case D3.toNType t of
-      Left (Left  r) -> Nothing
-      -- Left (Left  r) -> Just $ ChainPicker.Picker
-      --   { component: HU.trimapComponent
-      --       ((\(ChainPicker.SQ f) -> DateOp.QueryOp f) <<< equivToF2 r)
-      --       identity
-      --       (\(DateOp.ChangeEvent e) -> e)
-      --       DateOp.component
-      --   , initialOut: mkExists D3.sDays
-      --   }
-      Left (Right _) -> Nothing
-      Right nt -> Just $ ChainPicker.Picker
+chainPicker = ChainPicker.wrappedComponent $ DProd (\t -> Compose <<< Just $
+      ChainPicker.Picker
         { component: HU.trimapComponent
-                (\(ChainPicker.SQ f) -> NumericOp.QueryOp f)
-                identity
-                (\(NumericOp.ChangeEvent e) -> e)
-                (NumericOp.component nt)
-        , initialOut: mkExists t
+              (\(ChainPicker.SQ f) -> Op.QueryOp f)
+              identity
+              (\(Op.ChangeEvent o) -> o)
+              (Op.component t)
+        , initialOut: case t of
+            SDay  _ -> mkExists D3.sDays
+            SDays _ -> mkExists D3.sDays
+            SInt  _ -> mkExists D3.sInt
+            SNumber _ -> mkExists D3.sNumber
+            SPercent _ -> mkExists D3.sPercent
         }
   )
 
@@ -187,7 +189,7 @@ handleAction act = do
         withDSum dsp (\tOut proj -> withProjection proj (\pr -> do
             let tIn = baseType pr.base
             qres <- H.query _opselect { tagIn: mkWrEx tIn }
-                  $ ChainPicker.someQuery tIn (ChainPicker.AskSelected identity)
+                  $ ChainPicker.someQuery tIn ChainPicker.askSelected
             case qres of
               Nothing       -> log "no response from component"
               Just (Left e) -> log $ "type mismatch: " <> runExists show e
@@ -206,7 +208,8 @@ handleQuery
     :: forall a c o m r.
        Query r
     -> H.HalogenM State a c o m (Maybe r)
-handleQuery = case _ of QueryOp f -> Just <<< f <$> H.get
+handleQuery = case _ of QueryOp f -> Just <$> State.state f
+      -- ^ hm this is not ok
 
 _opselect :: SProxy "opselect"
 _opselect = SProxy

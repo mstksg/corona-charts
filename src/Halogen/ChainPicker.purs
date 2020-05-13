@@ -11,6 +11,7 @@ import Control.Monad.State
 import Control.Monad.State.Class
 import Control.MonadZero as MZ
 import Data.Array as A
+import Data.Bifunctor as BF
 import Data.Boolean
 import Data.Either
 import Data.Exists
@@ -63,15 +64,25 @@ import Web.HTML.HTMLSelectElement as Select
 import Web.UIEvent.MouseEvent as ME
 
 -- | returns an @f a b@ with the @b@ hidden
-data SubQuery f tag a r = SQ (DSum tag (f a) -> r)
+data SubQuery f tag a r = SQ (forall b. tag b -> f a b -> Tuple r (DSum tag (f a)))
+
+subQueryAsk :: forall f tag a. SubQuery f tag a (DSum tag (f a))
+subQueryAsk = SQ (\t x -> Tuple (t :=> x) (t :=> x))
 
 instance functorSubQuery :: Functor (SubQuery f tag a) where
     map f = case _ of
-      SQ    g -> SQ (f <<< g)
+      SQ    g -> SQ (\t -> BF.lmap f <<< g t)
 instance applySubQuery :: Apply (SubQuery f tag a) where
-    apply (SQ f) (SQ g) = SQ $ \x -> (f x) (g x)
+    apply (SQ f) (SQ g) = SQ (\t0 s0 ->
+        let Tuple ff ds1 = f t0 s0
+        in  withDSum ds1 (\t1 s1 ->
+              let Tuple xx ds2 = g t1 s1
+              in  Tuple (ff xx) ds2
+            )
+        )
 instance applicativeSubQuery :: Applicative (SubQuery f tag a) where
-    pure x = SQ (\_ -> x)
+    pure x = SQ (\t s -> Tuple x (t :=> s))
+
 
 -- | Wrap over the input type of a query.  if given a wrong type,
 -- 'typeMismatch' is called
@@ -114,15 +125,21 @@ data Action tag =
         | TriggerUpdate { ix :: Int, outputType :: Exists tag }
 
 data Query f tag a r =
-        AskSelected (DSum tag (Chain f a) -> r)
+        StateSelected (DSum tag (Chain f a) -> Tuple r (DSum tag (Chain f a)))
+
+askSelected :: forall f tag a. Query f tag a (DSum tag (Chain f a))
+askSelected = StateSelected (\x -> Tuple x x)
 
 instance functorQuery :: Functor (Query f tag a) where
     map f = case _ of
-      AskSelected    g -> AskSelected (f <<< g)
+      StateSelected    g -> StateSelected (BF.lmap f <<< g)
 instance applyQuery :: Apply (Query f tag a) where
-    apply (AskSelected f) (AskSelected g) = AskSelected $ \x -> (f x) (g x)
+    apply (StateSelected f) (StateSelected g) = StateSelected $ \s0 ->
+        let Tuple ff s1 = f s0
+            Tuple xx s2 = g s1
+        in  Tuple (ff xx) s2
 instance applicativeQuery :: Applicative (Query f tag a) where
-    pure x = AskSelected (\_ -> x)
+    pure x = StateSelected (\s -> Tuple x s)
 
 data Output tag = ChainUpdate (Exists tag)      -- ^ new output type
 
@@ -306,9 +323,9 @@ handleQuery
     -> Query f tag a r
     -> PhatMonad f tag a o m (Maybe r)
 handleQuery t0 = case _ of
-    AskSelected f -> assembleChain t0 <#> case _ of
+    StateSelected f -> assembleChain t0 <#> case _ of
       Left  e  -> trace (show e) (const Nothing)     -- how to log error?
-      Right xs -> Just (f xs)
+      Right xs -> Just (fst (f xs))     -- TODO: no more ignore
 
 type PhatMonad f tag a o m = H.HalogenM (State tag a) (Action tag) (ChildSlots f tag) o m
 
@@ -331,7 +348,7 @@ assembleChain t0 = do
       res <- lift $ lift $ H.query
         _chainLink
         { ix: i, tagIn: mkWrEx tagIn }
-        (someQuery tagIn (SQ identity))
+        (someQuery tagIn subQueryAsk)
       case res of
         Nothing       -> throwError $ AENoResponse { ix: i, expected: mkExists tagIn }
         Just (Left e) -> throwError $ AEInType { ix: i, expected: mkExists tagIn, actual: e }
@@ -366,6 +383,11 @@ unSomeQuery tExpected (SomeQuery {typeMatch, typeMismatch}) = typeMatch (\tActua
       Nothing   -> pure (typeMismatch tExpected)
       Just refl -> equivFromF2 refl sq
   )
+
+-- newtype SomeQuery f tag r = SomeQuery
+--     { typeMismatch :: forall a. tag a -> r
+--     , typeMatch    :: forall q. (forall a. tag a -> f a r -> Tuple q (f a r)) -> q
+--     }
 
 
 _chainLink :: SProxy "chainLink"

@@ -211,6 +211,7 @@ data Operation a b =
       | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
       | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
       | Cutoff    (NType a) (a ~ b) CutoffType (Condition a)
+            -- maybe this should take all types?
       | DayNumber (b ~ Days) CutoffType
 
 instance gshow2Operation :: GShow2 Operation where
