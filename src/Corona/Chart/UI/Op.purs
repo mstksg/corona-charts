@@ -45,21 +45,21 @@ validPickOps t0 = case t0 of
         t0          :=> deltaPickOp (D3.NInt r)
       , D3.sPercent :=> pgrowthPickOp (D3.NInt r)
       , D3.sNumber  :=> windowPickOp (I2N r refl)
-      , t0          :=> cutoffPickOp (D3.NInt r)
+      , t0          :=> restrictPickOp (D3.NInt r)
       , D3.sDays    :=> dayNumberPickOp
       ]
     D3.SNumber r -> [
         t0          :=> deltaPickOp (D3.NNumber r)
       , D3.sPercent :=> pgrowthPickOp (D3.NNumber r)
       , D3.sNumber  :=> windowPickOp (N2N r refl)
-      , t0          :=> cutoffPickOp (D3.NNumber r)
+      , t0          :=> restrictPickOp (D3.NNumber r)
       , D3.sDays    :=> dayNumberPickOp
       ]
     D3.SPercent r -> [
         t0          :=> deltaPickOp (D3.NPercent r)
       , D3.sPercent :=> pgrowthPickOp (D3.NPercent r)
       , D3.sPercent :=> windowPickOp (P2P r refl)
-      , t0          :=> cutoffPickOp (D3.NPercent r)
+      , t0          :=> restrictPickOp (D3.NPercent r)
       , D3.sDays    :=> dayNumberPickOp
       ]
 
@@ -257,35 +257,35 @@ windowPickOp tf = PickOp {
   where
     parseWindow = map (abs <<< round) <<< N.fromString
 
-type CutoffState  a =
+type RestrictState  a =
       { cutoffType :: CutoffType
       , condition  :: Condition a
       }
 
-data CutoffAction a = COSetType CutoffType
-                    | COSetCondType (Condition Unit)
-                    | COSetLimit a
+data RestrictAction a = RASetType CutoffType
+                      | RASetCondType (Condition Unit)
+                      | RASetLimit a
 
 
-cutoffPickOp :: forall m a. D3.NType a -> PickOp m a a
-cutoffPickOp nt = PickOp {
-      label: "Cutoff"
+restrictPickOp :: forall m a. D3.NType a -> PickOp m a a
+restrictPickOp nt = PickOp {
+      label: "Restrict"
     , component: H.mkComponent {
         initialState: \_ ->
             { cutoffType: After
             , condition: AtLeast $ D3.numberNType nt (toNumber 100)
             }
-      , render: \st -> HH.div [HU.classProp "cutoff"] [
+      , render: \st -> HH.div [HU.classProp "restrict"] [
           HH.span_ [HH.text "Keep points..."]
         , HH.select [ HU.classProp "cutoff-list"
-                    , HE.onSelectedIndexChange (map COSetType <<< (cutoffList A.!! _))
+                    , HE.onSelectedIndexChange (map RASetType <<< (cutoffList A.!! _))
                     ] $
             cutoffList <#> \c ->
               let isSelected = c == st.cutoffType
               in  HH.option [HP.selected isSelected] [HH.text (showCutoff c)]
         , HH.span_ [HH.text "...being..."]
         , HH.select [ HU.classProp "condition-list"
-                    , HE.onSelectedIndexChange (map COSetCondType <<< (condList A.!! _))
+                    , HE.onSelectedIndexChange (map RASetCondType <<< (condList A.!! _))
                     ] $
             condList <#> \c ->
               let isSelected = c == void st.condition
@@ -294,7 +294,7 @@ cutoffPickOp nt = PickOp {
             HH.input [
               HP.type_ HP.InputNumber
             , HP.value (showCondValue (conditionValue st.condition))
-            , HE.onValueInput (map COSetLimit <<< parseCondValue)
+            , HE.onValueInput (map RASetLimit <<< parseCondValue)
             ]
           ]
         ]
@@ -302,17 +302,17 @@ cutoffPickOp nt = PickOp {
           handleAction = \act -> do
             H.modify_ $ \st ->
               case act of
-                COSetType co -> st { cutoffType = co }
-                COSetCondType cu ->
+                RASetType co -> st { cutoffType = co }
+                RASetCondType cu ->
                   st { condition = conditionValue st.condition <$ cu }
-                COSetLimit v ->
+                RASetLimit v ->
                   st { condition = v <$ st.condition }
             H.raise PickOpUpdate
         , handleQuery  = case _ of
             PQState f -> do
               st <- State.get
-              case f (Cutoff nt refl st.cutoffType st.condition) of
-                Tuple x (Cutoff _ _ ct cond) -> do
+              case f (Restrict nt refl st.cutoffType st.condition) of
+                Tuple x (Restrict _ _ ct cond) -> do
                   H.put { cutoffType: ct, condition: cond }
                   pure $ Just x
                 _ -> pure Nothing

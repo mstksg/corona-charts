@@ -27,9 +27,12 @@ import Data.Map as M
 import Data.Maybe
 import Data.ModifiedJulianDay (Day(..))
 import Data.ModifiedJulianDay as MJD
+import Data.Newtype
 import Data.NonEmpty as NE
 import Data.Number
 import Data.Options
+import Data.Ord
+import Data.Ord.Max
 import Data.Semiring
 import Data.Sequence as Seq
 import Data.Sequence.NonEmpty as NESeq
@@ -154,16 +157,23 @@ toFractional = case _ of
     NNumber r  -> mkExists (N2N r r)
     NPercent r -> mkExists (P2P r r)
 
-toFractionalIn :: forall a b. ToFractional a b -> SType a
+
+toFractionalIn :: forall a b. ToFractional a b -> NType a
 toFractionalIn = case _ of
-    I2N r _ -> SInt r
-    N2N r _ -> SNumber r
-    P2P r _ -> SPercent r
-toFractionalOut :: forall a b. ToFractional a b -> SType b
+    I2N r _ -> NInt r
+    N2N r _ -> NNumber r
+    P2P r _ -> NPercent r
+toFractionalOut :: forall a b. ToFractional a b -> NType b
 toFractionalOut = case _ of
-    I2N _ r -> SNumber r
-    N2N _ r -> SNumber r
-    P2P _ r -> SPercent r
+    I2N _ r -> NNumber r
+    N2N _ r -> NNumber r
+    P2P _ r -> NPercent r
+
+-- runToFractional :: forall a b. ToFractional a b -> a -> b
+-- runToFractional = case _ of
+--     I2N rai rbn -> equivFrom rbn <<< toNumber <<< equivTo rai
+--     N2N ran rbn -> equivFrom rbn <<< equivTo ran
+--     P2P rap rbp -> equivFrom rbp <<< equivTo rap
 
 data Condition a = AtLeast a | AtMost a
 
@@ -210,18 +220,23 @@ data Operation a b =
         Delta     (NType a) (a ~ b)       -- ^ dx/dt
       | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
       | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
-      | Cutoff    (NType a) (a ~ b) CutoffType (Condition a)
+      | PMax      (NType a) (b ~ Percent)   -- ^ rescale to make max = 1 or -1
+      | Restrict  (NType a) (a ~ b) CutoffType (Condition a)    -- ^ restrict before/after condition
             -- maybe this should take all types?
-      | DayNumber (b ~ Days) CutoffType
-      -- TODO: percent of max
+      | Take      (a ~ b) Int CutoffType    -- ^ take n
+      | DayNumber (b ~ Days) CutoffType     -- ^ day number
+      | PointDate (b ~ Day)     -- ^ day associated with point
 
 instance gshow2Operation :: GShow2 Operation where
     gshow2 = case _ of
       Delta   _ _ -> "Delta"
       PGrowth _ _ -> "PGrowth"
       Window  _ n -> "Window " <> show n
-      Cutoff nt _ co cond -> "Cutoff " <> show co <> " (" <> gshowCondition nt cond <> ")"
+      PMax _ _    -> "PMax"
+      Restrict nt _ co cond -> "Restrict " <> show co <> " (" <> gshowCondition nt cond <> ")"
+      Take _ n co -> "Take " <> show n <> " " <> show co
       DayNumber _ c -> "DayNumber " <> show c
+      PointDate _ -> "PointDate"
 instance gshowOperation :: GShow (Operation a) where
     gshow = gshow2
 instance showOperation :: Show (Operation a b) where
@@ -288,11 +303,10 @@ windows n = case _ of
     
 applyOperation
     :: forall a b.
-       Dated (Counts Int)   -- ^ environment (all info)
-    -> Operation a b
+       Operation a b
     -> Dated a
     -> Dated b
-applyOperation env = case _ of
+applyOperation = case _ of
     Delta num rab -> \(Dated x) -> Dated
         { start: MJD.addDays (-1) x.start
         , values: withConsec
@@ -308,25 +322,30 @@ applyOperation env = case _ of
         }
     Window tf n -> \(Dated x) -> Dated
         { start: MJD.addDays (-n) x.start
-        , values: case tf of
-            I2N rai rbn ->
-              withWindow n (\ys -> equivFrom rbn $
-                      toNumber (sum (map (equivTo rai) ys)) / toNumber (n*2+1))
-                  x.values
-            N2N ran rbn ->
-                withWindow n (\ys -> equivFrom rbn $
-                        sum (map (equivTo ran) ys) / toNumber (n*2+1))
-                    x.values
-            P2P rap rbp ->
-                withWindow n (\ys -> equivFrom rbp $
-                        sum (map (equivTo rap) ys) / Percent (toNumber (n*2+1)))
-                    x.values
+        , values: flip (withWindow n) x.values $ \ys ->
+                    numberNType (toFractionalOut tf) $
+                      sum (map (nTypeNumber (toFractionalIn tf)) ys)
+                        / toNumber (n * 2 + 1)
         }
-    Cutoff nt rab co cond -> 
+    PMax nt rbp -> \xs ->
+      let ys :: Dated Number
+          ys = nTypeNumber nt <$> xs
+          maxAbs :: Number
+          maxAbs = maybe (toNumber 1) unwrap <<< flip foldMap ys $ \y ->
+                     if y == zero
+                       then Nothing
+                       else Just (Max y)
+      in  equivFromF rbp $ Percent <<< (_ / maxAbs) <$> ys
+    Restrict nt rab co cond -> 
       let dropper = case co of
             After  -> D.dropUntil
             Before -> D.dropUntilEnd
       in  equivToF rab <<< dropper (applyCondition nt cond)
+    Take rab n co ->
+      let dropper = case co of
+            After  -> D.take
+            Before -> D.takeEnd
+      in  equivToF rab <<< dropper n
     DayNumber rbds co -> \(Dated x) ->
       let emptyDated = Dated { start: x.start, values: [] }
       in  maybe emptyDated (equivFromF rbds) $
@@ -335,6 +354,7 @@ applyOperation env = case _ of
                   mapWithIndex (\i _ -> Days $ MJD.diffDays i d0) (Dated x)
               Before -> D.findLast (Dated x) <#> \{ day: dF } ->
                   mapWithIndex (\i _ -> Days $ MJD.diffDays i dF) (Dated x)
+    PointDate rbd -> equivFromF rbd <<< mapWithIndex const
             
 applyCondition :: forall a. NType a -> Condition a -> a -> Boolean
 applyCondition nt = case _ of
@@ -359,7 +379,7 @@ applyProjection
     -> Dated (Counts Int)
     -> Dated a
 applyProjection spr allDat = withProjection spr (\pr ->
-          C.runChain (applyOperation allDat) pr.operations <<< applyBaseProjection pr.base
+          C.runChain applyOperation pr.operations <<< applyBaseProjection pr.base
         ) allDat
 
 baseProjection :: forall a. Projection a -> Exists BaseProjection
@@ -377,7 +397,8 @@ operationLabel = case _ of
     Delta   _ _ -> "Daily Change in"
     PGrowth _ _ -> "Daily Percent Growth in"
     Window  _ n -> "Moving Average (+/-" <> show n <> ") of"
-    Cutoff nt _ co cond -> fold
+    PMax _ _    -> "Percent of maximum in"
+    Restrict nt _ co cond -> fold
         [ "(With only points "
         , case co of
             After -> "after"
@@ -386,9 +407,15 @@ operationLabel = case _ of
         , conditionLabel nt cond
         , ")"
         ]
+    Take r n c -> 
+      let cStr = case c of
+            After -> "first"
+            Before -> "last"
+      in  "Only keeping the " <> cStr <> " " <> show n <> " points of"
     DayNumber _ c -> case c of
-      After  -> "Number of days since initial "
-      Before -> "Number of days until final "
+      After  -> "Number of days since initial"
+      Before -> "Number of days until final"
+    PointDate _ -> "Observed date for value of"
 
 conditionLabel :: forall a. NType a -> Condition a -> String
 conditionLabel nt = case _ of

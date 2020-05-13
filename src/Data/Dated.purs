@@ -10,6 +10,7 @@ import Data.Functor
 import Data.FunctorWithIndex as FWI
 import Data.Lazy as Lazy
 import Data.List as L
+import Data.Foldable as Foldable
 import Data.List.Lazy as LL
 import Data.Maybe
 import Data.ModifiedJulianDay (Day(..), addDays, diffDays)
@@ -21,9 +22,10 @@ newtype Dated a = Dated
     , values :: Array a
     }
 
+derive instance newtypeDated :: Newtype (Dated a) _
+
 instance showDated :: Show a => Show (Dated a) where
     show (Dated x) = "Dated " <> show x
-
 
 instance functorDated :: Functor Dated where
     map f (Dated d) = Dated { start: d.start, values: map f d.values }
@@ -33,6 +35,12 @@ instance functorWithIndexDated :: FWI.FunctorWithIndex Day Dated where
 
 instance applyDated :: Apply Dated where
     apply = zipDated ($)
+
+instance foldedableDated :: Foldable.Foldable Dated where
+    foldr f z = Foldable.foldr f z <<< (_.values) <<< unwrap
+    foldl f z = Foldable.foldl f z <<< (_.values) <<< unwrap
+    foldMap f = Foldable.foldMap f <<< (_.values) <<< unwrap
+
 
 datedValues :: forall a. Dated a -> Array a
 datedValues (Dated d) = d.values
