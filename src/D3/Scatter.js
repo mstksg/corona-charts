@@ -62,21 +62,28 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
             }
         );
 
-    const fmt = tp => val =>
+    const fmt = tp =>
         handleType(tp)(
-            { day:     (() => val.toLocaleDateString(undefined, {month:"numeric",day:"numeric"}))
-            , days:    (() => val)
-            , "int":   (() => (Math.abs(val) < 1000) ? val : fmtPrefix(val,4))
-            , number:  (() => (Math.abs(val) < 1) ? val
-                                    : (Math.abs(val) < 1000) ? val.toFixed(2) : fmtPrefix(val,4)
-                       )
-            , percent: (() => ((Math.abs(val) < 1) ? val.toFixed(2)
-                                    : (Math.abs(val) < 1000) ? val.toFixed(1) : fmtPrefix(val,3)) + "%"
-                       )
+            { day:     (() => val => val.toLocaleDateString(undefined, {month:"numeric",day:"numeric"}))
+            , days:    (() => d3.format(".3~s"))
+            , "int":   (() => d3.format(".3~s"))
+            , number:  (() => d3.format(".3~s"))
+            , percent: (() => d3.format(".3~p"))
             }
-        );
+        )
     const fmtX = fmt(typeX);
     const fmtY = fmt(typeY);
+    const axisTicker = tp =>
+        handleType(tp)(
+            { day:     (() => a => a.ticks(10))
+            , days:    (() => a => a.ticks(10, ".3~s"))
+            , "int":   (() => a => a.ticks(10, ".3~s"))
+            , number:  (() => a => a.ticks(10, ".3~s"))
+            , percent: (() => a => a.ticks(10, ".3~p"))
+            }
+        );
+    const axisTickerX = axisTicker(typeX);
+    const axisTickerY = axisTicker(typeY);
 
     const validVal = scale => val =>
         !isNaN(val) && handleScale(scale)(
@@ -96,7 +103,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
             , days:    (() => val)
             , "int":   (() => val)
             , number:  (() => val)
-            , percent: (() => val * 100)
+            , percent: (() => val)
             }
         );
     const convertX = convert(typeX);
@@ -134,7 +141,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
         const xAxis = function(g) {
             g.attr("transform", `translate(0,${height - margin.bottom})`)
                 // .call(d3.axisBottom(x).ticks(width/80).tickSizeOuter(0));
-                .call(d3.axisBottom(x).ticks(10,",d"))
+                .call(axisTickerX(d3.axisBottom(x)))
                 .call(g => g.append("text")
                             .attr("x", width - margin.right)
                             .attr("y", -3)
@@ -149,7 +156,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
         };
         const yAxis = function(g) {
             g.attr("transform", `translate(${margin.left},0)`)
-                .call(d3.axisLeft(y).ticks(10,",d"))
+                .call(axisTickerY(d3.axisLeft(y)))
                 .call(g => g.selectAll(".tick line").clone()
                                 .attr("stroke-opacity", 0.1)
                                 .attr("x2", width - margin.left - margin.right)
