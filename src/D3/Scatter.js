@@ -11,19 +11,6 @@ const mantissa = (x, n) => Math.round((x / Math.pow(10, exponent(x)-n+1)));
 const exponent = x => Math.floor(Math.log10(x));
 const suffices = ["","k","M","B","T","q","Q","s","S","o","N","d"];
 
-const fmtPrefix = function(i, n) {
-
-    const ipos = Math.abs(i);
-    const mant = mantissa(ipos,n);
-    const expo = exponent(ipos);
-
-    const extraDigits = expo % 3;
-    const sections    = Math.floor(expo / 3);
-    const numberPart  = (mant * Math.pow(10,extraDigits-n+1)).toFixed(n-extraDigits-1);
-    const pref = (i < 0) ? "-" : "";
-
-    return pref + numberPart + suffices[sections];
-}
 
 exports._mkSvg = function(elem, dim) {
     return function () {
@@ -68,7 +55,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
             , days:    (() => d3.format(".3~s"))
             , "int":   (() => d3.format(".3~s"))
             , number:  (() => d3.format(".3~s"))
-            , percent: (() => d3.format(".3~p"))
+            , percent: (() => d3.format("+.3~p"))
             }
         )
     const fmtX = fmt(typeX);
@@ -79,7 +66,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
             , days:    (() => a => a.ticks(10, ".3~s"))
             , "int":   (() => a => a.ticks(10, ".3~s"))
             , number:  (() => a => a.ticks(10, ".3~s"))
-            , percent: (() => a => a.ticks(10, ".3~p"))
+            , percent: (() => a => a.ticks(10, "+.3~p"))
             }
         );
     const axisTickerX = axisTicker(typeX);
@@ -114,17 +101,21 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
 
     return function () {
         exports.clearSvg(svg)();
-        console.log(scatter);
+        // console.log(scatter);
         const margin = { top: 20, right: 20, bottom: 20, left: 50 };
         const series = scatter.series.map(function(s) {
                 return { name: s.name
                        , values: s.values.filter(validPair).map(convertPair)
                        };
             });
-        console.log(series);
+        // console.log(series);
+
 
         const allx = series.map(s => s.values.map(p => p.x) ).flat();
         const ally = series.map(s => s.values.map(p => p.y) ).flat();
+        const extentx = d3.extent(allx);
+        const extenty = d3.extent(ally);
+
 
         const x = scaleFunc(scatter.xAxis.scale)
                         .domain(d3.extent(allx)).nice()
@@ -132,6 +123,15 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
         const y = scaleFunc(scatter.yAxis.scale)
                         .domain(d3.extent(ally)).nice()
                         .range([height - margin.bottom, margin.top]);
+
+        const quadPoints = series.map(s => s.values.map(function(p) { return { x: x(p.x), y: y(p.y), name: s.name };})).flat()
+        // console.log(flatPoints);
+        const quadtree = d3.quadtree()
+                .x(d => d.x)
+                .y(d => d.y)
+                .extent([x(extentx[0]),y(extenty[0])], [x(extentx[1]),y(extenty[1])])
+                .addAll(quadPoints);
+        // console.log(quadtree);
 
         const line = d3.line()
                             // .defined(validPair)
@@ -181,44 +181,70 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
               .on("mouseenter", entered)
               .on("mouseleave", left);
 
-          const dot = svg.append("g")
-              .attr("display", "none");
+          const crosshair = svg.append("g").attr("display", "none");
 
-          dot.append("circle")
-              .attr("r", 2.5);
+          const ch_center = crosshair.append("circle").attr("r",2.5);
 
-          dot.append("text")
+          crosshair.append("text")
               .attr("font-family", "sans-serif")
-              .attr("font-size", 10)
+              .attr("font-size", 12)
               .attr("text-anchor", "middle")
               .attr("y", -8);
+
+          const vertline = crosshair.append("line")
+                // .attr("y1", margin.top)
+                // .attr("y2", height - margin.bottom)
+                .style("stroke-width",0.5)
+                .style("stroke-dasharray","5 5")
+                .style("stroke","#444")
+                .style("fill","none");
+
+          const horizline = crosshair.append("line")
+                // .attr("x1", margin.left)
+                // .attr("x2", width - margin.right)
+                .style("stroke-width",0.5)
+                .style("stroke-dasharray","5 5")
+                .style("stroke","#444")
+                .style("fill","none");
 
           function moved() {
             d3.event.preventDefault();
             const mouse = d3.mouse(this);
-            const xm = x.invert(mouse[0]);
-            const ym = y.invert(mouse[1]);
-            const i1 = d3.bisectLeft(allx, xm, 1);
-            const i0 = i1 - 1;
-            const i = xm - allx[i0] > allx[i1] - xm ? i1 : i0;
-            const s = d3.least(series, d => Math.abs(d.values[findByX(d.values,xm,1)].y - ym));
-            const di1 = findByX(s.values,xm,1);
-            const di0 = di1 - 1;
-            const di = xm - s.values[di0].x > s.values[di1].x - xm ? di1 : di0;
-            path.attr("stroke", d => d === s ? null : "#ddd").filter(d => d === s).raise();
-            dot.attr("transform", `translate(${x(allx[i])},${y(s.values[di].y)})`);
-            dot.select("text").text(s.name + ": " + fmtX(s.values[di].x) + ", " + fmtY(s.values[di].y));
+
+            const closest = quadtree.find(mouse[0], mouse[1], 50);
+            console.log(closest);
+            const foundPoint = !(closest === undefined);
+
+            const xc = foundPoint ? closest.x : mouse[0];
+            const yc = foundPoint ? closest.y : mouse[1];
+            const textlab = foundPoint ? (closest.name + ": ") : "";
+            const xm = x.invert(xc);
+            const ym = y.invert(yc);
+
+            crosshair.attr("transform", `translate(${xc},${yc})`);
+            vertline.attr("y1", -yc+margin.top).attr("y2", -yc+height-margin.bottom);
+            horizline.attr("x1", -xc+margin.left).attr("x2", -xc+width-margin.right);
+
+            crosshair.select("text").text(textlab + fmtX(xm) + ", " + fmtY(ym));
+
+            if (foundPoint) {
+              path.style("mix-blend-mode", null).attr("stroke", "#ddd");
+              path.attr("stroke", d => d.name === closest.name ? null : "#ddd").filter(d => d.name === closest.name).raise();
+            } else {
+              path.style("mix-blend-mode", "multiply").attr("stroke", null);
+            }
+
           }
 
           function entered() {
-            path.style("mix-blend-mode", null).attr("stroke", "#ddd");
-            dot.attr("display", null);
+            crosshair.attr("display", null);
           }
 
           function left() {
             path.style("mix-blend-mode", "multiply").attr("stroke", null);
-            dot.attr("display", "none");
+            crosshair.attr("display", "none");
           }
+
         }
 
         svg.append("g")
@@ -237,7 +263,62 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, svgdat, scat
                 .join("path")
                   .style("mix-blend-mode", "multiply")
                   .attr("d", d => line(d.values));
+                  
 
         svg.call(hover, path);
     }
 }
+
+
+        // const hover = function(svg, path) {
+
+        //   if ("ontouchstart" in document) svg
+        //       .style("-webkit-tap-highlight-color", "transparent")
+        //       .on("touchmove", moved)
+        //       .on("touchstart", entered)
+        //       .on("touchend", left)
+        //   else svg
+        //       .on("mousemove", moved)
+        //       .on("mouseenter", entered)
+        //       .on("mouseleave", left);
+
+        //   const dot = svg.append("g")
+        //       .attr("display", "none");
+
+        //   dot.append("circle")
+        //       .attr("r", 2.5);
+
+        //   dot.append("text")
+        //       .attr("font-family", "sans-serif")
+        //       .attr("font-size", 10)
+        //       .attr("text-anchor", "middle")
+        //       .attr("y", -8);
+
+        //   function moved() {
+        //     d3.event.preventDefault();
+        //     const mouse = d3.mouse(this);
+        //     const xm = x.invert(mouse[0]);
+        //     const ym = y.invert(mouse[1]);
+        //     const i1 = d3.bisectLeft(allx, xm, 1);
+        //     const i0 = i1 - 1;
+        //     const i = xm - allx[i0] > allx[i1] - xm ? i1 : i0;
+        //     const s = d3.least(series, d => Math.abs(d.values[findByX(d.values,xm,1)].y - ym));
+        //     const di1 = findByX(s.values,xm,1);
+        //     const di0 = di1 - 1;
+        //     const di = xm - s.values[di0].x > s.values[di1].x - xm ? di1 : di0;
+        //     path.attr("stroke", d => d === s ? null : "#ddd").filter(d => d === s).raise();
+        //     dot.attr("transform", `translate(${x(allx[i])},${y(s.values[di].y)})`);
+        //     dot.select("text").text(s.name + ": " + fmtX(s.values[di].x) + ", " + fmtY(s.values[di].y));
+        //   }
+
+        //   function entered() {
+        //     path.style("mix-blend-mode", null).attr("stroke", "#ddd");
+        //     dot.attr("display", null);
+        //   }
+
+        //   function left() {
+        //     path.style("mix-blend-mode", "multiply").attr("stroke", null);
+        //     dot.attr("display", "none");
+        //   }
+        // }
+
