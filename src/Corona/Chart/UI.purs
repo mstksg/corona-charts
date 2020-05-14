@@ -48,6 +48,7 @@ type State =
     { xAxis     :: Projection.State
     , yAxis     :: Projection.State
     , zAxis     :: Projection.State
+    , tAxis     :: Projection.State
     , countries :: Set Country
     }
 
@@ -70,6 +71,7 @@ data Action =
       | SetXProjection Projection.State
       | SetYProjection Projection.State
       | SetZProjection Projection.State
+      | SetTProjection Projection.State
       | Highlight Country
       | Unhighlight
 
@@ -79,6 +81,7 @@ type ChildSlots =
         , xProjection :: H.Slot Projection.Query Projection.Output Unit
         , yProjection :: H.Slot Projection.Query Projection.Output Unit
         , zProjection :: H.Slot Projection.Query Projection.Output Unit
+        , tProjection :: H.Slot Projection.Query Projection.Output Unit
         )
 
 
@@ -120,6 +123,13 @@ initialState _ = {
           }
       , numScale: NScale (DProd D3.Log)
       }
+    , tAxis: {
+        projection: D3.sDay :=> projection {
+            base: Time refl
+          , operations: C.nil
+          }
+      , numScale: NScale (DProd D3.Log)
+      }
     , countries: initialCountries
     }
   where
@@ -146,7 +156,12 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
           st.zAxis
           (\(Projection.Update s) -> Just (SetZProjection s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--3-of-5 countries"] [
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t"] [
+        HH.slot _tProjection unit (Projection.component "Time Axis")
+          st.tAxis
+          (\(Projection.Update s) -> Just (SetTProjection s))
+      ]
+    , HH.div [HU.classProp "grid__col grid__col--2-of-5 countries"] [
         HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
           MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
           MultiSelect.MouseOverOut c -> Just (Highlight c)
@@ -182,6 +197,7 @@ handleAction dat = case _ of
     SetXProjection p -> H.modify_ (\st -> st { xAxis     = p  }) *> reRender dat
     SetYProjection p -> H.modify_ (\st -> st { yAxis     = p  }) *> reRender dat
     SetZProjection p -> H.modify_ (\st -> st { zAxis     = p  }) *> reRender dat
+    SetTProjection p -> H.modify_ (\st -> st { tAxis     = p  }) *> reRender dat
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
 
@@ -194,20 +210,24 @@ reRender dat = do
     traceM (show st)
     withDSum st.xAxis.projection (\tX pX ->
       withDSum st.yAxis.projection (\tY pY ->
-        withDSum st.zAxis.projection (\tZ pZ -> void $
-          H.query _scatter unit $ HQ.tell $ Scatter.Update
-            (\f -> f tX tY tZ (
-                  toScatterPlot
-                    dat
-                    pX
-                    (lookupScale tX (st.xAxis.numScale))
-                    pY
-                    (lookupScale tY (st.yAxis.numScale))
-                    pZ
-                    (lookupScale tZ (st.zAxis.numScale))
-                    st.countries
-                )
-            )
+        withDSum st.zAxis.projection (\tZ pZ ->
+          withDSum st.tAxis.projection (\tT pT -> void $
+            H.query _scatter unit $ HQ.tell $ Scatter.Update
+              (\f -> f tX tY tZ tT (
+                    toScatterPlot
+                      dat
+                      pX
+                      (lookupScale tX (st.xAxis.numScale))
+                      pY
+                      (lookupScale tY (st.yAxis.numScale))
+                      pZ
+                      (lookupScale tZ (st.zAxis.numScale))
+                      pT
+                      (lookupScale tT (st.tAxis.numScale))
+                      st.countries
+                  )
+              )
+          )
         )
       )
     )
@@ -226,3 +246,6 @@ _yProjection = SProxy
 
 _zProjection :: SProxy "zProjection"
 _zProjection = SProxy
+
+_tProjection :: SProxy "tProjection"
+_tProjection = SProxy

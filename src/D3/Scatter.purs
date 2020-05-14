@@ -25,14 +25,15 @@ foreign import _mkSvg   :: Fn2 Element { width :: Number, height :: Number } (Ef
 foreign import clearSvg :: D3Scatter -> Effect Unit
 
 foreign import _drawData
-    :: forall a b c.
-     Fn7 (HandleFunc1 SType OnSType) 
+    :: forall a b c d.
+     Fn8 (HandleFunc1 SType OnSType) 
          (HandleFunc1 Scale OnScale)
          (SType a)
          (SType b)
          (SType c)
+         (SType d)
          D3Scatter
-         (ScatterPlot a b c)
+         (ScatterPlot a b c d)
          (Effect Interactor)
 
 foreign import _highlight
@@ -42,21 +43,22 @@ foreign import _highlight
            (Effect Unit)
 
 drawData_
-    :: forall a b c.
+    :: forall a b c d.
        SType a
     -> SType b
     -> SType c
+    -> SType d
     -> D3Scatter
-    -> ScatterPlot a b c
+    -> ScatterPlot a b c d
     -> Effect Interactor
-drawData_ = runFn7 _drawData handle1 handle1 
+drawData_ = runFn8 _drawData handle1 handle1 
 
 drawData
-    :: forall a b c. STypeable a => STypeable b => STypeable c
+    :: forall a b c d. STypeable a => STypeable b => STypeable c => STypeable d
     => D3Scatter
-    -> ScatterPlot a b c
+    -> ScatterPlot a b c d
     -> Effect Interactor
-drawData = drawData_ sType sType sType
+drawData = drawData_ sType sType sType sType
 
 mkSvg :: Element -> { width :: Number, height :: Number } -> Effect D3Scatter
 mkSvg = runFn2 _mkSvg

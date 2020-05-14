@@ -86,7 +86,7 @@ handleQuery = case _ of
       case s.chart of
         Nothing -> pure unit
         Just z  -> do
-          ixor <- liftEffect $ update (\a b c -> drawData_ a b c z)
+          ixor <- liftEffect $ update (\a b c d -> drawData_ a b c d z)
           H.modify_ (_ { interactor = Just ixor })
       pure (Just next)
     Highlight lbl next -> do

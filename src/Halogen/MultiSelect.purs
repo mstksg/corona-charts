@@ -84,7 +84,7 @@ render :: forall a m. String -> State a -> H.ComponentHTML Action () m
 render lab st =
     HH.div [HU.classProp "multiselect"] [
         HH.h3_ [HH.text lab]
-      , HH.div [HU.classProp "select-options grid__col grid__col--1-of-3"] [
+      , HH.div [HU.classProp "select-options grid__col grid__col--1-of-2"] [
           HH.input [
             HP.type_ HP.InputText
           , HP.placeholder "type to filter"
@@ -105,7 +105,7 @@ render lab st =
             ]
             [ HH.text "Add" ]
         ]
-      , HH.div [HU.classProp "selected grid__col grid__col--2-of-3"] $ 
+      , HH.div [HU.classProp "selected grid__col grid__col--1-of-2"] $ 
           if null st.selected
             then [ HH.span [HU.classProp "none-selected"]
                    [ HH.text "(nothing selected yet)" ]

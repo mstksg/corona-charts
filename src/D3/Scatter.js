@@ -41,12 +41,24 @@ exports.clearSvg = function(svg) {
     }
 }
 
+const timedSeries = series => function(t) {
+    return series.map(function (s) {
+        const cutoff = d3.bisector(p => p.t).right(s.values,t);
+        return {
+            name: s.name
+          , values: s.values.slice(0,cutoff)
+          , segments: s.segments.slice(0,cutoff-1)
+        };
+    }).filter(s => s.values.length > 0);
+}
+
 // { xAxis : { scale : Scale, label : String}
 // , yAxis : { scale : Scale, label : String}
 // , zAxis : { scale : Scale, label : String}
-// , series : [{ name : String, values: [{x, y, z}]}]
+// , tAxis : { scale : Scale, label : String}
+// , series : [{ name : String, values: [{x, y, z, t}]}]
 // }
-exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgdat, scatter) {
+exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT, svgdat, scatter) {
     const svg = svgdat.svg;
     const width = svgdat.dimensions.width;
     const height = svgdat.dimensions.height;
@@ -95,8 +107,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
     const validX = validVal(scatter.xAxis.scale);
     const validY = validVal(scatter.yAxis.scale);
     const validZ = validVal(scatter.zAxis.scale);
+    const validT = validVal(scatter.tAxis.scale);
     const validPair = function(p) {
-        return validX(p.x) && validY(p.y) && validZ(p.z);
+        return validX(p.x) && validY(p.y) && validZ(p.z) && validT(p.t);
     }
     const convert = tp => val =>
         handleType(tp)(
@@ -110,6 +123,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
     const convertX = convert(typeX);
     const convertY = convert(typeY);
     const convertZ = convert(typeZ);
+    const convertT = convert(typeT);
 
     return function () {
         exports.clearSvg(svg)();
@@ -117,7 +131,11 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
         const margin = { top: 20, right: 20, bottom: 20, left: 50 };
         const series = scatter.series.map(function(s) {
                 const vals = s.values.filter(validPair).map( p =>
-                            ({x: convertX(p.x), y: convertY(p.y), z: convertZ(p.z)})
+                            ({ x: convertX(p.x)
+                             , y: convertY(p.y)
+                             , z: convertZ(p.z)
+                             , t: convertT(p.t)
+                            })
                          );
                 return { name: s.name
                        , values: vals
@@ -126,49 +144,34 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
             });
         console.log(series);
 
+        // var filteredSeries;
+
+
 
         const allx = series.map(s => s.values.map(p => p.x) ).flat();
         const ally = series.map(s => s.values.map(p => p.y) ).flat();
         const allz = series.map(s => s.values.map(p => p.z) ).flat();
+        const allt = series.map(s => s.values.map(p => p.t) ).flat();
         const extentx = d3.extent(allx);
         const extenty = d3.extent(ally);
         const extentz = d3.extent(allz);
+        const extentt = d3.extent(allt);
         const blues = d3.schemeBlues[9]
 
         // this converts to and form the different coordinate systems
         const x = scaleFunc(scatter.xAxis.scale)
-                        .domain(d3.extent(allx)).nice()
+                        .domain(extentx).nice()
                         .range([margin.left, width - margin.right]);
         const y = scaleFunc(scatter.yAxis.scale)
-                        .domain(d3.extent(ally)).nice()
+                        .domain(extenty).nice()
                         .range([height - margin.bottom, margin.top]);
         // color
         const z = scaleFunc(scatter.zAxis.scale)
-                        .domain(d3.extent(allz))        // not nice
-                        // .range(["brown", "steelblue"]);
-                        // .range(["#f7fbff", "#08306b"]);
-                        // .range(["lightsteelblue", "steelblue"]);
-                        // .range([blues[3], blues[8]]);
-                        // .range(d3.range(5).map(t => d3.interpolateWarm(t/4)));
-                        // .range(d3.range(5).map(t => d3.interpolateWarm(t/4)));
-                        // .interpolate(d3.interpolateWarm);
-                        // .range([d3.interpolateSpectral(0), d3.interpolateSpectral(0.5), d3.interpolateSpectral(1)])
-                        // .range(d3.range(3).map(t => d3.interpolateSpectral(t/2)))
-                        .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)])
-                        .interpolate(d3.interpolateCubehelix.gamma(3));
-        // window.zzz = z;
-
-        // quadtree to look up nearest point. note z is not encoded
-        const quadPoints = series.map(s =>
-              s.values.map(p => ({ x: x(p.x), y: y(p.y), z: p.z, name: s.name }))
-            ).flat()
-        // console.log(flatPoints);
-        const quadtree = d3.quadtree()
-                .x(d => d.x)
-                .y(d => d.y)
-                .extent([x(extentx[0]),y(extenty[0])], [x(extentx[1]),y(extenty[1])])
-                .addAll(quadPoints);
-        // console.log(quadtree);
+                        .domain(extentz)        // not nice
+                        .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)]);
+        const t = scaleFunc(scatter.tAxis.scale)
+                        .domain(extentt)        // not nice
+                        .range([0, 1]);
 
         // makes axes lines. i think this converts coordinates into svg points
         // or something???
@@ -211,26 +214,33 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
                     )
         };
 
-        const highlight = path => function(name) {
+        const highlight = subplot => function(name) {
           // console.log(path, name);
-          path.attr("stroke-width", d => d.name === name ? 3 : 0.5)
+          subplot.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 0.5)
                 .filter(d => d.name === name)
                 .raise();
         }
-        const unhighlight = path => function() {
-            path.attr("stroke-width",1.5);
+        const unhighlight = subplot => function() {
+            subplot.selectAll("path").attr("stroke-width",1.5);
         }
 
-        const hover = function(svg, path) {
+
+        const hover = function(svg, highlight, unhighlight, quadtree) {
 
           if ("ontouchstart" in document) svg
               .style("-webkit-tap-highlight-color", "transparent")
+              .on("touchmove", null)
               .on("touchmove", moved)
+              .on("touchstart", null)
               .on("touchstart", entered)
+              .on("touchend", null)
               .on("touchend", left)
           else svg
+              .on("mousemove", null)
               .on("mousemove", moved)
+              .on("mouseenter", null)
               .on("mouseenter", entered)
+              .on("mouseleave", null)
               .on("mouseleave", left);
 
           const crosshair = svg.append("g").attr("display", "none");
@@ -289,20 +299,13 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
             if (foundPoint) {
               ch_center.attr("r",6.0)
                        .attr("fill",z(closest.z));
-              // path.attr("stroke", "#ddd").attr("stroke-width",1);
-              // marks.style("display","none");
-              highlight(path)(closest.name);
-              // path.attr("stroke-width", d => d.name === closest.name ? 3 : 0.5)
-              //       .filter(d => d.name === closest.name)
-              //       .raise();
+              highlight(closest.name);
               bottomlabel.text(fmtZ(closest.z));
             } else {
               ch_center.attr("r",4.0)
                        .attr("fill","white");
-              unhighlight(path)();
-              path.attr("stroke-width",1.5);
+              unhighlight();
               bottomlabel.text("");
-              // marks.style("display",null);
             }
 
           }
@@ -312,10 +315,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
           }
 
           function left() {
-            unhighlight(path)();
-            // path.attr("stroke-width",1.5);
-            // path.attr("stroke", null).attr("stroke-width",1);
-            // marks.style("display",null);
+            unhighlight();
             crosshair.attr("display", "none");
           }
 
@@ -326,78 +326,72 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
         svg.append("g")
             .call(yAxis);
 
-        const segments = series.map(s => s.segments.map (p => ({ name: s.name, pair: p }))).flat()
-        console.log(segments);
-        const path = svg.append("g")
-                  // .attr("stroke", "#777")
-                  // .attr("stroke", "steelblue")
-                  .selectAll("g")
-                  .data(segments)
-                  .join("g");
+        const flatSegments = ss => ss.map(s => s.segments.map (p => ({ name: s.name, pair: p }))).flat()
+        const mkTimed = timedSeries(series);
 
-        const pathsegments = path.append("path")
-                  .attr("fill", "none")
-                  .attr("stroke-width", 1.5)
-                  .attr("stroke-linejoin", "round")
-                  .attr("stroke-linecap", "round")
-                  .attr("stroke", d => z(d.pair[1].z))
-                  // .style("mix-blend-mode", "multiply")
-                  // .attr("d", d => line(d.values));
-                  .attr("d", d => line(d.pair));
+        const subplot = svg.append("g").attr("id","redraw");
 
-        // const marks = path.append("g")
-        //     .attr("stroke","white")
-        //     .attr("stroke-width","0")
-        //     .selectAll("circle")
-        //     .data(d => d.values)
-        //     .join("circle")
-        //     .attr("transform", d => `translate(${x(d.x)},${y(d.y)})`)
-        //     .attr("fill",d => z(d.z))
-        //     .attr("r",2.5);
+        const drawEverything = subplot => function(time) {
+            subplot.selectAll("*").remove()
 
-        // path.append("g")
-        //     .attr("fill","#f00")
-        //     .attr("stroke-width",1)
-        //     .attr("stroke","#fff")
-        //     .selectAll("circle")
-        //     .data(series)
-        //     .join("circle")
-        //     .attr("transform", d => `translate(${x(last(d.values).x)},${y(last(d.values).y)})`)
-        //     // .attr("x",d => x(last(d.values).x)+8)
-        //     // .attr("y",d => y(last(d.values).y))
-        //     // .attr("font-family", "sans-serif")
-        //     // .attr("font-size", 12)
-        //     // .text(d => d.name);
+            const subseries = mkTimed(t.invert(time));
 
-        svg.append("g")
-            .attr("text-anchor","start")
-            .selectAll("text")
-            .data(series)
-            .join("text")
-            .attr("x",d => x(last(d.values).x)+10)
-            .attr("y",d => y(last(d.values).y)+3)
-            .attr("font-family", "sans-serif")
-            .attr("font-size", 12)
-            .text(d => d.name);
+            subplot.append("g")
+                 .selectAll("g")
+                 .data(flatSegments(subseries))
+                 .join("g")
+                 .append("path")
+                 .attr("fill", "none")
+                 .attr("stroke-width", 1.5)
+                 .attr("stroke-linejoin", "round")
+                 .attr("stroke-linecap", "round")
+                 .attr("stroke", d => z(d.pair[1].z))
+                 .attr("d", d => line(d.pair));
 
-        svg.append("g")
-            .selectAll("circle")
-            .data(series)
-            .join("circle")
-            .attr("r", 3)
-            .attr("fill",d3.schemeSet1[6])
-            // .attr("stroke","white")
-            // .attr("stroke-width",3)
-            .attr("transform", d => `translate(${x(last(d.values).x)},${y(last(d.values).y)})`);
-            // .attr("x",d => x(last(d.values).x)+8)
-            // .attr("y",d => y(last(d.values).y)+3);
+            subplot.append("g")
+                .attr("text-anchor","start")
+                .selectAll("text")
+                .data(subseries)
+                .join("text")
+                .attr("x",d => x(last(d.values).x)+10)
+                .attr("y",d => y(last(d.values).y)+3)
+                .attr("font-family", "sans-serif")
+                .attr("font-size", 12)
+                .text(d => d.name);
 
+            subplot.append("g")
+                .selectAll("circle")
+                .data(subseries)
+                .join("circle")
+                .attr("r", 3)
+                .attr("fill",d3.schemeSet1[6])
+                .attr("transform", d => `translate(${x(last(d.values).x)},${y(last(d.values).y)})`);
 
-        svg.call(hover, pathsegments);
+            // quadtree to look up nearest point. note z is not encoded
+            const quadPoints = subseries.map(s =>
+                  s.values.map(p => ({ x: x(p.x), y: y(p.y), z: p.z, name: s.name }))
+                ).flat()
+            // console.log(flatPoints);
+            const quadtree = d3.quadtree()
+                    .x(d => d.x)
+                    .y(d => d.y)
+                    .extent([x(extentx[0]),y(extenty[0])], [x(extentx[1]),y(extenty[1])])
+                    .addAll(quadPoints);
+            // console.log(quadtree);
+
+            svg.call(hover, highlight(subplot),unhighlight(subplot), quadtree);
+        }
+
+        const redraw = drawEverything(subplot);
+        
+        redraw(extentt[1]);
+
+        window.testdraw = drawEverything(subplot);
 
         return {
-            highlight: highlight(pathsegments),
-            unhighlight: unhighlight(pathsegments)
+            highlight: highlight(subplot),
+            unhighlight: unhighlight(subplot),
+            settime: drawEverything(subplot)
         };
     }
 }
