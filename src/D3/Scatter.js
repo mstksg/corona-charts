@@ -355,16 +355,43 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
         //     .attr("fill",d => z(d.z))
         //     .attr("r",2.5);
 
+        // path.append("g")
+        //     .attr("fill","#f00")
+        //     .attr("stroke-width",1)
+        //     .attr("stroke","#fff")
+        //     .selectAll("circle")
+        //     .data(series)
+        //     .join("circle")
+        //     .attr("transform", d => `translate(${x(last(d.values).x)},${y(last(d.values).y)})`)
+        //     // .attr("x",d => x(last(d.values).x)+8)
+        //     // .attr("y",d => y(last(d.values).y))
+        //     // .attr("font-family", "sans-serif")
+        //     // .attr("font-size", 12)
+        //     // .text(d => d.name);
+
         svg.append("g")
             .attr("text-anchor","start")
             .selectAll("text")
             .data(series)
             .join("text")
-            .attr("x",d => x(last(d.values).x)+8)
-            .attr("y",d => y(last(d.values).y))
+            .attr("x",d => x(last(d.values).x)+10)
+            .attr("y",d => y(last(d.values).y)+3)
             .attr("font-family", "sans-serif")
             .attr("font-size", 12)
             .text(d => d.name);
+
+        svg.append("g")
+            .selectAll("circle")
+            .data(series)
+            .join("circle")
+            .attr("r", 3)
+            .attr("fill",d3.schemeSet1[6])
+            // .attr("stroke","white")
+            // .attr("stroke-width",3)
+            .attr("transform", d => `translate(${x(last(d.values).x)},${y(last(d.values).y)})`);
+            // .attr("x",d => x(last(d.values).x)+8)
+            // .attr("y",d => y(last(d.values).y)+3);
+
 
         svg.call(hover, pathsegments);
 
