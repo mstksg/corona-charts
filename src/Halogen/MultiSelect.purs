@@ -53,13 +53,18 @@ data Action =
       | RemoveValue Int
       | RemoveAll
       | SetFilter String
+      | MouseOver Int
+      | MouseOff
 
 
 data Query a r =
         AskSelected (Array a -> r)
-        | SetState (State a -> { new :: State a, next :: r })
+      | SetState (State a -> { new :: State a, next :: r })
 
-data Output a = SelectionChanged (Array a)
+data Output a =
+        SelectionChanged (Array a)
+      | MouseOverOut a
+      | MouseOffOut
 
 component
     :: forall a m. MonadEffect m
@@ -116,6 +121,8 @@ render lab st =
                     if ME.buttons e == 0
                       then Just (RemoveValue il.ix)
                       else Nothing
+                , HE.onMouseOver $ \_ -> Just (MouseOver il.ix)
+                , HE.onMouseOut  $ \_ -> Just MouseOff
                 ] [
                   HH.span_ [HH.text il.label]
                 ]
@@ -148,6 +155,10 @@ handleAction = case _ of
        modify_ $ \s -> { options: s.options, selected: S.empty, filter: s.filter}
        raiseChange
     SetFilter t    -> modify_ $ \s -> s { filter = t }
+    MouseOver i -> do
+      st <- H.gets _.options
+      traverse_ (H.raise <<< MouseOverOut <<< _.value) (A.index st i)
+    MouseOff -> H.raise MouseOffOut
 
 handleQuery :: forall a o m r. Query a r -> H.HalogenM (State a) Action () o m (Maybe r)
 handleQuery = case _ of

@@ -315,7 +315,7 @@ applyOperation = case _ of
                   ) x.values
         }
     Window tf n -> \(Dated x) -> Dated
-        { start: MJD.addDays (-n) x.start
+        { start: MJD.addDays n x.start
         , values: flip (withWindow n) x.values $ \ys ->
                     numberNType (toFractionalOut tf) $
                       sum (map (nTypeNumber (toFractionalIn tf)) ys)

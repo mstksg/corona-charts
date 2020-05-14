@@ -19,6 +19,7 @@ import Type.Equiv
 import Web.DOM.Element (Element)
 
 foreign import data D3Scatter :: Type
+foreign import data Interactor :: Type
 
 foreign import _mkSvg   :: Fn2 Element { width :: Number, height :: Number } (Effect D3Scatter)
 foreign import clearSvg :: D3Scatter -> Effect Unit
@@ -32,7 +33,13 @@ foreign import _drawData
          (SType c)
          D3Scatter
          (ScatterPlot a b c)
-         (Effect Unit)
+         (Effect Interactor)
+
+foreign import _highlight
+    :: Fn3 (HandleFunc1 Maybe OnMaybe)
+           Interactor
+           (Maybe String)
+           (Effect Unit)
 
 drawData_
     :: forall a b c.
@@ -41,15 +48,18 @@ drawData_
     -> SType c
     -> D3Scatter
     -> ScatterPlot a b c
-    -> Effect Unit
+    -> Effect Interactor
 drawData_ = runFn7 _drawData handle1 handle1 
 
 drawData
     :: forall a b c. STypeable a => STypeable b => STypeable c
     => D3Scatter
     -> ScatterPlot a b c
-    -> Effect Unit
+    -> Effect Interactor
 drawData = drawData_ sType sType sType
 
 mkSvg :: Element -> { width :: Number, height :: Number } -> Effect D3Scatter
 mkSvg = runFn2 _mkSvg
+
+highlight :: Interactor -> Maybe String -> Effect Unit
+highlight = runFn3 _highlight handle1

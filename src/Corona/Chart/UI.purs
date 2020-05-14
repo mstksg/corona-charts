@@ -29,6 +29,7 @@ import Halogen.HTML.Elements as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.MultiSelect as MultiSelect
+import Halogen.Query as HQ
 import Halogen.Scatter as Scatter
 import Halogen.Util as HU
 import Type.Chain as C
@@ -69,6 +70,8 @@ data Action =
       | SetXProjection Projection.State
       | SetYProjection Projection.State
       | SetZProjection Projection.State
+      | Highlight Country
+      | Unhighlight
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query    Void              Unit
@@ -146,6 +149,8 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
     , HH.div [HU.classProp "grid__col grid__col--3-of-5 countries"] [
         HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
           MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
+          MultiSelect.MouseOverOut c -> Just (Highlight c)
+          MultiSelect.MouseOffOut -> Just Unhighlight
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
         HH.slot _yProjection unit (Projection.component "X Axis")
@@ -172,13 +177,13 @@ handleAction
      => CoronaData
      -> Action
      -> H.HalogenM State Action ChildSlots o m Unit
-handleAction dat act = do
-    case act of
-      SetCountries cs  -> H.modify_ $ \st -> st { countries = cs }
-      SetXProjection p -> H.modify_ $ \st -> st { xAxis     = p  }
-      SetYProjection p -> H.modify_ $ \st -> st { yAxis     = p  }
-      SetZProjection p -> H.modify_ $ \st -> st { zAxis     = p  }
-    reRender dat
+handleAction dat = case _ of
+    SetCountries cs  -> H.modify_ (\st -> st { countries = cs }) *> reRender dat
+    SetXProjection p -> H.modify_ (\st -> st { xAxis     = p  }) *> reRender dat
+    SetYProjection p -> H.modify_ (\st -> st { yAxis     = p  }) *> reRender dat
+    SetZProjection p -> H.modify_ (\st -> st { zAxis     = p  }) *> reRender dat
+    Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
+    Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
 
 reRender
     :: forall o m. MonadEffect m
@@ -190,8 +195,8 @@ reRender dat = do
     withDSum st.xAxis.projection (\tX pX ->
       withDSum st.yAxis.projection (\tY pY ->
         withDSum st.zAxis.projection (\tZ pZ -> void $
-          H.query _scatter unit $ Scatter.Query
-            { update: \f -> f tX tY tZ (
+          H.query _scatter unit $ HQ.tell $ Scatter.Update
+            (\f -> f tX tY tZ (
                   toScatterPlot
                     dat
                     pX
@@ -202,8 +207,7 @@ reRender dat = do
                     (lookupScale tZ (st.zAxis.numScale))
                     st.countries
                 )
-            , next: unit
-            }
+            )
         )
       )
     )
