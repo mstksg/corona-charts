@@ -2,15 +2,25 @@
 "use strict";
 
 const msPerDay      = 24*60*60*1000;
-const mjdShift      = 40587;
+const mjdShift      = 40586;
 const fromMJD = mjd => new Date((mjd - mjdShift) * msPerDay);
 
-const findByX = (ps, x, lo) => d3.bisector(p => p.x).left(ps, x, lo);
 const last = xs => xs[xs.length - 1];
 
-const mantissa = (x, n) => Math.round((x / Math.pow(10, exponent(x)-n+1)));
-const exponent = x => Math.floor(Math.log10(x));
-const suffices = ["","k","M","B","T","q","Q","s","S","o","N","d"];
+
+
+const segmentize = function(xs) {
+    var out = [];
+    for (let i = 1; i < xs.length; i++) {
+        out.push( [xs[i-1], xs[i]] );
+    }
+    return out;
+}
+
+
+
+
+
 
 
 exports._mkSvg = function(elem, dim) {
@@ -84,7 +94,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
         );
     const validX = validVal(scatter.xAxis.scale);
     const validY = validVal(scatter.yAxis.scale);
-    const validZ = validVal(scatter.yAxis.scale);
+    const validZ = validVal(scatter.zAxis.scale);
     const validPair = function(p) {
         return validX(p.x) && validY(p.y) && validZ(p.z);
     }
@@ -100,17 +110,18 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
     const convertX = convert(typeX);
     const convertY = convert(typeY);
     const convertZ = convert(typeZ);
-    const convertPoint = function(p) {
-            return {x: convertX(p.x), y: convertY(p.y), z: convertZ(p.z)};
-        }
 
     return function () {
         exports.clearSvg(svg)();
         console.log(scatter);
         const margin = { top: 20, right: 20, bottom: 20, left: 50 };
         const series = scatter.series.map(function(s) {
+                const vals = s.values.filter(validPair).map( p =>
+                            ({x: convertX(p.x), y: convertY(p.y), z: convertZ(p.z)})
+                         );
                 return { name: s.name
-                       , values: s.values.filter(validPair).map(convertPoint)
+                       , values: vals
+                       , segments: segmentize(vals)
                        };
             });
         console.log(series);
@@ -122,6 +133,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
         const extentx = d3.extent(allx);
         const extenty = d3.extent(ally);
         const extentz = d3.extent(allz);
+        const blues = d3.schemeBlues[9]
 
         // this converts to and form the different coordinate systems
         const x = scaleFunc(scatter.xAxis.scale)
@@ -135,11 +147,21 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
                         .domain(d3.extent(allz))        // not nice
                         // .range(["brown", "steelblue"]);
                         // .range(["#f7fbff", "#08306b"]);
-                        .range(["lightsteelblue", "steelblue"]);
+                        // .range(["lightsteelblue", "steelblue"]);
+                        // .range([blues[3], blues[8]]);
+                        // .range(d3.range(5).map(t => d3.interpolateWarm(t/4)));
+                        // .range(d3.range(5).map(t => d3.interpolateWarm(t/4)));
+                        // .interpolate(d3.interpolateWarm);
+                        // .range([d3.interpolateSpectral(0), d3.interpolateSpectral(0.5), d3.interpolateSpectral(1)])
+                        // .range(d3.range(3).map(t => d3.interpolateSpectral(t/2)))
+                        .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)])
+                        .interpolate(d3.interpolateCubehelix.gamma(3));
         // window.zzz = z;
 
         // quadtree to look up nearest point
-        const quadPoints = series.map(s => s.values.map(function(p) { return { x: x(p.x), y: y(p.y), name: s.name };})).flat()
+        const quadPoints = series.map(s =>
+              s.values.map(p => ({ x: x(p.x), y: y(p.y), z: z(p.z), name: s.name }))
+            ).flat()
         // console.log(flatPoints);
         const quadtree = d3.quadtree()
                 .x(d => d.x)
@@ -201,33 +223,35 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
 
           const crosshair = svg.append("g").attr("display", "none");
 
-          const ch_center = crosshair.append("circle").attr("r",2.5);
+          const ch_center = crosshair.append("circle")
+                    .attr("stroke","steelblue")
+                    .attr("stroke-width",2);
 
           crosshair.append("text")
               .attr("font-family", "sans-serif")
               .attr("font-size", 12)
               .attr("text-anchor", "middle")
-              .attr("y", -8);
+              .attr("y", -10);
 
           const vertline = crosshair.append("line")
-                // .attr("y1", margin.top)
-                // .attr("y2", height - margin.bottom)
                 .style("stroke-width",0.5)
-                .style("stroke-dasharray","5 5")
-                .style("stroke","#444")
+                .style("stroke-dasharray","4 4")
+                .style("stroke","#777")
                 .style("fill","none");
 
           const horizline = crosshair.append("line")
-                // .attr("x1", margin.left)
-                // .attr("x2", width - margin.right)
                 .style("stroke-width",0.5)
-                .style("stroke-dasharray","5 5")
-                .style("stroke","#444")
+                .style("stroke-dasharray","4 4")
+                .style("stroke","#777")
                 .style("fill","none");
 
           function moved() {
             d3.event.preventDefault();
-            const mouse = d3.mouse(this);
+            const mouse0 = d3.mouse(this);
+            const mouse =
+                [Math.max(Math.min(mouse0[0],width-margin.right),margin.left),
+                 Math.max(Math.min(mouse0[1],height-margin.bottom),margin.top)
+                ]
 
             const closest = quadtree.find(mouse[0], mouse[1], 50);
             // console.log(closest);
@@ -246,15 +270,18 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
             crosshair.select("text").text(textlab + fmtX(xm) + ", " + fmtY(ym));
 
             if (foundPoint) {
-              path.attr("stroke", "#ddd").attr("stroke-width",1);
-              marks.style("display","none");
-              path.attr("stroke", d => d.name === closest.name ? "steelblue" : "#ddd")
-                  .attr("stroke-width", d => d.name === closest.name ? 2.5 : 1)
+              ch_center.attr("r",6.0)
+                       .attr("fill",closest.z);
+              // path.attr("stroke", "#ddd").attr("stroke-width",1);
+              // marks.style("display","none");
+              path.attr("stroke-width", d => d.name === closest.name ? 3 : 0.5)
                     .filter(d => d.name === closest.name)
                     .raise();
             } else {
-              path.attr("stroke", null).attr("stroke-width",1);
-              marks.style("display",null);
+              ch_center.attr("r",4.0)
+                       .attr("fill","white");
+              path.attr("stroke-width",1.5);
+              // marks.style("display",null);
             }
 
           }
@@ -264,8 +291,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
           }
 
           function left() {
-            path.attr("stroke", null).attr("stroke-width",1);
-            marks.style("display",null);
+            path.attr("stroke-width",1.5);
+            // path.attr("stroke", null).attr("stroke-width",1);
+            // marks.style("display",null);
             crosshair.attr("display", "none");
           }
 
@@ -298,43 +326,47 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, svgda
         //     .attr("transform", d => `translate(${x(d.x)},${y(d.y)})`)
         //     .attr("r",5);
 
+        const segments = series.map(s => s.segments.map (p => ({ name: s.name, pair: p }))).flat()
+        console.log(segments);
         const path = svg.append("g")
-                  .attr("stroke", "#777")
+                  // .attr("stroke", "#777")
                   // .attr("stroke", "steelblue")
-                  .attr("stroke-width", 1)
-                  .attr("stroke-linejoin", "round")
-                  .attr("stroke-linecap", "round")
                   .selectAll("g")
-                  // .style("mix-blend-mode", "multiply")
-                  .data(series)
+                  .data(segments)
                   .join("g");
 
-        path.append("path")
+        const pathsegments = path.append("path")
                   .attr("fill", "none")
-                  .attr("d", d => line(d.values));
+                  .attr("stroke-width", 1.5)
+                  .attr("stroke-linejoin", "round")
+                  .attr("stroke-linecap", "round")
+                  .attr("stroke", d => z(d.pair[1].z))
+                  // .style("mix-blend-mode", "multiply")
+                  // .attr("d", d => line(d.values));
+                  .attr("d", d => line(d.pair));
 
-        const marks = path.append("g")
-            .attr("stroke","white")
-            .attr("stroke-width","0")
-            .selectAll("circle")
-            .data(d => d.values)
-            .join("circle")
-            .attr("transform", d => `translate(${x(d.x)},${y(d.y)})`)
-            .attr("fill",d => z(d.z))
-            .attr("r",2.5);
+        // const marks = path.append("g")
+        //     .attr("stroke","white")
+        //     .attr("stroke-width","0")
+        //     .selectAll("circle")
+        //     .data(d => d.values)
+        //     .join("circle")
+        //     .attr("transform", d => `translate(${x(d.x)},${y(d.y)})`)
+        //     .attr("fill",d => z(d.z))
+        //     .attr("r",2.5);
 
         svg.append("g")
-            .attr("text-anchor","middle")
+            .attr("text-anchor","start")
             .selectAll("text")
             .data(series)
             .join("text")
-            .attr("x",d => x(last(d.values).x))
-            .attr("y",d => y(last(d.values).y)-8)
+            .attr("x",d => x(last(d.values).x)+8)
+            .attr("y",d => y(last(d.values).y))
             .attr("font-family", "sans-serif")
             .attr("font-size", 12)
             .text(d => d.name);
 
-        svg.call(hover, path);
+        svg.call(hover, pathsegments);
     }
 }
 
