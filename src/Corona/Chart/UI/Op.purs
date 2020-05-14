@@ -56,9 +56,9 @@ validPickOps t0 = case t0 of
       , D3.sDay  :=> pointDatePickOp
       ]
     SInt  r -> [
-        t0          :=> deltaPickOp (D3.NInt r)
+        D3.sNumber  :=> windowPickOp (I2N r refl)
+      , t0          :=> deltaPickOp (D3.NInt r)
       , D3.sPercent :=> pgrowthPickOp (D3.NInt r)
-      , D3.sNumber  :=> windowPickOp (I2N r refl)
       , D3.sPercent :=> pmaxPickOp (D3.NInt r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp
@@ -66,9 +66,9 @@ validPickOps t0 = case t0 of
       , D3.sDay     :=> pointDatePickOp
       ]
     SNumber r -> [
-        t0          :=> deltaPickOp (D3.NNumber r)
+        D3.sNumber  :=> windowPickOp (N2N r refl)
+      , t0          :=> deltaPickOp (D3.NNumber r)
       , D3.sPercent :=> pgrowthPickOp (D3.NNumber r)
-      , D3.sNumber  :=> windowPickOp (N2N r refl)
       , D3.sPercent :=> pmaxPickOp (D3.NNumber r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp
@@ -76,9 +76,9 @@ validPickOps t0 = case t0 of
       , D3.sDay     :=> pointDatePickOp
       ]
     SPercent r -> [
-        t0          :=> deltaPickOp (D3.NPercent r)
+        D3.sPercent :=> windowPickOp (P2P r refl)
+      , t0          :=> deltaPickOp (D3.NPercent r)
       , D3.sPercent :=> pgrowthPickOp (D3.NPercent r)
-      , D3.sPercent :=> windowPickOp (P2P r refl)
       , D3.sPercent :=> pmaxPickOp (D3.NPercent r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp

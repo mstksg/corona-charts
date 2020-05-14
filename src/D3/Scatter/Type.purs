@@ -246,11 +246,11 @@ instance ntPercent :: NTypeable Percent where
 --     NNumber  refl -> \x -> withEquiv refl x
 --     NPercent refl -> \x -> withEquiv refl x
 
-type Point a b = { x :: a, y :: b }
+type Point a b c = { x :: a, y :: b, z :: c }
 
-type SeriesData a b =
+type SeriesData a b c =
     { name   :: String
-    , values :: Array (Point a b)
+    , values :: Array (Point a b c)
     }
 
 infixr 1 type Either as ||
@@ -311,17 +311,19 @@ runNScale (NScale x) = runDProd x
 
 type AxisConf a = { scale :: Scale a, label :: String }
 
-type ScatterPlot a b =
+type ScatterPlot a b c =
         { xAxis  :: AxisConf a
         , yAxis  :: AxisConf b
-        , series :: Array (SeriesData a b)
+        , zAxis  :: AxisConf c
+        , series :: Array (SeriesData a b c)
         }
 
 type SomeScatterPlot =
         forall r.
-          (forall a b. SType a
+          (forall a b c. SType a
                   -> SType b
-                  -> ScatterPlot a b
+                  -> SType c
+                  -> ScatterPlot a b c
                   -> r
           )
           -> r

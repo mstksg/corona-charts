@@ -24,23 +24,32 @@ foreign import _mkSvg   :: Fn2 Element { width :: Number, height :: Number } (Ef
 foreign import clearSvg :: D3Scatter -> Effect Unit
 
 foreign import _drawData
-    :: forall a b.
-     Fn6 (HandleFunc1 SType OnSType) 
+    :: forall a b c.
+     Fn7 (HandleFunc1 SType OnSType) 
          (HandleFunc1 Scale OnScale)
          (SType a)
          (SType b)
+         (SType c)
          D3Scatter
-         (ScatterPlot a b)
+         (ScatterPlot a b c)
          (Effect Unit)
 
-drawData_ :: forall a b. SType a -> SType b -> D3Scatter -> ScatterPlot a b -> Effect Unit
-drawData_ = runFn6 _drawData handle1 handle1 
+drawData_
+    :: forall a b c.
+       SType a
+    -> SType b
+    -> SType c
+    -> D3Scatter
+    -> ScatterPlot a b c
+    -> Effect Unit
+drawData_ = runFn7 _drawData handle1 handle1 
 
-drawData :: forall a b. STypeable a => STypeable b => D3Scatter -> ScatterPlot a b -> Effect Unit
-drawData = drawData_ sType sType
+drawData
+    :: forall a b c. STypeable a => STypeable b => STypeable c
+    => D3Scatter
+    -> ScatterPlot a b c
+    -> Effect Unit
+drawData = drawData_ sType sType sType
 
 mkSvg :: Element -> { width :: Number, height :: Number } -> Effect D3Scatter
 mkSvg = runFn2 _mkSvg
-
---         const width = 1000;
---         const height = 600;

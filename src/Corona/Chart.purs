@@ -436,31 +436,38 @@ toAxisConf spr scl =
       }
 
 toSeries
-    :: forall a b.
+    :: forall a b c.
        Projection a
     -> Projection b
+    -> Projection c
     -> Dated (Counts Int)
-    -> Array (Point a b)
-toSeries pX pY ps = D.datedValues $ spy "xy" $
-    lift2 (\x y -> {x, y}) (spy "x" $ applyProjection pX ps) (spy "y" $ applyProjection pY ps)
+    -> Array (Point a b c)
+toSeries pX pY pZ ps = D.datedValues $
+    lift3 (\x y z -> {x, y, z})
+          (applyProjection pX ps)
+          (applyProjection pY ps)
+          (applyProjection pZ ps)
 
 toScatterPlot
-    :: forall a b.
+    :: forall a b c.
        CoronaData
     -> Projection a
     -> Scale a
     -> Projection b
     -> Scale b
+    -> Projection c
+    -> Scale c
     -> Set Country
-    -> ScatterPlot a b
-toScatterPlot dat pX sX pY sY ctrys =
+    -> ScatterPlot a b c
+toScatterPlot dat pX sX pY sY pZ sZ ctrys =
         { xAxis  : toAxisConf pX sX
         , yAxis  : toAxisConf pY sY
+        , zAxis  : toAxisConf pZ sZ
         , series : flip A.mapMaybe (A.fromFoldable ctrys) $ \ctry -> do
             cdat <- O.lookup ctry dat.counts
             pure
               { name : ctry
-              , values : toSeries pX pY (Dated { start: dat.start, values: cdat })
+              , values : toSeries pX pY pZ (Dated { start: dat.start, values: cdat })
               }
         }
 

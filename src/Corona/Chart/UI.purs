@@ -139,7 +139,7 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
         HH.slot _scatter unit (Scatter.component hw) unit absurd
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
-        HH.slot _zProjection unit (Projection.component "Time Axis")
+        HH.slot _zProjection unit (Projection.component "Color Axis")
           st.zAxis
           (\(Projection.Update s) -> Just (SetZProjection s))
       ]
@@ -188,19 +188,23 @@ reRender dat = do
     st :: State <- H.get
     traceM (show st)
     withDSum st.xAxis.projection (\tX pX ->
-      withDSum st.yAxis.projection (\tY pY -> void $
-        H.query _scatter unit $ Scatter.Query
-          { update: \f -> f tX tY (
-                toScatterPlot
-                  dat
-                  pX
-                  (lookupScale tX (st.xAxis.numScale))
-                  pY
-                  (lookupScale tY (st.yAxis.numScale))
-                  st.countries
-              )
-          , next: unit
-          }
+      withDSum st.yAxis.projection (\tY pY ->
+        withDSum st.zAxis.projection (\tZ pZ -> void $
+          H.query _scatter unit $ Scatter.Query
+            { update: \f -> f tX tY tZ (
+                  toScatterPlot
+                    dat
+                    pX
+                    (lookupScale tX (st.xAxis.numScale))
+                    pY
+                    (lookupScale tY (st.yAxis.numScale))
+                    pZ
+                    (lookupScale tZ (st.zAxis.numScale))
+                    st.countries
+                )
+            , next: unit
+            }
+        )
       )
     )
 

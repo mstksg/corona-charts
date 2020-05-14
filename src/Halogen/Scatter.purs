@@ -79,7 +79,7 @@ handleQuery (Query q) = do
     s <- H.get
     liftEffect case s.chart of
       Nothing -> pure unit
-      Just c  -> q.update (\a b -> drawData_ a b c)
+      Just z  -> q.update (\a b c -> drawData_ a b c z)
     pure (Just q.next)
 
 scatterRef ∷ H.RefLabel
