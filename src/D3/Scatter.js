@@ -46,8 +46,7 @@ const timedSeries = series => function(t) {
         const cutoff = d3.bisector(p => p.t).right(s.values,t);
         return {
             name: s.name
-          , values: s.values.slice(0,cutoff)
-          , segments: s.segments.slice(0,cutoff-1)
+          , values: s.values.slice(0,cutoff+1)
         };
     }).filter(s => s.values.length > 0);
 }
@@ -85,6 +84,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const fmtX = fmt(typeX);
     const fmtY = fmt(typeY);
     const fmtZ = fmt(typeZ);
+    const fmtT = fmt(typeT);
     const axisTicker = tp =>
         handleType(tp)(
             { day:     (() => a => a.ticks(10))
@@ -96,6 +96,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         );
     const axisTickerX = axisTicker(typeX);
     const axisTickerY = axisTicker(typeY);
+    const axisTickerT = axisTicker(typeT);
 
     const validVal = scale => val =>
         !isNaN(val) && handleScale(scale)(
@@ -127,8 +128,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
     return function () {
         exports.clearSvg(svg)();
-        console.log(scatter);
-        const margin = { top: 20, right: 20, bottom: 20, left: 50 };
+        // console.log(scatter);
+        const margin = { top: 20, right: 20, bottom: 80, left: 50, slider: 20 };
         const series = scatter.series.map(function(s) {
                 const vals = s.values.filter(validPair).map( p =>
                             ({ x: convertX(p.x)
@@ -142,6 +143,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                        , segments: segmentize(vals)
                        };
             });
+        const sliceSeries = timedSeries(series);
         console.log(series);
 
         // var filteredSeries;
@@ -171,7 +173,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                         .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)]);
         const t = scaleFunc(scatter.tAxis.scale)
                         .domain(extentt)        // not nice
-                        .range([0, 1]);
+                        .range([margin.left, width - margin.right]);
 
         // makes axes lines. i think this converts coordinates into svg points
         // or something???
@@ -183,11 +185,10 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         // makes axes lines
         const xAxis = function(g) {
             g.attr("transform", `translate(0,${height - margin.bottom})`)
-                // .call(d3.axisBottom(x).ticks(width/80).tickSizeOuter(0));
                 .call(axisTickerX(d3.axisBottom(x)))
                 .call(g => g.append("text")
                             .attr("x", width - margin.right)
-                            .attr("y", -3)
+                            .attr("y", -5)
                             .attr("fill", "currentColor")
                             .attr("font-weight", "bold")
                             .attr("font-size", 12)
@@ -207,12 +208,45 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                      )
                 .call(g => g.select(".tick:last-of-type text").clone()
                         .attr("x", 3)
+                        .attr("y", -5)
                         .attr("text-anchor", "start")
                         .attr("font-weight", "bold")
                         .attr("font-size", 12)
                         .text(scatter.yAxis.label)
-                    )
+                    );
         };
+        const tAxis = function(g) {
+            const sliderino = d3.sliderBottom(t)
+                        .tickFormat(fmtT)
+                        .displayFormat(fmtT)
+            g.attr("transform", `translate(0,${height - margin.slider})`)
+                .call(sliderino)
+                .append("text")
+                .attr("x", margin.left-5)
+                .attr("y", -10)
+                .attr("fill", "currentColor")
+                .attr("font-weight", "bold")
+                .attr("font-size", 12)
+                .text(scatter.tAxis.label);
+            return sliderino;
+            // const node = g.attr("transform", `translate(0,${height - margin.slider})`)
+            //         .call( d3.sliderBottom(t)
+            //             .tickFormat(fmtT)
+            //             .displayFormat(fmtT)
+            //             // .default(initValue)
+            //             .on('onchange', change)
+            //             .on('end',ending)
+            //                 );
+            // node.append("text")
+            //     .attr("x", margin.left-5)
+            //     .attr("y", -10)
+            //     .attr("fill", "currentColor")
+            //     .attr("font-weight", "bold")
+            //     .attr("font-size", 12)
+            //     .text(scatter.tAxis.label)
+            // return node.node();
+        }
+
 
         const highlight = subplot => function(name) {
           // console.log(path, name);
@@ -224,23 +258,34 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             subplot.selectAll("path").attr("stroke-width",1.5);
         }
 
+        const mkQuadPoints = ss => ss.map(s =>
+              s.values.map(p => ({ x: x(p.x), y: y(p.y), z: p.z, name: s.name }))
+            ).flat();
 
-        const hover = function(svg, highlight, unhighlight, quadtree) {
+        var currQuadPoints = mkQuadPoints(series);
+        // quadtree to look up nearest point. note z is not encoded
+        const quadtree = d3.quadtree()
+                .x(d => d.x)
+                .y(d => d.y)
+                .extent([x(extentx[0]),y(extenty[0])], [x(extentx[1]),y(extenty[1])])
+                .addAll(currQuadPoints);
+
+        const requad = function(t) {
+            quadtree.removeAll(currQuadPoints);
+            currQuadPoints = mkQuadPoints(sliceSeries(t));
+            quadtree.addAll(currQuadPoints);
+        }
+
+        const hover = function(svg, highlight, unhighlight) {
 
           if ("ontouchstart" in document) svg
               .style("-webkit-tap-highlight-color", "transparent")
-              .on("touchmove", null)
               .on("touchmove", moved)
-              .on("touchstart", null)
               .on("touchstart", entered)
-              .on("touchend", null)
               .on("touchend", left)
           else svg
-              .on("mousemove", null)
               .on("mousemove", moved)
-              .on("mouseenter", null)
               .on("mouseenter", entered)
-              .on("mouseleave", null)
               .on("mouseleave", left);
 
           const crosshair = svg.append("g").attr("display", "none");
@@ -327,74 +372,193 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             .call(yAxis);
 
         const flatSegments = ss => ss.map(s => s.segments.map (p => ({ name: s.name, pair: p }))).flat()
-        const mkTimed = timedSeries(series);
+        // const mkTimed = timedSeries(series);
 
-        const subplot = svg.append("g").attr("id","redraw");
+        const subplot = svg.append("g")
 
-        const drawEverything = subplot => function(time) {
-            subplot.selectAll("*").remove()
+        // click capture
+        subplot.append("g")
+          .append('rect')
+          .style('visibility','hidden')
+          .style('pointer-events','all')
+          .attr('x',margin.left)
+          .attr('y',margin.top)
+          .attr('width',width - margin.right - margin.left)
+          .attr('height',height - margin.top - margin.bottom);
 
-            const subseries = mkTimed(t.invert(time));
+        subplot.append("g")
+             .selectAll("g")
+             .data(flatSegments(series))
+             .join("g")
+             .append("path")
+             .attr("fill", "none")
+             .attr("stroke-width", 1.5)
+             .attr("stroke-linejoin", "round")
+             .attr("stroke-linecap", "round")
+             .attr("stroke", d => z(d.pair[1].z))
+             .attr("d", d => line(d.pair));
 
-            subplot.append("g")
-                 .selectAll("g")
-                 .data(flatSegments(subseries))
-                 .join("g")
-                 .append("path")
-                 .attr("fill", "none")
-                 .attr("stroke-width", 1.5)
-                 .attr("stroke-linejoin", "round")
-                 .attr("stroke-linecap", "round")
-                 .attr("stroke", d => z(d.pair[1].z))
-                 .attr("d", d => line(d.pair));
+        const endDots = svg.append("g");
 
-            subplot.append("g")
+        subplot.call(hover, highlight(subplot),unhighlight(subplot));
+
+
+        const setTime = function(subplot, t) {
+            subplot.selectAll("path")
+                .attr("display", function(d) {
+                    // console.log(d.pair[1].t, t);
+                    return (d.pair[0].t <= t) ? null : "none";
+                });
+
+            endDots.selectAll("*").remove();
+
+
+            const dotData = series.map(function(s) {
+              const cutoff = d3.bisector(p => p.t).right(s.values,t);
+              if (cutoff == 0) {
+                  return [];
+              } else {
+                  return [{
+                      name: s.name
+                    , last: s.values[Math.min(cutoff,s.values.length-1)]
+                  }];
+              }
+            }).flat();
+            // console.log(dotData);
+
+            endDots.append("g")
                 .attr("text-anchor","start")
                 .selectAll("text")
-                .data(subseries)
+                .data(dotData)
                 .join("text")
-                .attr("x",d => x(last(d.values).x)+10)
-                .attr("y",d => y(last(d.values).y)+3)
+                .attr("x",d => x(d.last.x)+10)
+                .attr("y",d => y(d.last.y)+3)
                 .attr("font-family", "sans-serif")
                 .attr("font-size", 12)
-                .text(d => d.name);
+                .text(d => d.name)
+                .style('pointer-events','none')
 
-            subplot.append("g")
+            endDots.append("g")
                 .selectAll("circle")
-                .data(subseries)
+                .data(dotData)
                 .join("circle")
                 .attr("r", 3)
-                .attr("fill",d3.schemeSet1[6])
-                .attr("transform", d => `translate(${x(last(d.values).x)},${y(last(d.values).y)})`);
+                .attr("fill","red")
+                .attr("transform", d => `translate(${x(d.last.x)},${y(d.last.y)})`)
+                .style('pointer-events','none')
 
-            // quadtree to look up nearest point. note z is not encoded
-            const quadPoints = subseries.map(s =>
-                  s.values.map(p => ({ x: x(p.x), y: y(p.y), z: p.z, name: s.name }))
-                ).flat()
-            // console.log(flatPoints);
-            const quadtree = d3.quadtree()
-                    .x(d => d.x)
-                    .y(d => d.y)
-                    .extent([x(extentx[0]),y(extenty[0])], [x(extentx[1]),y(extenty[1])])
-                    .addAll(quadPoints);
-            // console.log(quadtree);
-
-            svg.call(hover, highlight(subplot),unhighlight(subplot), quadtree);
         }
 
-        const redraw = drawEverything(subplot);
-        
-        redraw(extentt[1]);
+        const sliderino = tAxis(svg.append("g"))
+                .on('onchange', v => setTime(subplot,v))
+                // .on('onchange', _.throttle(v => setTime(subplot,v), 100))
+                .on('end',v => requad(v));
 
-        window.testdraw = drawEverything(subplot);
+        const button = svg.append("g")
+                    .attr("transform",`translate(-5,${height-margin.slider-15})`)
+                    .style("cursor","pointer")
+                    .style('pointer-events','all');
+
+        const drawButton = function(g,isPlaying,callback) {
+            g.selectAll("*").remove();
+            g.on("click",null)
+                .on("click",callback);
+            g.append("rect")
+                .attr("width",30)
+                .attr("height",30)
+                .attr("rx",3)
+                .style("fill",d3.schemeDark2[1]);
+            if (isPlaying) {
+                g.append("rect")
+                    .attr("width",6)
+                    .attr("height",18)
+                    .attr("x",6)
+                    .attr("y",6)
+                    .attr("rx",1)
+                    .style("fill","white");
+                g.append("rect")
+                    .attr("width",6)
+                    .attr("height",18)
+                    .attr("x",18)
+                    .attr("y",6)
+                    .attr("rx",1)
+                    .style("fill","white");
+            } else {
+                g.append("path")
+                    .attr("d","M9 6 L9 24 L21 15 Z")
+                    .style("fill","white");
+            }
+        }
+
+        var timer = null;
+        var is_playing = false;
+
+        const moveSetSlider = function(t) {
+            sliderino.value(t);
+            setTime(subplot,t);
+        }
+
+        const playdata = (function () {
+            const playtime = 15000;
+            const delay = 50;
+            const numSteps = playtime / delay;
+            const minT = t(extentt[0])
+            const maxT = t(extentt[1])
+            const domainwidth = maxT - minT;
+            const stepAmt = domainwidth / numSteps;
+
+            return {
+                minT: minT,
+                maxT: maxT,
+                delay: delay,
+                stepAmt: stepAmt
+            };
+        })();
+
+        const play_start = function () {
+            button.call(drawButton,true,play_stop);
+            timer = setInterval(play_tick,playdata.delay);
+        }
+        const play_stop = function () {
+            button.call(drawButton,false,play_start);
+            clearInterval(timer);
+            timer = null;
+            is_playing = false;
+        }
+        const play_tick = function () {
+            const currval = t(sliderino.value());
+            const nextval = currval + playdata.stepAmt;
+            const hitTheEnd = nextval > playdata.maxT;
+            console.log(currval,nextval,hitTheEnd);
+            if (hitTheEnd) {
+                if (is_playing) {
+                    return play_stop();
+                } else {
+                    moveSetSlider(extentt[0]);
+                    is_playing = true;
+                }
+            } else {
+                moveSetSlider(t.invert(nextval));
+            }
+        }
+
+        window.sliderino = sliderino;
+        window.tt = t;
+
+        button.call(drawButton,false,play_start);
+
+        moveSetSlider(extentt[1]);
+
 
         return {
             highlight: highlight(subplot),
             unhighlight: unhighlight(subplot),
-            settime: drawEverything(subplot)
+            settime: (v => setTime(subPlot, v))
         };
     }
 }
+
+
 
 // takes a (maybe string)
 exports._highlight = function(handleMaybe,interactors,name) {
