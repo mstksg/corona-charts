@@ -4,6 +4,7 @@ module Type.GCompare where
 import Prelude
 
 import Data.Exists
+import Data.Newtype
 import Data.Functor.Product
 import Data.Maybe
 import Data.Tuple
@@ -33,6 +34,8 @@ class GShow2 f where
     gshow2 :: forall a b. f a b -> String
 
 newtype WrEx k = WrEx (Exists k)
+
+derive instance ntWrEx :: Newtype (WrEx k) _
 
 mkWrEx :: forall k a. k a -> WrEx k
 mkWrEx = WrEx <<< mkExists

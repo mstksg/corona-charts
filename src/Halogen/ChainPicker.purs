@@ -261,7 +261,6 @@ handleAction t0 act = do
         st <- H.get
         -- log $ "trigger update " <> show (WrEx outputType) <> " received from " <> show ix <> " with " <> show
         --             st
-
         withDSum st.tagChain (\_ c -> withAp (C.splitAt ix c) (\xs ys ->
             -- A -> B -> C -> D -> E
             -- | 0  | 1  | 2  | 3  |
