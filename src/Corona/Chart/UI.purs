@@ -185,7 +185,7 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
                   { label: cty, value: cty }
     projLabel dp = withDSum dp (\_ -> projectionLabel)
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
-    hw = { height: toNumber 750, width: toNumber 1000 }
+    hw = { height: toNumber 700, width: toNumber 1000 }
 
 handleAction
     :: forall o m. MonadEffect m

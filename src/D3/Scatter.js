@@ -74,7 +74,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
     const fmt = tp =>
         handleType(tp)(
-            { day:     (() => val => val.toLocaleDateString(undefined, {month:"numeric",day:"numeric"}))
+            // { day:     (() => val => val.toLocaleDateString(undefined, {month:"numeric",day:"numeric"}))
+            { day:     (() => d3.timeFormat("%b %d"))
             , days:    (() => d3.format(".3~s"))
             , "int":   (() => d3.format(".3~s"))
             , number:  (() => d3.format(".3~s"))
@@ -126,10 +127,19 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const convertZ = convert(typeZ);
     const convertT = convert(typeT);
 
+    const validTimeScale = handleType(typeT)(
+            { day: (() => true)
+            , days: (() => true)
+            , "int": (() => false)
+            , number: (() => false)
+            , percent: (() => false)
+            }
+        );
+
     return function () {
         exports.clearSvg(svg)();
         // console.log(scatter);
-        const margin = { top: 20, right: 20, bottom: 80, left: 50, slider: 20 };
+        const margin = { top: 20, right: 20, bottom: 70, left: 50, slider: 20 };
         const series = scatter.series.map(function(s) {
                 const vals = s.values.filter(validPair).map( p =>
                             ({ x: convertX(p.x)
@@ -215,6 +225,13 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                         .text(scatter.yAxis.label)
                     );
         };
+        // const zLegend = function(g) {
+        //     const leg = d3.legendColor()
+        //                     .labelFormat(fmtZ)
+        //                     .scale(z);
+
+        //     g.call(leg);
+        // }
         const tAxis = function(g) {
             const sliderino = d3.sliderBottom(t)
                         .tickFormat(fmtT)
@@ -229,22 +246,6 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .attr("font-size", 12)
                 .text(scatter.tAxis.label);
             return sliderino;
-            // const node = g.attr("transform", `translate(0,${height - margin.slider})`)
-            //         .call( d3.sliderBottom(t)
-            //             .tickFormat(fmtT)
-            //             .displayFormat(fmtT)
-            //             // .default(initValue)
-            //             .on('onchange', change)
-            //             .on('end',ending)
-            //                 );
-            // node.append("text")
-            //     .attr("x", margin.left-5)
-            //     .attr("y", -10)
-            //     .attr("fill", "currentColor")
-            //     .attr("font-weight", "bold")
-            //     .attr("font-size", 12)
-            //     .text(scatter.tAxis.label)
-            // return node.node();
         }
 
 
@@ -259,7 +260,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         }
 
         const mkQuadPoints = ss => ss.map(s =>
-              s.values.map(p => ({ x: x(p.x), y: y(p.y), z: p.z, name: s.name }))
+              s.values.map(p => ({ x: x(p.x), y: y(p.y), z: p.z, t: p.t, name: s.name }))
             ).flat();
 
         var currQuadPoints = mkQuadPoints(series);
@@ -294,16 +295,17 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     .attr("stroke","steelblue")
                     .attr("stroke-width",2);
 
-          const toplabel = crosshair.append("text")
+          const mkLabel = (g,anchor,x,y) => g.append("text")
               .attr("font-family", "sans-serif")
               .attr("font-size", 12)
-              .attr("text-anchor", "middle")
-              .attr("y", -12);
-          const bottomlabel = crosshair.append("text")
-              .attr("font-family", "sans-serif")
-              .attr("font-size", 12)
-              .attr("text-anchor", "middle")
-              .attr("y", 24);
+              .attr("text-anchor",anchor)
+              .attr("x",x)
+              .attr("y",y);
+
+          const toplabel    = mkLabel(crosshair,"middle",0,-12);
+          const bottomlabel = mkLabel(crosshair,"middle",0, 24)
+                                    .attr("font-weight","bold");
+          const footlabel   = mkLabel(crosshair,"middle",0, 40);
 
           const vertline = crosshair.append("line")
                 .style("stroke-width",0.5)
@@ -319,19 +321,11 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
           function moved() {
             d3.event.preventDefault();
-            const mouse0 = d3.mouse(this);
-            const mouse =
-                [Math.max(Math.min(mouse0[0],width-margin.right),margin.left),
-                 Math.max(Math.min(mouse0[1],height-margin.bottom),margin.top)
-                ]
-
+            const mouse = d3.mouse(this);
             const closest = quadtree.find(mouse[0], mouse[1], 50);
-            // console.log(closest);
             const foundPoint = !(closest === undefined);
-
             const xc = foundPoint ? closest.x : mouse[0];
             const yc = foundPoint ? closest.y : mouse[1];
-            const textlab = foundPoint ? (closest.name + ": ") : "";
             const xm = x.invert(xc);
             const ym = y.invert(yc);
 
@@ -339,18 +333,26 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             vertline.attr("y1", -yc+margin.top).attr("y2", -yc+height-margin.bottom);
             horizline.attr("x1", -xc+margin.left).attr("x2", -xc+width-margin.right);
 
-            toplabel.text(textlab + fmtX(xm) + ", " + fmtY(ym));
+            const showx = fmtX(xm);
+            const showy = fmtY(ym);
+            toplabel.text(showx + ", " + showy);
 
             if (foundPoint) {
               ch_center.attr("r",6.0)
                        .attr("fill",z(closest.z));
               highlight(closest.name);
-              bottomlabel.text(fmtZ(closest.z));
+              bottomlabel.text(closest.name);
+              footlabel.text(
+                    [fmtZ(closest.z),fmtT(closest.t)]
+                                    .filter(st => st !== showx && st !== showy)
+                                    .join(", ")
+                );
             } else {
               ch_center.attr("r",4.0)
                        .attr("fill","white");
               unhighlight();
               bottomlabel.text("");
+              footlabel.text("");
             }
 
           }
@@ -370,6 +372,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             .call(xAxis);
         svg.append("g")
             .call(yAxis);
+        // svg.append("g")
+        //     .call(zLegend);
 
         const flatSegments = ss => ss.map(s => s.segments.map (p => ({ name: s.name, pair: p }))).flat()
         // const mkTimed = timedSeries(series);
@@ -447,12 +451,13 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .attr("transform", d => `translate(${x(d.last.x)},${y(d.last.y)})`)
                 .style('pointer-events','none')
 
+            requad(t);
         }
 
         const sliderino = tAxis(svg.append("g"))
-                .on('onchange', v => setTime(subplot,v))
-                // .on('onchange', _.throttle(v => setTime(subplot,v), 100))
-                .on('end',v => requad(v));
+                // .on('onchange', v => setTime(subplot,v))
+                .on('onchange', _.throttle(v => setTime(subplot,v), 50))
+                // .on('end',v => requad(v));
 
         const button = svg.append("g")
                     .attr("transform",`translate(-5,${height-margin.slider-15})`)
@@ -506,7 +511,6 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             const maxT = t(extentt[1])
             const domainwidth = maxT - minT;
             const stepAmt = domainwidth / numSteps;
-
             return {
                 minT: minT,
                 maxT: maxT,
@@ -529,7 +533,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             const currval = t(sliderino.value());
             const nextval = currval + playdata.stepAmt;
             const hitTheEnd = nextval > playdata.maxT;
-            console.log(currval,nextval,hitTheEnd);
+            // console.log(currval,nextval,hitTheEnd);
             if (hitTheEnd) {
                 if (is_playing) {
                     return play_stop();
