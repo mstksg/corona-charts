@@ -82,6 +82,17 @@
       margin: 0.2rem 0;
       padding: 0.4rem;
       background: #ddf;
+
+      span.picker-slot-name {
+        display: inline;
+        font-size: 110%;
+        font-weight: bold;
+        font-style: normal;
+      }
+      a.picker-slot-delete {
+        cursor: pointer;
+        float: right;
+      }
       // margin: 0.3rem 0.3rem;
       // margin: 0;
       // padding: 0;

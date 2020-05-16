@@ -10,6 +10,7 @@ import Corona.JHU
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
+import Undefined
 import Data.Either
 import Data.Exists
 import Data.Functor.Compose
@@ -58,14 +59,14 @@ type OpIx = { tagIn :: WrEx D3.SType }
 
 type ChildSlots =
         ( multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
-        , opselect    :: H.Slot (ChainPicker.WrappedQuery Operation SType)
-                            (ChainPicker.Output SType)
+        , opselect    :: H.Slot (ChainPicker.WrappedQuery SType Operation)
+                            ChainPicker.Output
                             OpIx
         )
 
 data Action =
         SetBase      (Exists BaseProjection)
-      | SetOps       (Exists SType)
+      | SetOps
       | SetNumScale  NScale
 
 data Output = Update State
@@ -114,8 +115,7 @@ render label aState = HH.div [HU.classProp "axis-options"] [
                   {tagIn: mkWrEx tBase}
                   (chainPicker tBase)
                   unit
-                  $ \(ChainPicker.ChainUpdate u) ->
-                      Just (SetOps u)
+                  $ \_ -> Just SetOps
           )
         )
       ]
@@ -149,30 +149,11 @@ render label aState = HH.div [HU.classProp "axis-options"] [
       1 -> Just (NScale (DProd Log))
       _ -> Nothing
 
--- component
---     :: forall a i m. MonadEffect m
---     => D3.SType a
---     -> H.Component HH.HTML (Query a) i Output m
-
 chainPicker
     :: forall a i m. MonadEffect m
     => SType a  -- ^ initial initial type
-    -> H.Component HH.HTML (ChainPicker.WrappedQuery Operation SType) i (ChainPicker.Output SType) m
-chainPicker = ChainPicker.wrappedComponent $ DProd (\t -> Compose <<< Just $
-      ChainPicker.Picker
-        { component: HU.trimapComponent
-              (\(ChainPicker.SQ f) -> Op.QueryOp f)
-              identity
-              (\(Op.ChangeEvent o) -> o)
-              (Op.component t)
-        , initialOut: case t of
-            SDay  _ -> mkExists D3.sDays
-            SDays _ -> mkExists D3.sDays
-            SInt  _ -> mkExists D3.sInt
-            SNumber _ -> mkExists D3.sNumber
-            SPercent _ -> mkExists D3.sPercent
-        }
-  )
+    -> H.Component HH.HTML (ChainPicker.WrappedQuery SType Operation) i ChainPicker.Output m
+chainPicker t0 = ChainPicker.wrappedComponent t0 Op.pickerMap
 
 handleAction
     :: forall m. MonadEffect m
@@ -182,12 +163,16 @@ handleAction act = do
     case act of
       SetBase sb -> H.modify_ $ \st ->
           st { projection = runExists (flip setBase st.projection) sb }
-      SetOps _ -> do
+      SetOps -> do
         dsp <- H.gets (_.projection)
         withDSum dsp (\tOut proj -> withProjection proj (\pr -> do
             let tIn = baseType pr.base
-            qres <- H.query _opselect { tagIn: mkWrEx tIn }
-                  $ ChainPicker.someQuery tIn ChainPicker.askSelected
+            qres <- H.query _opselect { tagIn: mkWrEx tIn } $
+              ChainPicker.WQGet (\tA tB chain ->
+                case decide tA tIn of
+                  Nothing -> Left (mkExists tA)
+                  Just r  -> Right (tB :=> equivToF2 r chain)
+              )
             case qres of
               Nothing       -> log "no response from component"
               Just (Left e) -> log $ "type mismatch: " <> runExists show e

@@ -1,7 +1,6 @@
 
 module Corona.Chart.UI.Op where
 
-
 import Prelude
 
 import Control.Monad.State.Class as State
@@ -10,6 +9,7 @@ import D3.Scatter.Type (SType(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Date as D
+import Halogen.ChainPicker (Picker(..), SomePicker(..), PickerQuery(..))
 import Data.Either
 import Data.Enum
 import Data.Exists
@@ -41,24 +41,24 @@ import Type.DSum
 import Type.Equiv
 import Undefined
 
-validPickOps :: forall m a. SType a -> Array (SomePickOp m a)
-validPickOps t0 = case t0 of
+pickerMap :: forall m a. SType a -> Array (SomePicker SType Operation m a)
+pickerMap t0 = case t0 of
     SDay  _ -> [
         t0       :=> restrictPickOp t0
       , t0       :=> takePickOp
-      , D3.sDays :=> dayNumberPickOp 
+      , D3.sDays :=> dayNumberPickOp
       , D3.sDay  :=> pointDatePickOp
       ]
     SDays _ -> [
         t0       :=> restrictPickOp t0
       , t0       :=> takePickOp
-      , D3.sDays :=> dayNumberPickOp 
+      , D3.sDays :=> dayNumberPickOp
       , D3.sDay  :=> pointDatePickOp
       ]
     SInt  r -> [
-        D3.sNumber  :=> windowPickOp (I2N r refl)
-      , t0          :=> deltaPickOp (D3.NInt r)
+        t0          :=> deltaPickOp (D3.NInt r)
       , D3.sPercent :=> pgrowthPickOp (D3.NInt r)
+      , D3.sNumber  :=> windowPickOp (I2N r refl)
       , D3.sPercent :=> pmaxPickOp (D3.NInt r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp
@@ -66,9 +66,9 @@ validPickOps t0 = case t0 of
       , D3.sDay     :=> pointDatePickOp
       ]
     SNumber r -> [
-        D3.sNumber  :=> windowPickOp (N2N r refl)
-      , t0          :=> deltaPickOp (D3.NNumber r)
+        t0          :=> deltaPickOp (D3.NNumber r)
       , D3.sPercent :=> pgrowthPickOp (D3.NNumber r)
+      , D3.sNumber  :=> windowPickOp (N2N r refl)
       , D3.sPercent :=> pmaxPickOp (D3.NNumber r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp
@@ -76,9 +76,9 @@ validPickOps t0 = case t0 of
       , D3.sDay     :=> pointDatePickOp
       ]
     SPercent r -> [
-        D3.sPercent :=> windowPickOp (P2P r refl)
-      , t0          :=> deltaPickOp (D3.NPercent r)
+        t0          :=> deltaPickOp (D3.NPercent r)
       , D3.sPercent :=> pgrowthPickOp (D3.NPercent r)
+      , D3.sPercent :=> windowPickOp (P2P r refl)
       , D3.sPercent :=> pmaxPickOp (D3.NPercent r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp
@@ -86,173 +86,56 @@ validPickOps t0 = case t0 of
       , D3.sDay     :=> pointDatePickOp
       ]
 
-type State =
-    { pickOpIx :: Int
-    }
 
-newtype SomePickOpQuery a r = SomePQState
-  (forall b. SType b -> Operation a b -> Tuple r (Operation a b))
-  -- ^ it could possibly change the result type?  nah.  not in this case. we
-  -- ignore if result type is different
-
-type ChildSlots a =
-        ( pickOp :: H.Slot (SomePickOpQuery a)
-                           PickOpOutput
-                           Int
-        )
-
-data Output = ChangeEvent (Exists SType)
-
-data Action = SetPickOpIx Int
-            | TriggerUpdate
-
-data Query a r = QueryOp
-  (forall b. SType b -> Operation a b
-      -> Tuple r (DSum SType (Operation a)))
-
-component
-    :: forall a i m. MonadEffect m
-    => SType a
-    -> H.Component HH.HTML (Query a) i Output m
-component t0 =
-    H.mkComponent
-      { initialState: \_ -> { pickOpIx: 0 }
-      , render: render pos
-      , eval: H.mkEval $ H.defaultEval
-          { handleAction = handleAction pos
-          , handleQuery  = handleQuery
-          }
-      }
-  where
-    pos = validPickOps t0
-
-render
-    :: forall m a.
-       Array (SomePickOp m a)
-    -> State
-    -> H.ComponentHTML Action (ChildSlots a) m
-render pos st = HH.div [HU.classProp "single-op-picker"] [
-      HH.select [ HE.onSelectedIndexChange (map SetPickOpIx <<< goodIx) ] $
-        flip mapWithIndex pos $ \i dspo -> withDSum dspo (\t (PickOp po) ->
-          HH.option [HP.selected (i == st.pickOpIx)]
-            [ HH.text po.label ]
-        )
-    , HH.div [HU.classProp "single-op-options"] $
-        maybe [] (A.singleton <<< mkSlot) (pos A.!! st.pickOpIx)
-    ]
-  where
-    goodIx i
-      | i < A.length pos = Just i
-      | otherwise        = Nothing
-    mkSlot :: SomePickOp m a -> H.ComponentHTML Action (ChildSlots a) m
-    mkSlot dspo = withDSum dspo (\t (PickOp po) ->
-        HH.slot _pickOp st.pickOpIx
-          (HU.hoistQuery (\(SomePQState f) -> PQState (f t)) po.component)
-          unit
-          (const (Just TriggerUpdate))
-      )
-
-
-handleAction
-    :: forall a m. MonadEffect m
-    => Array (SomePickOp m a)
-    -> Action
-    -> H.HalogenM State Action (ChildSlots a) Output m Unit
-handleAction pos act = do
-    oldIx <- H.gets (_.pickOpIx)
-    st <- H.get
-    case act of
-      SetPickOpIx i -> H.put { pickOpIx: i }
-      TriggerUpdate -> pure unit
-    newIx <- H.gets (_.pickOpIx)
-
-    case pos A.!! newIx of
-      Nothing   -> log "hey what gives"
-      Just dspo -> withDSum dspo (\t _ ->
-        H.raise $ ChangeEvent (mkExists t)
-      )
-
-handleQuery
-    :: forall a m r. MonadEffect m
-    => Query a r
-    -> H.HalogenM State Action (ChildSlots a) Output m (Maybe r)
-handleQuery = case _ of
-    QueryOp f -> do
-      st <- H.get
-      subSt <- H.query _pickOp st.pickOpIx $
-          SomePQState (\t op -> Tuple (t :=> op) op)
-      for subSt $ \o -> do
-        let Tuple r dso = withDSum o f
-        -- this needs to be reworked better: setting op's needs to go to the
-        -- right index
-        -- withDSum dso (\tNew oNew -> void $
-        --    H.query _pickOp st.pickOpIx $
-        --       SomePQState (\tOld oOld ->
-        --           case decide tOld tNew of
-        --             Nothing -> trace "what the" $ const $ Tuple unit oOld
-        --             Just r  -> trace "ok huh" $ const $ Tuple unit (equivFromF r oNew)
-        --         )
-        -- )
-        pure r
-           
-_pickOp :: SProxy "pickOp"
-_pickOp = SProxy
-
-
-
-
-
-
-
-data PickOpQuery a b r = PQState (Operation a b -> Tuple r (Operation a b))
-
-data PickOpOutput = PickOpUpdate
-
-type SomePickOp m a = DSum SType (PickOp m a)
-
-newtype PickOp m a b = PickOp
-      { label     :: String
-      , component :: H.Component HH.HTML (PickOpQuery a b) Unit PickOpOutput m
-      }
+type PickOp = Picker Operation
 
 fakeState
     :: forall s r s m. Applicative m
-     => s -> (s -> Tuple r s) -> m (Maybe r)
-fakeState x f = pure (Just (fst (f x)))
+    => (s -> (s -> Boolean) -> Tuple r s)
+    -> s
+    -> (s -> Boolean)
+    -> m (Maybe r)
+fakeState f x checker = pure (Just (fst (f x checker)))
 
 -- | Delta     (NType a) (a ~ b)       -- ^ dx/dt
 deltaPickOp :: forall m a. D3.NType a -> PickOp m a a
-deltaPickOp nt = PickOp {
+deltaPickOp nt = Picker {
       label: "Daily Change"
     , component: H.mkComponent {
         initialState: \_ -> unit
       , render: \_ -> HH.div [HU.classProp "daily-change"] []
       , eval: H.mkEval $ H.defaultEval {
-          handleAction = \_ -> H.raise PickOpUpdate
+          handleAction = \_ -> H.raise unit
         , handleQuery  = case _ of
-            PQState f -> fakeState (Delta nt refl) f
+            PQState f -> fakeState f (Delta nt refl) $
+                            case _ of
+                              Delta _ _ -> true
+                              _         ->false
         }
       }
     }
 
 -- | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
 pgrowthPickOp :: forall m a. D3.NType a -> PickOp m a D3.Percent
-pgrowthPickOp nt = PickOp {
+pgrowthPickOp nt = Picker {
       label: "Percent Growth"
     , component: H.mkComponent {
         initialState: \_ -> unit
       , render: \_ -> HH.div [HU.classProp "percent-growth"] []
       , eval: H.mkEval $ H.defaultEval {
-          handleAction = \_ -> H.raise PickOpUpdate
+          handleAction = \_ -> H.raise unit
         , handleQuery  = case _ of
-            PQState f -> fakeState (PGrowth nt refl) f
+            PQState f -> fakeState f (PGrowth nt refl) $
+                            case _ of
+                              PGrowth _ _ -> true
+                              _           ->false
         }
       }
     }
 
 -- | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
 windowPickOp :: forall m a b. ToFractional a b -> PickOp m a b
-windowPickOp tf = PickOp {
+windowPickOp tf = Picker {
       label: "Moving Average"
     , component: H.mkComponent {
         initialState: \_ -> 1
@@ -267,11 +150,14 @@ windowPickOp tf = PickOp {
       , eval: H.mkEval $ H.defaultEval {
           handleAction = \st -> do
             State.put st
-            H.raise PickOpUpdate
+            H.raise unit
         , handleQuery  = case _ of
             PQState f -> do
               i <- State.get
-              let Tuple x new = f (Window tf i)
+              let Tuple x new = f (Window tf i) $
+                    case _ of
+                      Window _ _ -> true
+                      _          -> false
               case new of
                 Window _ j -> H.put j
                 _          -> pure unit
@@ -284,15 +170,18 @@ windowPickOp tf = PickOp {
 
 -- | PMax      (NType a) (b ~ Percent)   -- ^ rescale to make max = 1 or -1
 pmaxPickOp :: forall m a. D3.NType a -> PickOp m a D3.Percent
-pmaxPickOp nt = PickOp {
+pmaxPickOp nt = Picker {
       label: "Percent of Maximum"
     , component: H.mkComponent {
         initialState: \_ -> unit
       , render: \_ -> HH.div [HU.classProp "percent-of-maximum"] []
       , eval: H.mkEval $ H.defaultEval {
-          handleAction = \_ -> H.raise PickOpUpdate
+          handleAction = \_ -> H.raise unit
         , handleQuery  = case _ of
-            PQState f -> fakeState (PMax nt refl) f
+            PQState f -> fakeState f (PMax nt refl) $
+                            case _ of
+                              PMax _ _ -> true
+                              _        -> false
         }
       }
     }
@@ -309,7 +198,7 @@ data RestrictAction a = RASetType CutoffType
 
 -- | Restrict  (SType a) (a ~ b) CutoffType (Condition a)    -- ^ restrict before/after condition
 restrictPickOp :: forall m a. SType a -> PickOp m a a
-restrictPickOp t = PickOp {
+restrictPickOp t = Picker {
       label: "Restrict"
     , component: H.mkComponent {
         initialState: \_ ->
@@ -357,11 +246,14 @@ restrictPickOp t = PickOp {
                   st { condition = conditionValue st.condition <$ cu }
                 RASetLimit v ->
                   st { condition = v <$ st.condition }
-            H.raise PickOpUpdate
+            H.raise unit
         , handleQuery  = case _ of
             PQState f -> do
               st <- State.get
-              let Tuple x new = f (Restrict t refl st.cutoffType st.condition)
+              let Tuple x new = f (Restrict t refl st.cutoffType st.condition) $
+                                        case _ of
+                                          Restrict _ _ _ _ -> true
+                                          _                -> false
               case new of
                 Restrict _ _ ct cond -> H.put { cutoffType: ct, condition: cond }
                 _                    -> pure unit
@@ -388,7 +280,7 @@ data TakeAction a = TASetType CutoffType
 
 -- | Take      (a ~ b) Int CutoffType    -- ^ take n
 takePickOp :: forall m a. PickOp m a a
-takePickOp = PickOp {
+takePickOp = Picker {
       label: "Take Amount"
     , component: H.mkComponent {
         initialState: \_ ->
@@ -418,11 +310,14 @@ takePickOp = PickOp {
               case act of
                 TASetType co -> _ { cutoffType = co }
                 TASetAmount v -> _ { amount = v }
-            H.raise PickOpUpdate
+            H.raise unit
         , handleQuery  = case _ of
             PQState f -> do
               st <- State.get
-              let Tuple x new = f (Take refl st.amount st.cutoffType)
+              let Tuple x new = f (Take refl st.amount st.cutoffType) $
+                                    case _ of
+                                      Take _ _ _ -> true
+                                      _          -> false
               case new of
                 Take _ amt ct -> H.put { cutoffType: ct, amount: amt }
                 _             -> pure unit
@@ -438,7 +333,7 @@ takePickOp = PickOp {
 
 -- | DayNumber (b ~ Days) CutoffType     -- ^ day number
 dayNumberPickOp :: forall m a b. PickOp m a D3.Days
-dayNumberPickOp = PickOp {
+dayNumberPickOp = Picker {
       label: "Day Count"
     , component: H.mkComponent {
         initialState: \_ -> After
@@ -452,11 +347,14 @@ dayNumberPickOp = PickOp {
       , eval: H.mkEval $ H.defaultEval {
           handleAction = \st -> do
             State.put st
-            H.raise PickOpUpdate
+            H.raise unit
         , handleQuery  = case _ of
             PQState f -> do
               c <- State.get
-              let Tuple x new = f (DayNumber refl c)
+              let Tuple x new = f (DayNumber refl c) $
+                            case _ of
+                              DayNumber _ _ -> true
+                              _             -> false
               case new of
                 DayNumber _ d -> H.put d
                 _             -> pure unit
@@ -471,15 +369,18 @@ dayNumberPickOp = PickOp {
 
 -- | PointDate (b ~ Day)     -- ^ day associated with point
 pointDatePickOp :: forall m a. PickOp m a Day
-pointDatePickOp = PickOp {
+pointDatePickOp = Picker {
       label: "Date Observed"
     , component: H.mkComponent {
         initialState: \_ -> unit
       , render: \_ -> HH.div [HU.classProp "date-observed"] []
       , eval: H.mkEval $ H.defaultEval {
-          handleAction = \_ -> H.raise PickOpUpdate
+          handleAction = \_ -> H.raise unit
         , handleQuery  = case _ of
-            PQState f -> fakeState (PointDate refl) f
+            PQState f -> fakeState f (PointDate refl) $
+                            case _ of
+                              PointDate _ -> true
+                              _           -> false
         }
       }
     }
