@@ -76,9 +76,13 @@ import Web.UIEvent.MouseEvent as ME
 --
 -- Its type contains the link (@f a b@ is a link transforing @a@ to @b@).  Its
 -- input-output is necessarily statically known.
+--
+-- It also provides a "handles" query that checks if a given @f a b@ is what
+-- is "generated" by that picker.
 newtype Picker f m a b = Picker
     { label     :: String
     , component :: H.Component HH.HTML (PickerQuery f a b) Unit Unit m
+    , handles   :: f a b -> Boolean
     }
 
 -- | The query nakedly exposes the state @f a b@ that the component keeps
@@ -87,13 +91,13 @@ newtype Picker f m a b = Picker
 -- The "put" option returns a 'Boolean' which is 'False' if the input is
 -- incompatible with the picker.  A "different constructor" of @f@.
 data PickerQuery f a b r =
-    PQState (f a b -> (f a b -> Boolean) -> Tuple r (f a b))
+    PQState (f a b -> Tuple r (f a b))
 
 pqGet :: forall f a b. PickerQuery f a b (f a b)
-pqGet = PQState (\x _ -> Tuple x x)
+pqGet = PQState (\x -> Tuple x x)
 
-pqPut :: forall f a b. f a b -> PickerQuery f a b Boolean
-pqPut x = PQState (\x test -> Tuple (test x) x)
+pqPut :: forall f a b. f a b -> PickerQuery f a b Unit
+pqPut x = PQState (\_ -> Tuple unit x)
 
 
 
@@ -108,8 +112,6 @@ pqPut x = PQState (\x test -> Tuple (test x) x)
 --
 -- The tag type is the singleton we use to match on to unveil what the @b@ is.
 type SomePicker tag f m a = DSum tag (Picker f m a)
-
--- type SomePickerOutput tag f m a = DSum tag PickerOutput
 
 -- | You have to be able to handle any output type this may give you.  Also,
 -- you can only /put/ things of the same output type
@@ -145,7 +147,7 @@ type PickerMap tag f m = forall a. tag a -> Array (SomePicker tag f m a)
 -- reconfigure the chain to accept it.
 data Query tag f a r =
       QGet (forall b. tag b -> Chain f a b -> r)    -- gotta handle any @b@
-    | QPut (DSum tag (Chain f a)) r                 -- you can give any @b@
+    | QPut (DSum tag (Chain (TaggedLink tag f) a)) r                 -- you can give any @b@
 
 -- | The only thing a chain outputs is an "update me" signal.
 data Output = ChainUpdate
@@ -198,11 +200,11 @@ component t0 pMap = H.mkComponent
 -- | ** Existential Component Wrapper
 -- -----------------------------
 
-data WrappedQuery tag f r = 
+data WrappedQuery tag f r =
       WQGet (forall a b. tag a -> tag b -> Chain f a b -> r) -- gotta handle any @a@ and @b@
-    | WQPut (forall q. (forall a b. tag a -> tag b -> Chain f a b -> Maybe q) -> q)
-            r                 -- you can give any @b@
-
+    | WQPut (DSum2 tag (Chain (TaggedLink tag f))) (Maybe (Exists tag) -> r)
+    -- | WQPut (forall q. (forall a b. tag a -> tag b -> Chain (TaggedLink tag f) a b -> Maybe q) -> q)
+    --         r                 -- you can give any @b@
 
 wrappedComponent
     :: forall tag f a m i. GOrd tag => GShow tag => MonadEffect m
@@ -219,12 +221,12 @@ unwrapQuery
     -> WrappedQuery tag f r
     -> Query tag f a r
 unwrapQuery tA = case _ of
-    WQGet f   -> QGet (f tA)
-    WQPut c x -> QPut (c (\tA' tB chain ->
-            case decide tA tA' of
-              Just r  -> Just (tB :=> equivFromF2 r chain)
-              Nothing -> Nothing
-        )) x
+    WQGet f        -> QGet (f tA)
+    WQPut ds2 next -> withDSum2 ds2 (\tA' tB chain ->
+      case decide tA tA' of
+        Just r  -> QPut (tB :=> equivFromF2 r chain) (next Nothing)
+        Nothing -> QGet (\_ _ -> next (Just (mkExists tA')))
+    )
 
 
 
@@ -349,23 +351,24 @@ handleQuery
     -> M tag f m a (Maybe r)
 handleQuery pMap = case _ of
     QGet f -> do
-      res <- assembleChain pMap
-      pure $ Just (withDSum res f)
+      st <- H.get
+      withDSum st.chain (\tOut chain ->
+        Just <<< f tOut <$> assembleChain pMap chain
+      )
 --     | QPut (DSum tag (Chain f a)) r                 -- you can give any @b@
-    QPut _ _ -> do
-      log "unimplemented"
-      pure Nothing
-
+    QPut dschain next -> withDSum dschain (\newTOut newChain -> do
+      st <- writeChain pMap newChain
+      H.put { chain: newTOut :=> st }
+      H.raise ChainUpdate
+      pure (Just next)
+    )
 
 assembleChain
-    :: forall tag f m a. GOrd tag => GShow tag => MonadEffect m
+    :: forall tag f m a b. GOrd tag => GShow tag => MonadEffect m
     => PickerMap tag f m
-    -> M tag f m a (DSum tag (Chain f a))
-assembleChain pMap = do
-    st <- H.get
-    withDSum st.chain (\tOut chain ->
-      flip evalStateT 0 $ dsum tOut <$> C.hoistChainA go chain
-    )
+    -> Chain (LinkState tag) a b
+    -> M tag f m a (Chain f a b)
+assembleChain pMap = flip evalStateT 0 <<< C.hoistChainA go
   where
     go  :: forall r s. LinkState tag r s -> StateT Int (M tag f m a) (f r s)
     go (LinkState{ tagIn, tagOut, option }) = do
@@ -397,6 +400,123 @@ assembleChain pMap = do
                 <> " returned error: " <> e
         Just (Right x) -> pure x
 
+newtype TaggedLink tag f a b = TaggedLink
+    { tagIn  :: tag a
+    , tagOut :: tag b
+    , link   :: f a b
+    }
+
+writeChain
+    :: forall tag f m a b. GShow tag => GOrd tag => MonadEffect m
+    => PickerMap tag f m
+    -> Chain (TaggedLink tag f) a b
+    -> M tag f m a (Chain (LinkState tag) a b)
+writeChain pMap = flip evalStateT 0 <<< C.hoistChainA go
+  where
+    go  :: forall r s.
+           TaggedLink tag f r s
+        -> StateT Int (M tag f m a) (LinkState tag r s)
+    go (TaggedLink {tagIn, tagOut, link}) = do
+        i <- get
+        modify_ (_ + 1)
+        optIx <- case picked of
+          Nothing -> liftEffect $ throw $
+                  "writeChain: no handler found for link of type "
+               <> gshow tagIn <> " -> " <> gshow tagOut
+          Just oi -> pure oi
+        res <- lift $ H.query
+          _pickerLink
+          { tagIn: mkWrEx tagIn, chainIx: i, optionIx: optIx }
+          (SubQueryState (\tX tY l0 ->
+            let inValue = do
+                  r1 <- case decide tX tagIn of
+                    Nothing -> Left $ "subquery mismatch: expected "
+                                 <> gshow tagIn <> " input but it was actually "
+                                 <> gshow tX <> " at ix " <> show i
+                    Just tt -> pure tt
+                  r2 <- case decide tY tagOut of
+                    Nothing -> Left $ "subquery mismatch: expected "
+                                 <> gshow tagOut <> " output but it was actually "
+                                 <> gshow tY <> " at ix " <> show i
+                    Just tt -> pure tt
+                  pure $ equivFromF2 r1 (equivFromF r2 link)
+             in  case inValue of
+                    Left  e -> Tuple (Just e) l0
+                    Right x -> Tuple Nothing  x
+            )
+          )
+        case res of
+          Nothing -> liftEffect $ throw $
+            "writeChain: link at " <> show i <> " returned no response"
+          Just Nothing -> pure unit
+          Just (Just e) -> liftEffect $ throw $
+            "writeChain: error when writing link: " <> e
+        pure $ LinkState { tagIn, tagOut, option: optIx }
+      where
+        picked = flip A.findIndex (pMap tagIn) $ \ds ->
+          withDSum ds (\tagOut' (Picker pk) -> isJust do
+            r <- decide tagOut tagOut'
+            MZ.guard $ pk.handles (equivToF r link)
+          )
+
+-- chainToState
+--     :: forall tag f m a b. GShow tag => Decide tag
+--     => PickerMap tag f m
+--     -> Chain (TaggedLink tag f) a b
+--     -> Either String (Chain (LinkState tag) a b)
+-- chainToState pMap = go
+--   where
+--     go :: forall r. Chain (TaggedLink tag f) r b -> Either String (Chain (LinkState tag) r b)
+--     go = case _ of
+--       C.Nil  r   -> Right (C.Nil r)
+--       C.Cons rap -> withAp rap (\(TaggedLink {tagIn, tagOut, link}) xs ->
+--           let picked = flip A.findIndex (pMap tagIn) $ \ds ->
+--                 withDSum ds (\tagOut' (Picker pk) -> isJust do
+--                   r <- decide tagOut tagOut'
+--                   MZ.guard $ pk.handles (equivToF r link)
+--                 )
+--           in  case picked of
+--                 Nothing -> Left $ "no handler found for link of type " <> gshow tagIn
+--                               <> " -> " <> gshow tagOut
+--                 Just i  -> C.cons (LinkState { tagIn, tagOut, option: i })
+--                        <$> go xs
+--       )
+
+
+    -- -> Chain (LinkState tag) a b
+    -- -> M tag f m a (Chain f a b)
+-- assembleChain pMap = flip evalStateT 0 <<< C.hoistChainA go
+  -- where
+    -- go  :: forall r s. LinkState tag r s -> StateT Int (M tag f m a) (f r s)
+
+-- writeChain pMap = C.hoistChainA go
+--   where
+--     go :: forall r s. TaggedLink tag f r s -> M tag f m a (LinkState tag r s)
+--   -- where
+--     -- go :: forall r. Chain (TaggedLink tag f) r b -> Either String (Chain (LinkState tag) r b)
+--     -- go = case _ of
+--     --   C.Nil  r   -> Right (C.Nil r)
+--     --   C.Cons rap -> withAp rap (\(TaggedLink {tagIn, tagOut, link}) xs ->
+--     --       let picked = flip A.findIndex (pMap tagIn) $ \ds ->
+--     --             withDSum ds (\tagOut' (Picker pk) -> isJust do
+--     --               r <- decide tagOut tagOut'
+--     --               MZ.guard $ pk.handles (equivToF r link)
+--     --             )
+--     --       in  case picked of
+--     --             Nothing -> Left $ "no handler found for link of type " <> gshow tagIn
+--     --                           <> " -> " <> gshow tagOut
+--     --             Just i  -> C.cons (LinkState { tagIn, tagOut, option: i })
+--     --                    <$> go xs
+--     --   )
+
+
+-- type PickerIx tag =
+--     { tagIn    :: WrEx tag   -- ^ type of input
+--     , chainIx  :: Int        -- ^ position in the chain
+--     , optionIx :: Int        -- ^ which option in that link?
+--     }
+
+
 -- -----------------------------
 -- | * Helper
 -- -----------------------------
@@ -407,7 +527,7 @@ sq2pq
     -> tag b
     -> SubQuery tag f r
     -> PickerQuery f a b r
-sq2pq tIn tOut (SubQueryState f) = PQState $ \s0 _ -> f tIn tOut s0
+sq2pq tIn tOut (SubQueryState f) = PQState $ \s0 -> f tIn tOut s0
 
 _pickerLink :: SProxy "pickerLink"
 _pickerLink = SProxy

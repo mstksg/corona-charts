@@ -32,6 +32,19 @@ snoc = case _ of
     Nil refl -> \x -> cons (equivFromF2 refl x) nil
     Cons f   -> \y -> withAp f (\x xs -> cons x (snoc xs y))
 
+elimChain
+    :: forall f p a b.
+       (forall a. p a a)
+    -> (forall r s. f r s -> p s b -> p r b)
+    -> Chain f a b
+    -> p a b
+elimChain nl cn = go
+  where
+    go :: forall x. Chain f x b -> p x b
+    go = case _ of
+      Nil  r   -> equivFromF2 r nl
+      Cons rap -> withAp rap (\x xs -> cn x (go xs))
+
 runChain
     :: forall f p a b.
        (forall r s. f r s -> p r -> p s)
@@ -50,12 +63,7 @@ hoistChain
        (forall r s. f r s -> g r s)
     -> Chain f a b
     -> Chain g a b
-hoistChain f = go
-  where
-    go :: forall r s. Chain f r s -> Chain g r s
-    go = case _ of
-      Nil refl -> Nil refl
-      Cons a   -> withAp a (\x xs -> cons (f x) (go xs))
+hoistChain f = elimChain nil (cons <<< f)
 
 hoistChainA
   :: forall f g m a b. Applicative m =>

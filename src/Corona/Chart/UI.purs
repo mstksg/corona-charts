@@ -32,9 +32,12 @@ import Halogen.MultiSelect as MultiSelect
 import Halogen.Query as HQ
 import Halogen.Scatter as Scatter
 import Halogen.Util as HU
+import Type.Ap
 import Type.Chain as C
 import Type.DProd
 import Type.DSum
+import Data.Lens
+import Data.Lens.Record as LR
 import Type.Equiv
 import Type.GCompare
 
@@ -52,9 +55,17 @@ type State =
     , countries :: Set Country
     }
 
-data Axis = XAxis | YAxis | ZAxis
+data Axis = XAxis | YAxis | ZAxis | TAxis
 derive instance eqAxis :: Eq Axis
 derive instance ordAxis :: Ord Axis
+
+axisLens :: Axis -> Lens' State Projection.State
+axisLens = case _ of
+    XAxis -> LR.prop (SProxy :: SProxy "xAxis")
+    YAxis -> LR.prop (SProxy :: SProxy "yAxis")
+    ZAxis -> LR.prop (SProxy :: SProxy "zAxis")
+    TAxis -> LR.prop (SProxy :: SProxy "tAxis")
+
 
 lookupScale
     :: forall a.
@@ -68,20 +79,16 @@ lookupScale st ns = case D3.toNType st of
 
 data Action =
         SetCountries (Set Country)
-      | SetXProjection Projection.State
-      | SetYProjection Projection.State
-      | SetZProjection Projection.State
-      | SetTProjection Projection.State
+      | SetProjection Axis Projection.State
+      | LoadProjection Axis Projection.State
       | Highlight Country
       | Unhighlight
+      | Redraw
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query    Void              Unit
         , multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
-        , xProjection :: H.Slot Projection.Query Projection.Output Unit
-        , yProjection :: H.Slot Projection.Query Projection.Output Unit
-        , zProjection :: H.Slot Projection.Query Projection.Output Unit
-        , tProjection :: H.Slot Projection.Query Projection.Output Unit
+        , projection  :: H.Slot Projection.Query Projection.Output Axis
         )
 
 
@@ -96,7 +103,7 @@ component dat =
     , render: render dat
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction dat
-        , initialize   = Just (SetCountries initialCountries)
+        , initialize   = Just Redraw
         }
     }
 
@@ -142,24 +149,26 @@ render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Acti
 render dat st = HH.div [HU.classProp "ui-wrapper"] [
       HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
         HH.h2_ [HH.text title]
+      , HH.a [HE.onClick (\_ -> Just (LoadProjection XAxis testP))]
+            [ HH.text "test" ]
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
-        HH.slot _xProjection unit (Projection.component "Y Axis")
+        HH.slot _projection YAxis (Projection.component "Y Axis")
           st.yAxis
-          (\(Projection.Update s) -> Just (SetYProjection s))
+          (\(Projection.Update s) -> Just (SetProjection YAxis s))
       ]
     , HH.div [HU.classProp "grid__col grid__col--4-of-5 plot"] [
         HH.slot _scatter unit (Scatter.component hw) unit absurd
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
-        HH.slot _zProjection unit (Projection.component "Color Axis")
+        HH.slot _projection ZAxis (Projection.component "Color Axis")
           st.zAxis
-          (\(Projection.Update s) -> Just (SetZProjection s))
+          (\(Projection.Update s) -> Just (SetProjection ZAxis s))
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t"] [
-        HH.slot _tProjection unit (Projection.component "Time Axis")
+        HH.slot _projection TAxis (Projection.component "Time Axis")
           st.tAxis
-          (\(Projection.Update s) -> Just (SetTProjection s))
+          (\(Projection.Update s) -> Just (SetProjection TAxis s))
       ]
     , HH.div [HU.classProp "grid__col grid__col--2-of-5 countries"] [
         HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
@@ -168,9 +177,9 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
           MultiSelect.MouseOffOut -> Just Unhighlight
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
-        HH.slot _yProjection unit (Projection.component "X Axis")
+        HH.slot _projection XAxis (Projection.component "X Axis")
           st.xAxis
-          (\(Projection.Update s) -> Just (SetXProjection s))
+          (\(Projection.Update s) -> Just (SetProjection XAxis s))
       ]
     ]
   where
@@ -186,6 +195,13 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
     projLabel dp = withDSum dp (\_ -> projectionLabel)
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
     hw = { height: toNumber 700, width: toNumber 1000 }
+    testP =
+        { projection: D3.sInt :=> projection
+            { base: bConfirmed
+            , operations: C.cons (Delta D3.nInt refl) C.nil
+            }
+      , numScale: NScale (DProd (D3.Linear <<< Right))
+      }
 
 handleAction
     :: forall o m. MonadEffect m
@@ -193,13 +209,17 @@ handleAction
      -> Action
      -> H.HalogenM State Action ChildSlots o m Unit
 handleAction dat = case _ of
-    SetCountries cs  -> H.modify_ (\st -> st { countries = cs }) *> reRender dat
-    SetXProjection p -> H.modify_ (\st -> st { xAxis     = p  }) *> reRender dat
-    SetYProjection p -> H.modify_ (\st -> st { yAxis     = p  }) *> reRender dat
-    SetZProjection p -> H.modify_ (\st -> st { zAxis     = p  }) *> reRender dat
-    SetTProjection p -> H.modify_ (\st -> st { tAxis     = p  }) *> reRender dat
+    SetCountries cs   -> H.modify_ (\st -> st { countries = cs }) *> reRender dat
+    SetProjection a p -> (axisLens a .= p) *> reRender dat
+    LoadProjection a p -> do
+      res <- H.query _projection a $
+        HQ.tell (Projection.QueryPut p)
+      when (isNothing res) $
+        log "warning: projection load did not return response"
+      pure unit
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
+    Redraw -> reRender dat
 
 reRender
     :: forall o m. MonadEffect m
@@ -238,14 +258,5 @@ _scatter = SProxy
 _multiselect :: SProxy "multiselect"
 _multiselect = SProxy
 
-_xProjection :: SProxy "xProjection"
-_xProjection = SProxy
-
-_yProjection :: SProxy "yProjection"
-_yProjection = SProxy
-
-_zProjection :: SProxy "zProjection"
-_zProjection = SProxy
-
-_tProjection :: SProxy "tProjection"
-_tProjection = SProxy
+_projection :: SProxy "projection"
+_projection = SProxy

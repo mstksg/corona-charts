@@ -41,15 +41,15 @@ instance showDSum :: (GShow tag, GShow f) => Show (DSum tag f) where
     --            )
     --          )
 
--- newtype DSum2 tag1 tag2 f = DSum2
---   (forall r. (forall a b. tag1 a -> tag2 b -> f a b -> r) -> r)
+newtype DSum2 tag f = DSum2
+  (forall r. (forall a b. tag a -> tag b -> f a b -> r) -> r)
 
--- dsum2 :: forall tag tag2 f a. tag1 a -> tag2 b -> f a b -> DSum2 tag1 tag2 f
--- dsum2 k1 k2 v = DSum2 (\f -> f k1 k2 v)
+dsum2 :: forall tag f a b. tag a -> tag b -> f a b -> DSum2 tag f
+dsum2 k1 k2 v = DSum2 (\f -> f k1 k2 v)
 
--- withDSum2
---     :: forall tag1 tag2 f r.
---        DSum2 tag1 tag2 f
---     -> (forall a. tag1 a -> tag2 b -> f a b -> r)
---     -> r
--- withDSum2 (DSum2 f) = f
+withDSum2
+    :: forall tag f r.
+       DSum2 tag f
+    -> (forall a b. tag a -> tag b -> f a b -> r)
+    -> r
+withDSum2 (DSum2 f) = f

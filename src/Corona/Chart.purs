@@ -193,7 +193,7 @@ instance showCondition :: Show a => Show (Condition a) where
 gshowCondition :: forall a. SType a -> Condition a -> String
 gshowCondition t = case _ of
       AtLeast n -> "AtLeast " <> sTypeShow t n
-      AtMost  n -> "AtMost "  <> sTypeShow t n
+      AtMost  n -> "AtMost " <> sTypeShow t n
 
 conditionValue :: forall a. Condition a -> a
 conditionValue = case _ of
@@ -235,6 +235,17 @@ instance gshowOperation :: GShow (Operation a) where
     gshow = gshow2
 instance showOperation :: Show (Operation a b) where
     show = gshow
+
+operationType :: forall a b. Operation a b -> SType a -> SType b
+operationType = case _ of
+    Delta   _ r      -> equivToF r
+    PGrowth _ r      -> \_ -> equivFromF r sPercent
+    Window  tf _     -> \_ -> fromNType (toFractionalOut tf)
+    PMax    _ r      -> \_ -> equivFromF r sPercent
+    Restrict _ r _ _ -> equivToF r
+    Take r _ _       -> equivToF r
+    DayNumber r _    -> \_ -> equivFromF r sDays
+    PointDate r      -> \_ -> equivFromF r sDay
 
 -- operationInType :: forall a b. Operation a b -> SType a
 -- operationInType = case _ of
@@ -414,8 +425,8 @@ operationLabel = case _ of
 -- | TODO: pretty print
 conditionLabel :: forall a. SType a -> Condition a -> String
 conditionLabel t = case _ of
-    AtLeast n -> "at least " <> sTypeShow t n
-    AtMost  n -> "at most " <> sTypeShow t n
+    AtLeast n -> "at least " <> sTypeFormat t n
+    AtMost  n -> "at most " <> sTypeFormat t n
 
 operationsLabel :: forall a b. C.Chain Operation a b -> String
 operationsLabel c = res

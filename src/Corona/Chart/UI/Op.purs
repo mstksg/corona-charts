@@ -91,11 +91,10 @@ type PickOp = Picker Operation
 
 fakeState
     :: forall s r s m. Applicative m
-    => (s -> (s -> Boolean) -> Tuple r s)
+    => (s -> Tuple r s)
     -> s
-    -> (s -> Boolean)
     -> m (Maybe r)
-fakeState f x checker = pure (Just (fst (f x checker)))
+fakeState f x = pure (Just (fst (f x)))
 
 -- | Delta     (NType a) (a ~ b)       -- ^ dx/dt
 deltaPickOp :: forall m a. D3.NType a -> PickOp m a a
@@ -107,12 +106,12 @@ deltaPickOp nt = Picker {
       , eval: H.mkEval $ H.defaultEval {
           handleAction = \_ -> H.raise unit
         , handleQuery  = case _ of
-            PQState f -> fakeState f (Delta nt refl) $
-                            case _ of
-                              Delta _ _ -> true
-                              _         ->false
+            PQState f -> fakeState f (Delta nt refl)
         }
       }
+    , handles: case _ of
+        Delta _ _ -> true
+        _         -> false
     }
 
 -- | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
@@ -125,12 +124,12 @@ pgrowthPickOp nt = Picker {
       , eval: H.mkEval $ H.defaultEval {
           handleAction = \_ -> H.raise unit
         , handleQuery  = case _ of
-            PQState f -> fakeState f (PGrowth nt refl) $
-                            case _ of
-                              PGrowth _ _ -> true
-                              _           ->false
+            PQState f -> fakeState f (PGrowth nt refl)
         }
       }
+    , handles: case _ of
+        PGrowth _ _ -> true
+        _           ->false
     }
 
 -- | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
@@ -154,16 +153,16 @@ windowPickOp tf = Picker {
         , handleQuery  = case _ of
             PQState f -> do
               i <- State.get
-              let Tuple x new = f (Window tf i) $
-                    case _ of
-                      Window _ _ -> true
-                      _          -> false
+              let Tuple x new = f (Window tf i)
               case new of
                 Window _ j -> H.put j
                 _          -> pure unit
               pure (Just x)
         }
       }
+    , handles: case _ of
+        Window _ _ -> true
+        _          -> false
     }
   where
     parseWindow = map (abs <<< round) <<< N.fromString
@@ -178,12 +177,12 @@ pmaxPickOp nt = Picker {
       , eval: H.mkEval $ H.defaultEval {
           handleAction = \_ -> H.raise unit
         , handleQuery  = case _ of
-            PQState f -> fakeState f (PMax nt refl) $
-                            case _ of
-                              PMax _ _ -> true
-                              _        -> false
+            PQState f -> fakeState f (PMax nt refl)
         }
       }
+    , handles: case _ of
+        PMax _ _ -> true
+        _        -> false
     }
 
 type RestrictState  a =
@@ -250,16 +249,16 @@ restrictPickOp t = Picker {
         , handleQuery  = case _ of
             PQState f -> do
               st <- State.get
-              let Tuple x new = f (Restrict t refl st.cutoffType st.condition) $
-                                        case _ of
-                                          Restrict _ _ _ _ -> true
-                                          _                -> false
+              let Tuple x new = f (Restrict t refl st.cutoffType st.condition)
               case new of
                 Restrict _ _ ct cond -> H.put { cutoffType: ct, condition: cond }
                 _                    -> pure unit
               pure (Just x)
         }
       }
+    , handles: case _ of
+        Restrict _ _ _ _ -> true
+        _                -> false
     }
   where
     { inputType, inputParse, inputShow } = inputField t
@@ -314,16 +313,16 @@ takePickOp = Picker {
         , handleQuery  = case _ of
             PQState f -> do
               st <- State.get
-              let Tuple x new = f (Take refl st.amount st.cutoffType) $
-                                    case _ of
-                                      Take _ _ _ -> true
-                                      _          -> false
+              let Tuple x new = f (Take refl st.amount st.cutoffType)
               case new of
                 Take _ amt ct -> H.put { cutoffType: ct, amount: amt }
                 _             -> pure unit
               pure (Just x)
         }
       }
+    , handles: case _ of
+        Take _ _ _ -> true
+        _          -> false
     }
   where
     parseAmount = map round <<< N.fromString
@@ -351,16 +350,16 @@ dayNumberPickOp = Picker {
         , handleQuery  = case _ of
             PQState f -> do
               c <- State.get
-              let Tuple x new = f (DayNumber refl c) $
-                            case _ of
-                              DayNumber _ _ -> true
-                              _             -> false
+              let Tuple x new = f (DayNumber refl c)
               case new of
                 DayNumber _ d -> H.put d
                 _             -> pure unit
               pure (Just x)
         }
       }
+    , handles: case _ of
+        DayNumber _ _ -> true
+        _             -> false
     }
   where
     showCutoff = case _ of
@@ -377,12 +376,12 @@ pointDatePickOp = Picker {
       , eval: H.mkEval $ H.defaultEval {
           handleAction = \_ -> H.raise unit
         , handleQuery  = case _ of
-            PQState f -> fakeState f (PointDate refl) $
-                            case _ of
-                              PointDate _ -> true
-                              _           -> false
+            PQState f -> fakeState f (PointDate refl)
         }
       }
+    , handles: case _ of
+        PointDate _ -> true
+        _           -> false
     }
 
 

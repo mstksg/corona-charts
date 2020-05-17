@@ -5,12 +5,14 @@ import Prelude
 
 import Data.Either
 import Data.Enum
+import Data.Exists
+import Data.Function.Uncurried
 import Data.Int
-import Data.Newtype
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
 import Data.Maybe
 import Data.ModifiedJulianDay (Day)
+import Data.Newtype
 import Data.Semiring
 import Data.Tuple
 import Effect
@@ -21,7 +23,6 @@ import Type.Equality
 import Type.Equiv
 import Type.GCompare
 import Type.Handler
-import Data.Exists
 import Web.DOM.Element (Element)
 
 -- | interval, days since
@@ -160,6 +161,9 @@ sTypeShow = case _ of
     SInt     r -> show <<< equivTo r
     SNumber  r -> show <<< equivTo r
     SPercent r -> show <<< equivTo r
+
+sTypeFormat :: forall a. SType a -> a -> String
+sTypeFormat = runFn2 _formatSType handle
 
 sTypeCompare :: forall a. SType a -> a -> a -> Ordering
 sTypeCompare = case _ of
@@ -375,3 +379,5 @@ instance handle1SType :: Handle1 SType OnSType where
       , percent: SPercent
       }
 
+
+foreign import _formatSType :: forall a. Fn2 (HandleFunc1 SType OnSType) (SType a) (a -> String)

@@ -10,7 +10,6 @@ import Corona.JHU
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
-import Undefined
 import Data.Either
 import Data.Exists
 import Data.Functor.Compose
@@ -30,25 +29,16 @@ import Halogen.HTML.Core as HH
 import Halogen.HTML.Elements as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Halogen.MultiSelect as MultiSelect
 import Halogen.Scatter as Scatter
 import Halogen.Util as HU
+import Type.Ap
 import Type.Chain as C
 import Type.DProd
 import Type.DSum
 import Type.Equiv
 import Type.GCompare
+import Undefined
 
-
--- type AxisState =
---     { projection :: DSum SType Projection
---     , numScale   :: NScale                   -- ^ date scale is always day
---     }
-
--- type Input =
---     { state       :: State
---     , defaultBase :: Exists BaseProjection
---     }
 
 type State =
     { projection :: DSum SType Projection
@@ -58,8 +48,7 @@ type State =
 type OpIx = { tagIn :: WrEx D3.SType }
 
 type ChildSlots =
-        ( multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
-        , opselect    :: H.Slot (ChainPicker.WrappedQuery SType Operation)
+        ( opselect    :: H.Slot (ChainPicker.WrappedQuery SType Operation)
                             ChainPicker.Output
                             OpIx
         )
@@ -69,9 +58,13 @@ data Action =
       | SetOps
       | SetNumScale  NScale
 
-data Output = Update State
+data Output = Update State  -- meh because this could change by the time you get it
 
-data Query r = QueryOp (State -> Tuple r State)
+data Query r = 
+      QueryAsk (State -> r)
+    | QueryPut State r        -- ^ always re-raises
+
+  -- QueryOp (State -> Tuple r State)
 
 -- TODO: need a way to restrict output, and then maybe wrap it.  like the good
 -- old days
@@ -188,11 +181,43 @@ handleAction act = do
     H.raise <<< Update =<< H.get
 
 handleQuery
-    :: forall a c o m r.
-       Query r
-    -> H.HalogenM State a c o m (Maybe r)
-handleQuery = case _ of QueryOp f -> Just <$> State.state f
-      -- ^ hm this is not ok
+    :: forall a c o m r. MonadEffect m
+    => Query r
+    -> H.HalogenM State a ChildSlots Output m (Maybe r)
+handleQuery = case _ of 
+    QueryAsk f -> Just <$> State.gets f
+    QueryPut s next -> do
+      H.modify_ (_ { numScale = s.numScale })
+      dsp <- H.gets _.projection
+      withDSum dsp (\tOut sp -> withProjection sp (\p -> do
+          let tBase = baseType p.base
+              decorated = decorateOpChain tBase p.operations
+          res <- H.query _opselect { tagIn: mkWrEx tBase } $
+            ChainPicker.WQPut (dsum2 tBase tOut decorated) identity
+          case res of
+            Nothing -> log "no response from chainpicker"
+            Just (Just t) -> runExists (\t' ->
+              log $ "chainpicker of is the wrong input type (" <> gshow t' <> ") according to its index " <> gshow tBase
+            ) t
+            Just Nothing -> pure unit
+        )
+      )
+      H.raise (Update s)
+      pure (Just next)
+
+decorateOpChain
+    :: forall a b.
+       SType a
+    -> C.Chain Operation a b
+    -> C.Chain (ChainPicker.TaggedLink SType Operation) a b
+decorateOpChain tagIn = case _ of
+    C.Nil r -> C.Nil r
+    C.Cons rap -> withAp rap (\link xs ->
+      let tagOut = operationType link tagIn
+      in  C.cons (ChainPicker.TaggedLink {tagIn, tagOut, link})
+                 (decorateOpChain tagOut xs)
+    )
+
 
 _opselect :: SProxy "opselect"
 _opselect = SProxy
