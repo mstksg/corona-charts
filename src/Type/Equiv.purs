@@ -26,6 +26,9 @@ equivTo _ = unsafeCoerce
 equivToF :: forall f a b. (a ~ b) -> f a -> f b
 equivToF _ = unsafeCoerce
 
+equivToFF :: forall f g a b. (a ~ b) -> f (g a) -> f (g b)
+equivToFF _ = unsafeCoerce
+
 equivToF2 :: forall f a b c. (a ~ b) -> f a c -> f b c
 equivToF2 _ = unsafeCoerce
 
@@ -34,6 +37,9 @@ equivFrom _ = unsafeCoerce
 
 equivFromF :: forall f a b. a ~ b -> f b -> f a
 equivFromF _ = unsafeCoerce
+
+equivFromFF :: forall f g a b. a ~ b -> f (g b) -> f (g a)
+equivFromFF _ = unsafeCoerce
 
 equivFromF2 :: forall f a b c. a ~ b -> f b c -> f a c
 equivFromF2 _ = unsafeCoerce

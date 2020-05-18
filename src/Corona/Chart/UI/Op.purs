@@ -260,8 +260,8 @@ restrictPickOp t = mkPickOp
                           D.January
                           (toEnumWithDefaults bottom top 22)
             SDays r -> equivFrom r $ D3.Days 0
-            SInt r -> equivFrom r $ 100
-            SNumber r -> equivFrom r $ toNumber 100
+            SInt r -> equivFrom r 100
+            SNumber r -> equivFrom r 100.0
             SPercent r -> equivFrom r $ D3.Percent 0.2
         }
     }
@@ -379,14 +379,14 @@ inputField t =
         SDays r -> map (equivFrom r <<< D3.Days <<< round) <<< N.fromString
         SInt    r -> map (equivFrom r <<< round) <<< N.fromString
         SNumber r -> map (equivFrom r) <<< N.fromString
-        SPercent r -> map (equivFrom r <<< D3.Percent <<< (_ / toNumber 100))
+        SPercent r -> map (equivFrom r <<< D3.Percent <<< (_ / 100.0))
                      <<< N.fromString
     , inputShow: case t of
         SDay r -> MJD.toISO8601 <<< equivTo r
         SDays r -> show <<< D3.unDays <<< equivTo r
         SInt r -> show <<< equivTo r
         SNumber r -> showPrecision <<< equivTo r
-        SPercent r -> showPrecision <<< (_ * toNumber 100) <<< D3.unPercent <<< equivTo r
+        SPercent r -> showPrecision <<< (_ * 100.0) <<< D3.unPercent <<< equivTo r
     }
   where
     showPrecision x = if toNumber (round x) == x then show (round x) else show x

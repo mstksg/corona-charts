@@ -336,7 +336,7 @@ applyOperation = case _ of
       let ys :: Dated Number
           ys = nTypeNumber nt <$> xs
           maxAbs :: Number
-          maxAbs = maybe (toNumber 1) unwrap <<< flip foldMap ys $ \y ->
+          maxAbs = maybe 1.0 unwrap <<< flip foldMap ys $ \y ->
                      if y == zero
                        then Nothing
                        else Just (Max (abs y))

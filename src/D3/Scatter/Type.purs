@@ -66,7 +66,7 @@ instance percentERing :: EuclideanRing Percent where
     div (Percent x) (Percent y) = Percent (div x y)
     mod (Percent x) (Percent y) = Percent (mod x y)
 instance percentShow :: Show Percent where
-    -- show (Percent n) = show (n * toNumber 100) <> "%"
+    -- show (Percent n) = show (n * 100.0) <> "%"
     show (Percent n) = "Percent " <> show n
 
 

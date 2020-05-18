@@ -17,6 +17,8 @@ You can edit this file as you like.
   , "halogen-css"
   , "sorted-arrays"
   , "undefined"
+  , "string-parsers"
+  , "web-urlsearchparams"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

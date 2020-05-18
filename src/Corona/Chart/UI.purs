@@ -1,11 +1,12 @@
-
 module Corona.Chart.UI where
 
 import Prelude
 
+import Control.Monad.Except
 import Corona.Chart
 import Corona.Chart.UI.Projection as Projection
 import Corona.JHU
+import Corona.Marshal as Marshal
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
@@ -13,11 +14,15 @@ import Data.Either
 import Data.Exists
 import Data.Functor.Compose
 import Data.Int
+import Data.Lens
+import Data.Lens.Record as LR
 import Data.Maybe
 import Data.Set (Set)
 import Data.Set as S
 import Data.Symbol (SProxy(..))
+import Data.Traversable
 import Debug.Trace
+import Effect
 import Effect.Class
 import Effect.Class.Console
 import Foreign.Object as O
@@ -32,14 +37,17 @@ import Halogen.MultiSelect as MultiSelect
 import Halogen.Query as HQ
 import Halogen.Scatter as Scatter
 import Halogen.Util as HU
+import Text.Parsing.StringParser as P
 import Type.Ap
 import Type.Chain as C
 import Type.DProd
 import Type.DSum
-import Data.Lens
-import Data.Lens.Record as LR
 import Type.Equiv
 import Type.GCompare
+import Web.HTML as Web
+import Web.HTML.Location as Location
+import Web.HTML.Window as Window
+import Web.URLSearchParams as USP
 
 
 type AxisState =
@@ -66,6 +74,13 @@ axisLens = case _ of
     ZAxis -> LR.prop (SProxy :: SProxy "zAxis")
     TAxis -> LR.prop (SProxy :: SProxy "tAxis")
 
+axisParam :: Axis -> String
+axisParam = case _ of
+    XAxis -> "x"
+    YAxis -> "y"
+    ZAxis -> "z"
+    TAxis -> "t"
+
 
 lookupScale
     :: forall a.
@@ -84,6 +99,8 @@ data Action =
       | Highlight Country
       | Unhighlight
       | Redraw
+      | LoadURI
+      | CopyURI
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query    Void              Unit
@@ -103,7 +120,7 @@ component dat =
     , render: render dat
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction dat
-        , initialize   = Just Redraw
+        , initialize   = Just LoadURI
         }
     }
 
@@ -149,8 +166,8 @@ render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Acti
 render dat st = HH.div [HU.classProp "ui-wrapper"] [
       HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
         HH.h2_ [HH.text title]
-      -- , HH.a [HE.onClick (\_ -> Just (LoadProjection XAxis testP))]
-      --       [ HH.text "test" ]
+      , HH.a [HE.onClick (\_ -> Just CopyURI)]
+            [ HH.text "test" ]
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
         HH.slot _projection YAxis (Projection.component "Y Axis")
@@ -194,7 +211,7 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
                   { label: cty, value: cty }
     projLabel dp = withDSum dp (\_ -> projectionLabel)
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
-    hw = { height: toNumber 700, width: toNumber 1000 }
+    hw = { height: 700.0, width: 1000.0 }
     testP =
         { projection: D3.sInt :=> projection
             { base: bConfirmed
@@ -211,16 +228,34 @@ handleAction
 handleAction dat = case _ of
     SetCountries cs   -> H.modify_ (\st -> st { countries = cs }) *> reRender dat
     SetProjection a p -> (axisLens a .= p) *> reRender dat
-    LoadProjection a p -> do
-      -- log "LoadProjection action..."
+    LoadProjection a p -> loadProj a p
+    Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
+    Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
+    Redraw -> reRender dat
+    LoadURI -> loadUri *> reRender dat
+    CopyURI -> do
+      st <- H.get
+      liftEffect $ do
+        usp <- USP.new ""
+        for_ [XAxis, YAxis, ZAxis, TAxis] $ \a ->
+          USP.set usp  (axisParam a) $ Projection.stateSerialize $ view (axisLens a) st
+        log =<< USP.toString usp
+  where
+    loadProj a p = do
       res <- H.query _projection a $
         HQ.tell (Projection.QueryPut p)
       when (isNothing res) $
         warn "warning: projection load did not return response"
-      pure unit
-    Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
-    Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
-    Redraw -> reRender dat
+    loadUri = do
+      usp <- liftEffect $ USP.new
+                      =<< Location.search
+                      =<< Window.location
+                      =<< Web.window
+      for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
+        res <- liftEffect $ parseAtKey usp (axisParam a) Projection.stateParser
+        case res of
+          Left e  -> error $ "loadURI error on " <> axisParam a <> ": " <> e
+          Right p -> loadProj a p
 
 reRender
     :: forall o m. MonadEffect m
@@ -252,6 +287,19 @@ reRender dat = do
         )
       )
     )
+
+parseAtKey
+    :: forall a.
+       USP.URLSearchParams
+    -> USP.Key
+    -> P.Parser a
+    -> Effect (Either String a)
+parseAtKey u k p = runExceptT $ do
+    val <- maybe (throwError ("parameter not found: " <> k)) pure
+                =<< lift (USP.get u k)
+    either (throwError <<< show) pure $ P.runParser p val
+
+
 
 _scatter :: SProxy "scatter"
 _scatter = SProxy

@@ -7,6 +7,7 @@ import Control.Monad.State.Class as State
 import Corona.Chart
 import Corona.Chart.UI.Op as Op
 import Corona.JHU
+import Corona.Marshal as Marshal
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
@@ -31,6 +32,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Scatter as Scatter
 import Halogen.Util as HU
+import Text.Parsing.StringParser as P
 import Type.Ap
 import Type.Chain as C
 import Type.DProd
@@ -238,6 +240,19 @@ decorateOpChain tagIn = case _ of
       in  C.cons (ChainPicker.TaggedLink {tagIn, tagOut, link})
                  (decorateOpChain tagOut xs)
     )
+
+stateParser :: P.Parser State
+stateParser = do
+    proj  <- Marshal.parse1
+    scale <- Marshal.parse
+    pure
+      { projection: proj
+      , numScale: scale
+      }
+
+stateSerialize :: State -> String
+stateSerialize p = Marshal.serialize p.projection
+                <> Marshal.serialize p.numScale
 
 
 _opselect :: SProxy "opselect"
