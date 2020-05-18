@@ -42,6 +42,11 @@ foreign import _highlight
            (Maybe String)
            (Effect Unit)
 
+foreign import _saveFile
+    :: Fn2 Interactor
+           String
+           (Effect Unit)
+
 drawData_
     :: forall a b c d.
        SType a
@@ -65,3 +70,6 @@ mkSvg = runFn2 _mkSvg
 
 highlight :: Interactor -> Maybe String -> Effect Unit
 highlight = runFn3 _highlight handle1
+
+saveAsPng :: Interactor -> String -> Effect Unit
+saveAsPng = runFn2 _saveFile

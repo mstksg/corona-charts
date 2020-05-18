@@ -203,6 +203,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                             .attr("x", width - margin.right)
                             .attr("y", -5)
                             .attr("fill", "currentColor")
+                            .attr("text-anchor", "end")
                             .attr("font-weight", "bold")
                             .attr("font-size", 12)
                             .text(scatter.xAxis.label)
@@ -371,17 +372,21 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
         }
 
-        svg.append("g")
+        const flatSegments = ss => ss.map(s => s.segments.map (p => ({ name: s.name, pair: p }))).flat()
+        // const mkTimed = timedSeries(series);
+
+        const mainplot = svg.append("g")
+        mainplot.attr("id","mainplot");
+
+        mainplot.append("g")
             .call(xAxis);
-        svg.append("g")
+        mainplot.append("g")
             .call(yAxis);
         // svg.append("g")
         //     .call(zLegend);
 
-        const flatSegments = ss => ss.map(s => s.segments.map (p => ({ name: s.name, pair: p }))).flat()
-        // const mkTimed = timedSeries(series);
+        const subplot = mainplot.append("g")
 
-        const subplot = svg.append("g")
 
         // click capture
         subplot.append("g")
@@ -405,7 +410,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
              .attr("stroke", d => z(d.pair[1].z))
              .attr("d", d => line(d.pair));
 
-        const endDots = svg.append("g");
+        const endDots = mainplot.append("g");
 
         subplot.call(hover, highlight(subplot),unhighlight(subplot));
 
@@ -556,11 +561,17 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
         moveSetSlider(extentt[1]);
 
+        const saveFile = function (fname) {
+            saveSvgAsPng(mainplot._groups[0][0], fname);
+        }
 
+
+        window.subplot = subplot;
         return {
             highlight: highlight(subplot),
             unhighlight: unhighlight(subplot),
-            settime: (v => setTime(subPlot, v))
+            settime: (v => setTime(subPlot, v)),
+            saveFile: saveFile
         };
     }
 }
@@ -576,5 +587,12 @@ exports._highlight = function(handleMaybe,interactors,name) {
             , just: (n => interactors.highlight(n))
             }
         );
+    }
+}
+
+// takes a filename
+exports._saveFile = function(interactors, fn) {
+    return function() {
+        interactors.saveFile(fn);
     }
 }

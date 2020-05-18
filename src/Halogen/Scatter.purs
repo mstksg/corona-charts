@@ -31,6 +31,7 @@ data Query a =
       Update SomeScatterPlot a
     | Highlight String a
     | Unhighlight a
+    | Export String a
 
 component
     :: forall q i o m. MonadEffect m
@@ -100,6 +101,12 @@ handleQuery = case _ of
       liftEffect case s.interactor of
         Nothing -> pure unit
         Just z  -> highlight z Nothing
+      pure (Just next)
+    Export fn next -> do
+      s <- H.get
+      liftEffect case s.interactor of
+        Nothing -> pure unit
+        Just z  -> saveAsPng z fn
       pure (Just next)
 
 scatterRef ∷ H.RefLabel

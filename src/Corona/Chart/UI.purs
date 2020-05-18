@@ -121,6 +121,7 @@ data Action =
       | LoadProjection Axis Projection.State
       | Highlight Country
       | Unhighlight
+      | SaveFile
       | Redraw
       | Reset
       | LoadURI
@@ -207,6 +208,12 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
           [ HH.text "Copy Link to Chart" ]
       , HH.button [
             HP.type_ HP.ButtonButton
+          , HE.onClick (\_ -> Just SaveFile)
+          , HU.classProp "save-image-button"
+          ]
+          [ HH.text "Save as Image" ]
+      , HH.button [
+            HP.type_ HP.ButtonButton
           , HE.onClick (\_ -> Just Reset)
           , HU.classProp "reset-button"
           ]
@@ -285,6 +292,8 @@ handleAction dat = case _ of
     LoadProjection a p -> loadProj a p
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
+    SaveFile -> void $ H.query _scatter unit $ HQ.tell
+        (Scatter.Export "coronavirus-plot.png")
     Redraw -> reRender dat Nothing
     Reset  -> do
       H.modify_ (_ { loaded = S.singleton Nothing :: Set (Maybe Axis) })
