@@ -10,6 +10,7 @@ import Corona.Marshal as Marshal
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
+import Data.Date as Date
 import Data.Either
 import Data.Exists
 import Data.Functor.Compose
@@ -17,14 +18,17 @@ import Data.Int
 import Data.Lens
 import Data.Lens.Record as LR
 import Data.Maybe
+import Data.ModifiedJulianDay as MJD
 import Data.Set (Set)
 import Data.Set as S
+import Data.String as String
 import Data.Symbol (SProxy(..))
 import Data.Traversable
 import Debug.Trace
 import Effect
 import Effect.Class
 import Effect.Class.Console
+import Foreign as Foreign
 import Foreign.Object as O
 import Halogen as H
 import Halogen.ChainPicker as ChainPicker
@@ -45,6 +49,7 @@ import Type.DSum
 import Type.Equiv
 import Type.GCompare
 import Web.HTML as Web
+import Web.HTML.History as History
 import Web.HTML.Location as Location
 import Web.HTML.Window as Window
 import Web.URLSearchParams as USP
@@ -66,6 +71,12 @@ type State =
 data Axis = XAxis | YAxis | ZAxis | TAxis
 derive instance eqAxis :: Eq Axis
 derive instance ordAxis :: Ord Axis
+instance showAxis :: Show Axis where
+    show = case _ of
+      XAxis -> "XAxis"
+      YAxis -> "YAxis"
+      ZAxis -> "ZAxis"
+      TAxis -> "TAxis"
 
 axisLens :: Axis -> Lens' State Projection.State
 axisLens = case _ of
@@ -116,7 +127,7 @@ initialCountries = S.fromFoldable ["US", "Egypt", "Italy"]
 component :: forall f i o m. MonadEffect m => CoronaData -> H.Component HH.HTML f i o m
 component dat =
   H.mkComponent
-    { initialState
+    { initialState: \_ -> defaultState
     , render: render dat
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction dat
@@ -124,8 +135,8 @@ component dat =
         }
     }
 
-initialState :: forall i. i -> State
-initialState _ = {
+defaultState :: State
+defaultState = {
       xAxis: {
         projection: D3.sDay :=> projection {
             base: Time refl
@@ -141,38 +152,44 @@ initialState _ = {
       , numScale: NScale (DProd D3.Log)
       }
     , zAxis: {
-        projection: D3.sDay :=> projection {
-            base: Time refl
-          , operations: C.nil
+        projection: D3.sDays :=> projection {
+            base: Confirmed refl
+          , operations: Restrict D3.sInt refl After (AtLeast 50)
+                   C.:> DayNumber refl After
+                   C.:> C.nil
           }
       , numScale: NScale (DProd D3.Log)
       }
     , tAxis: {
         projection: D3.sDay :=> projection {
             base: Time refl
-          , operations: C.nil
+          , operations: Restrict D3.sDay refl After (AtLeast day0)
+                   C.:> C.nil
           }
       , numScale: NScale (DProd D3.Log)
       }
     , countries: initialCountries
     }
   where
-    testConf = D3.nInt :=> projection
-      { base: Confirmed refl
-      , operations: C.nil
-      }
+    day0 = MJD.fromGregorian 2020 Date.February 17
 
 render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Action ChildSlots m
 render dat st = HH.div [HU.classProp "ui-wrapper"] [
       HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
         HH.h2_ [HH.text title]
-      , HH.a [HE.onClick (\_ -> Just CopyURI)]
-            [ HH.text "test" ]
+      -- , HH.a [HE.onClick (\_ -> Just CopyURI)]
+      --       [ HH.text "test" ]
       ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
-        HH.slot _projection YAxis (Projection.component "Y Axis")
-          st.yAxis
-          (\(Projection.Update s) -> Just (SetProjection YAxis s))
+    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 left-column"] [
+        HH.div [HU.classProp "save-link"] [
+            
+        ]
+      , HH.div [HU.classProp "axis-y"] [
+          HH.slot _projection YAxis (Projection.component "Y Axis")
+            st.yAxis
+            (\(Projection.Update s) -> Just (SetProjection YAxis s))
+        ]
       ]
     , HH.div [HU.classProp "grid__col grid__col--4-of-5 plot"] [
         HH.slot _scatter unit (Scatter.component hw) unit absurd
@@ -215,7 +232,7 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
     testP =
         { projection: D3.sInt :=> projection
             { base: bConfirmed
-            , operations: C.cons (Delta D3.nInt refl) C.nil
+            , operations: Delta D3.nInt refl C.:> C.nil
             }
       , numScale: NScale (DProd (D3.Linear <<< Right))
       }
@@ -233,13 +250,7 @@ handleAction dat = case _ of
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
     Redraw -> reRender dat
     LoadURI -> loadUri *> reRender dat
-    CopyURI -> do
-      st <- H.get
-      liftEffect $ do
-        usp <- USP.new ""
-        for_ [XAxis, YAxis, ZAxis, TAxis] $ \a ->
-          USP.set usp  (axisParam a) $ Projection.stateSerialize $ view (axisLens a) st
-        log =<< USP.toString usp
+    CopyURI -> log =<< generateUri
   where
     loadProj a p = do
       res <- H.query _projection a $
@@ -253,9 +264,25 @@ handleAction dat = case _ of
                       =<< Web.window
       for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
         res <- liftEffect $ parseAtKey usp (axisParam a) Projection.stateParser
-        case res of
-          Left e  -> error $ "loadURI error on " <> axisParam a <> ": " <> e
-          Right p -> loadProj a p
+        let proj = case res of
+              Left e  -> defaultState ^. axisLens a
+              Right p -> p
+        loadProj a proj
+
+generateUri :: forall o m. MonadEffect m => H.HalogenM State Action ChildSlots o m String
+generateUri = do
+    st <- H.get
+    liftEffect $ do
+      usp <- USP.new ""
+      for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
+        let toWrite = Projection.stateSerialize $ st ^. axisLens a
+            default = Projection.stateSerialize $ defaultState ^. axisLens a
+        unless (toWrite == default) $
+          USP.set usp  (axisParam a) toWrite
+      srch <- USP.toString usp
+      bn <- fullPagename
+      pure (bn <> if String.null srch then "" else "?" <> srch)
+
 
 reRender
     :: forall o m. MonadEffect m
@@ -263,7 +290,7 @@ reRender
      -> H.HalogenM State Action ChildSlots o m Unit
 reRender dat = do
     st :: State <- H.get
-    traceM (show st)
+    -- traceM (show st)
     withDSum st.xAxis.projection (\tX pX ->
       withDSum st.yAxis.projection (\tY pY ->
         withDSum st.zAxis.projection (\tZ pZ ->
@@ -287,6 +314,15 @@ reRender dat = do
         )
       )
     )
+    uri  <- generateUri
+    liftEffect $ do
+      hist <- liftEffect $ Window.history =<< Web.window
+      History.pushState
+       (Foreign.unsafeToForeign uri)
+       (History.DocumentTitle "Coronavirus Data Tracker")
+       (History.URL uri)
+       hist
+
 
 parseAtKey
     :: forall a.
@@ -309,3 +345,5 @@ _multiselect = SProxy
 
 _projection :: SProxy "projection"
 _projection = SProxy
+
+foreign import fullPagename :: Effect String

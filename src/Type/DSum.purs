@@ -20,10 +20,10 @@ withDSum :: forall tag f r. DSum tag f -> (forall a. tag a -> f a -> r) -> r
 withDSum (DSum f) = f
 
 
-instance eqDSum :: (Decide tag, Decide f) => Eq (DSum tag f) where
+instance eqDSum :: (Decide tag, GEq f) => Eq (DSum tag f) where
     eq x y = withDSum x (\xA xB ->
                withDSum y (\yA yB ->
-                 isJust (decide xA yA) && isJust (decide xB yB)
+                 isJust (decide xA yA) && isJust (geq xB yB)
                )
              )
 instance ordDSum :: (GOrd tag, GOrd f) => Ord (DSum tag f) where

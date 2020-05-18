@@ -84,13 +84,13 @@ instance marPercent :: Marshal Percent where
 
 instance marCutoffType :: Marshal CutoffType where
     serialize = case _ of
-      After  -> "A"
-      Before -> "B"
+      After  -> "a"
+      Before -> "b"
     parse = do
       c <- P.anyChar
       case c of
-        'A' -> pure After
-        'B' -> pure Before
+        'a' -> pure After
+        'b' -> pure Before
         _   -> P.fail $ "invalid cutoff type: " <> show c
 
 sTypeSerialize :: forall a. SType a -> a -> String
@@ -111,89 +111,89 @@ sTypeParse = case _ of
 
 instance mar1Base :: Marshal1 BaseProjection where
     serialize1 = case _ of
-      Time _      -> "T"
-      Confirmed _ -> "C"
-      Deaths _    -> "D"
-      Recovered _ -> "R"
+      Time _      -> "t"
+      Confirmed _ -> "c"
+      Deaths _    -> "d"
+      Recovered _ -> "r"
     parse1 = do
       c <- P.anyChar
       case c of
-        'T' -> pure $ sDay :=> Time refl
-        'C' -> pure $ sInt :=> Confirmed refl
-        'D' -> pure $ sInt :=> Deaths refl
-        'R' -> pure $ sInt :=> Recovered refl
+        't' -> pure $ sDay :=> Time refl
+        'c' -> pure $ sInt :=> Confirmed refl
+        'd' -> pure $ sInt :=> Deaths refl
+        'r' -> pure $ sInt :=> Recovered refl
         _   -> P.fail $ "invalid base projection: " <> show c
 
 serializeSType :: forall a. SType a -> String
 serializeSType = case _ of
-    SDay  _ -> "D"
-    SDays _ -> "S"
-    SInt  _ -> "I"
-    SNumber _ -> "N"
-    SPercent _ -> "P"
+    SDay  _ -> "d"
+    SDays _ -> "s"
+    SInt  _ -> "i"
+    SNumber _ -> "n"
+    SPercent _ -> "p"
 parseSType :: P.Parser (Exists SType)
 parseSType = do
     c <- P.anyChar
     case c of
-      'D' -> pure $ mkExists sDay
-      'S' -> pure $ mkExists sDays
-      'I' -> pure $ mkExists sInt
-      'N' -> pure $ mkExists sNumber
-      'P' -> pure $ mkExists sPercent
+      'd' -> pure $ mkExists sDay
+      's' -> pure $ mkExists sDays
+      'i' -> pure $ mkExists sInt
+      'n' -> pure $ mkExists sNumber
+      'p' -> pure $ mkExists sPercent
       _   -> P.fail $ "invalid stype: " <> show c
 
 instance marCond :: STypeable a => Marshal (Condition a) where
     serialize = case _ of
-      AtLeast x -> "L" <> sTypeSerialize sType x
-      AtMost  x -> "M" <> sTypeSerialize sType x
+      AtLeast x -> "l" <> sTypeSerialize sType x
+      AtMost  x -> "m" <> sTypeSerialize sType x
     parse = do
       c <- P.anyChar
       x <- sTypeParse sType
       case c of
-        'L' -> pure $ AtLeast x
-        'M' -> pure $ AtMost  x
+        'l' -> pure $ AtLeast x
+        'm' -> pure $ AtMost  x
         _   -> P.fail $ "invalid condition: " <> show c
 
 instance mar1Op :: STypeable a => Marshal1 (Operation a) where
     serialize1 = case _ of
-      Delta _ _ -> "C"
-      PGrowth _ _ -> "G"
-      Window _ n -> "W" <> serialize n
-      PMax _ _ -> "M"
-      Restrict t _ ct co -> "R" <> serialize ct <> serialize co
-      Take _ n ct -> "T" <> serialize n <> serialize ct
-      DayNumber _ ct -> "N" <> serialize ct
-      PointDate  _ -> "D"
+      Delta _ _ -> "c"
+      PGrowth _ _ -> "g"
+      Window _ n -> "w" <> serialize n
+      PMax _ _ -> "m"
+      Restrict t _ ct co -> "r" <> serialize ct <> serialize co
+      Take _ n ct -> "t" <> serialize n <> serialize ct
+      DayNumber _ ct -> "n" <> serialize ct
+      PointDate  _ -> "d"
     parse1 = do
         c <- P.anyChar
         case c of
-          'C' -> case toNType t of
+          'c' -> case toNType t of
             Right nt -> pure $ t :=> Delta nt refl
             Left _   -> P.fail $ "delta does not support " <> gshow t
-          'G' -> case toNType t of
+          'g' -> case toNType t of
             Right nt -> pure $ sPercent :=> PGrowth nt refl
             Left _   -> P.fail $ "pgrowth does not support " <> gshow t
-          'W' -> case toNType t of
+          'w' -> case toNType t of
             Right nt -> runExists (\tf -> do
                 n <- parse
                 pure $ fromNType (toFractionalOut tf) :=> Window tf n
               ) (toFractional nt)
             Left _   -> P.fail $ "window does not support " <> gshow t
-          'M' -> case toNType t of
+          'm' -> case toNType t of
             Right nt -> pure $ sPercent :=> PMax nt refl
             Left _   -> P.fail $ "pmax does not support " <> gshow t
-          'R' -> do
+          'r' -> do
              ct   <- parse
              cond <- parse
              pure $ t :=> Restrict t refl ct cond
-          'T' -> do
+          't' -> do
              n  <- parse
              ct <- parse
              pure $ t :=> Take refl n ct
-          'N' -> do
+          'n' -> do
              ct <- parse
              pure $ sDays :=> DayNumber refl ct
-          'D' -> pure $ sDay :=> PointDate refl
+          'd' -> pure $ sDay :=> PointDate refl
           _   -> P.fail $ "invalid operation: " <> show c
       where
         t :: SType a
@@ -201,10 +201,10 @@ instance mar1Op :: STypeable a => Marshal1 (Operation a) where
 
 instance mar1ChainOp :: STypeable a => Marshal1 (C.Chain Operation a) where
     serialize1 = case _ of
-      C.Nil  _   -> "N"
+      C.Nil  _   -> "n"
       C.Cons cap -> withAp cap (\x xs ->
         let tNext = operationType x sType
-        in  "C" <> serialize1 x <> case tNext of
+        in  "c" <> serialize1 x <> case tNext of
               SDay r -> serialize1 (equivToF2 r xs)
               SDays r -> serialize1 (equivToF2 r xs)
               SInt r -> serialize1 (equivToF2 r xs)
@@ -214,8 +214,8 @@ instance mar1ChainOp :: STypeable a => Marshal1 (C.Chain Operation a) where
     parse1 = do
        c <- P.anyChar
        case c of
-         'N' -> pure (t :=> C.nil)
-         'C' -> do
+         'n' -> pure (t :=> C.nil)
+         'c' -> do
            dx <- parse1
            withDSum dx (\tIn x -> do
              dxs <- case tIn of
@@ -260,20 +260,20 @@ instance mar1Projection :: Marshal1 Projection where
 
 instance marScale :: STypeable a => Marshal (Scale a) where
     serialize = case _ of
-      Date   _ -> "D"
-      Linear _ -> "I"
-      Log    _ -> "O"
+      Date   _ -> "d"
+      Linear _ -> "i"
+      Log    _ -> "o"
     parse = do
         c <- P.anyChar
         case c of
-          'D' -> case t of
+          'd' -> case t of
             SDay r -> pure $ Date r
             _      -> P.fail $ "invalid type for date scale: " <> gshow t
-          'I' -> case toNType t of
+          'i' -> case toNType t of
             Left (Left  _) -> P.fail "cannot use SDay for linear scale"
             Left (Right r) -> pure $ Linear (Left r)
             Right nt       -> pure $ Linear (Right nt)
-          'O' -> case toNType t of
+          'o' -> case toNType t of
             Right nt       -> pure $ Log nt
             _      -> P.fail $ "invalid type for log scale: " <> gshow t
           _ -> P.fail $ "invalid scale: " <> show c
@@ -284,13 +284,13 @@ instance marScale :: STypeable a => Marshal (Scale a) where
 instance marNScale :: Marshal NScale where
     serialize ns = case runNScale ns nInt of
       Date   _ -> "?"   -- umm...wish we could eliminate this (Int ~ Day) somehow
-      Linear _ -> "I"
-      Log    _ -> "O"
+      Linear _ -> "i"
+      Log    _ -> "o"
     parse = do
       c <- P.anyChar
       case c of
-        'I' -> pure $ NScale (DProd (Linear <<< Right))
-        'O' -> pure $ NScale (DProd Log)
+        'i' -> pure $ NScale (DProd (Linear <<< Right))
+        'o' -> pure $ NScale (DProd Log)
         _   -> P.fail $ "invalid nscale: " <> show c
 
 instance marDSum :: Marshal1 f => Marshal (DSum SType f) where

@@ -180,7 +180,10 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         // color
         const z = scaleFunc(scatter.zAxis.scale)
                         .domain(extentz)        // not nice
-                        .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)]);
+                        .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)])
+                        .interpolate(d3.interpolateCubehelix.gamma(3));
+
+                        // .range([d3.schemeDark2[1],d3.schemeAccent[1]]);
         const t = scaleFunc(scatter.tAxis.scale)
                         .domain(extentt)        // not nice
                         .range([margin.left, width - margin.right]);

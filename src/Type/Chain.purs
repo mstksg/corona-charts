@@ -24,6 +24,8 @@ nil = Nil refl
 cons :: forall f a b c. f a b -> Chain f b c -> Chain f a c
 cons x xs = Cons (mkAp x xs)
 
+infixr 1 cons as :>
+
 singleton :: forall f a b. f a b -> Chain f a b
 singleton x = cons x nil
 
@@ -106,7 +108,6 @@ unsnoc
 unsnoc = case _ of
     Nil refl -> Left refl
     Cons f   -> withAp f (\xs x -> Right (go xs x))
-    -- (\g -> f (\x xs -> go x xs g))
   where
     go  :: forall r s. f r s -> Chain f s b -> Snoc f r b
     go x = case _ of

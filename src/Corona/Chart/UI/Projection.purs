@@ -168,9 +168,7 @@ handleAction act = do
       SetBase sb -> H.modify_ $ \st ->
           st { projection = runExists (flip setBase st.projection) sb }
       SetOps -> do
-        log "heyo"
-        -- HEY here is the bug here myabe, it uses the state instead of
-        -- querying each time?
+        -- log "heyo"
         dsp <- H.gets (_.projection)
         withDSum dsp (\tOut proj -> withProjection proj (\pr -> do
             let tIn = baseType pr.base
@@ -203,11 +201,7 @@ handleQuery
 handleQuery = case _ of 
     QueryAsk f -> Just <$> State.gets f
     QueryPut s next -> do
-      -- log "QueryPut handler"
-      -- log $ show s
       H.put s   -- we are double-putting?
-      -- H.modify_ (_ { numScale = s.numScale })
-      -- dsp <- H.gets _.projection
       withDSum s.projection (\tOut sp -> withProjection sp (\p -> do
           let tBase = baseType p.base
               decorated = decorateOpChain tBase p.operations
@@ -215,10 +209,8 @@ handleQuery = case _ of
             ChainPicker.WQPut (dsum2 tBase tOut decorated) identity
             -- i think it isn't finding the index bc it hasn't been allocated
             -- yet.
-            -- here's an idea: allocate *all* possible ix, and only display
-            -- the one being currently rendered?
           case res of
-            Nothing -> log "no response from ChainPicker"
+            Nothing -> warn "no response from ChainPicker"
             Just (Just t) -> runExists (\t' ->
               log $ "chainpicker of is the wrong input type (" <> gshow t' <> ") according to its index " <> gshow tBase
             ) t

@@ -178,7 +178,7 @@ windowPickOp tf = mkPickOp
       , HH.input [
           HP.type_ HP.InputNumber
         , HP.value (show st)
-        , HE.onValueInput parseWindow
+        , HE.onValueChange parseWindow
         ]
       ]
     , toState: case _ of
@@ -236,7 +236,7 @@ restrictPickOp t = mkPickOp
           HH.input [
             HP.type_ inputType
           , HP.value (inputShow (conditionValue st.condition))
-          , HE.onValueInput (map RASetLimit <<< inputParse)
+          , HE.onValueChange (map RASetLimit <<< inputParse)
           ]
         ]
       ]
@@ -298,7 +298,7 @@ takePickOp = mkPickOp
           HH.input [
             HP.type_ HP.InputNumber
           , HP.value (show st.amount)
-          , HE.onValueInput (map TASetAmount <<< parseAmount)
+          , HE.onValueChange (map TASetAmount <<< parseAmount)
           ]
         ]
       , HH.span_ [HH.text "...points"]

@@ -46,6 +46,12 @@ toISO8601 = _toIso <<< toJSDate
 iso8601 :: Prism' String Day
 iso8601 = prism' toISO8601 fromISO8601
 
+fromGregorian :: Int -> D.Month -> Int -> Day
+fromGregorian y m d = fromDate $ D.canonicalDate
+    (toEnumWithDefaults bottom top y)
+    m
+    (toEnumWithDefaults bottom top d)
+
 date0 :: D.Date
 date0 = D.canonicalDate
     (toEnumWithDefaults bottom top 1858)
