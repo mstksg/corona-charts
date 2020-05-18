@@ -82,6 +82,13 @@ instance marPercent :: Marshal Percent where
     serialize (Percent d) = serialize (d * 100.0)
     parse = Percent <<< (_ / 100.0) <$> parse
 
+instance marStr :: Marshal String where
+    serialize = identity
+    parse = P.Parser $ \ps -> Right
+      { result: String.drop ps.pos ps.str
+      , suffix: ps { pos = String.length ps.str }
+      }
+
 instance marCutoffType :: Marshal CutoffType where
     serialize = case _ of
       After  -> "a"

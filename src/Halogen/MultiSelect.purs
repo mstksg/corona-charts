@@ -160,11 +160,13 @@ handleAction = case _ of
       traverse_ (H.raise <<< MouseOverOut <<< _.value) (A.index st i)
     MouseOff -> H.raise MouseOffOut
 
-handleQuery :: forall a o m r. Query a r -> H.HalogenM (State a) Action () o m (Maybe r)
+handleQuery :: forall a m r. Query a r -> H.HalogenM (State a) Action () (Output a) m (Maybe r)
 handleQuery = case _ of
     AskSelected f -> 
       Just <<< f <$> getSelected
-    SetState f -> state $ \s -> let sr = f s in Tuple (Just sr.next) sr.new
+    SetState f -> do
+      res <- state $ \s -> let sr = f s in Tuple (Just sr.next) sr.new
+      res <$ raiseChange
 
 getSelected :: forall a m. MonadState (State a) m => m (Array a)
 getSelected = do

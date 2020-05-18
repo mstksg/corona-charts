@@ -17,6 +17,7 @@ import Data.Date as Date
 import Data.Either
 import Data.Exists
 import Data.Functor.Compose
+import Data.FunctorWithIndex
 import Data.Int
 import Data.Lens
 import Data.Lens.Record as LR
@@ -26,6 +27,7 @@ import Data.ModifiedJulianDay as MJD
 import Data.Set (Set)
 import Data.Set as S
 import Data.String as String
+import Data.String.Pattern as Pattern
 import Data.Symbol (SProxy(..))
 import Data.Traversable
 import Data.Tuple
@@ -53,6 +55,7 @@ import Type.DProd
 import Type.DSum
 import Type.Equiv
 import Type.GCompare
+import Undefined
 import Web.HTML as Web
 import Web.HTML.HTMLElement as HTMLElement
 import Web.HTML.HTMLInputElement as HTMLInputElement
@@ -73,9 +76,8 @@ type State =
     , zAxis     :: Projection.State
     , tAxis     :: Projection.State
     , countries :: Set Country
-    , loadUri   :: Maybe String
-    -- , active    :: Boolean
-    , loaded    :: Set Axis
+    , permalink :: Maybe String
+    , loaded    :: Set (Maybe Axis)     -- nothing: countries
     }
 
 data Axis = XAxis | YAxis | ZAxis | TAxis
@@ -120,6 +122,7 @@ data Action =
       | Highlight Country
       | Unhighlight
       | Redraw
+      | Reset
       | LoadURI
       | CopyURI
 
@@ -131,8 +134,14 @@ type ChildSlots =
 
 
 initialCountries :: Set Country
--- initialCountries = S.fromFoldable ["US"]
-initialCountries = S.fromFoldable ["US", "Egypt", "Italy"]
+initialCountries = S.fromFoldable [
+    "US"
+  , "Egypt"
+  , "Italy"
+  , "Japan"
+  , "Russia"
+  , "Germany"
+  ]
 
 component :: forall f i o m. MonadEffect m => CoronaData -> H.Component HH.HTML f i o m
 component dat =
@@ -179,7 +188,7 @@ defaultState = {
       , numScale: NScale (DProd D3.Log)
       }
     , countries: initialCountries
-    , loadUri: Nothing
+    , permalink: Nothing
     , loaded: S.empty
     -- , active: false
     }
@@ -196,9 +205,15 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
           , HU.classProp "copy-uri-button"
           ]
           [ HH.text "Copy Link to Chart" ]
+      , HH.button [
+            HP.type_ HP.ButtonButton
+          , HE.onClick (\_ -> Just Reset)
+          , HU.classProp "reset-button"
+          ]
+          [ HH.text "Reset projections" ]
       , HH.input [
           HP.type_ HP.InputText
-        , HP.value (fromMaybe "" st.loadUri)
+        , HP.value (fromMaybe "" st.permalink)
         , HP.readOnly true
         , HP.ref loaduriRef
         , HU.classProp "loaduri-input"
@@ -245,7 +260,8 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
     sel0 :: MultiSelect.State Country
     sel0 =
         { options: opts
-        , selected: S.mapMaybe (\c -> A.findIndex (\x -> x.value == c) opts) initialCountries
+        , selected: S.mapMaybe (\c -> A.findIndex (\x -> x.value == c) opts)
+                        initialCountries
         , filter: ""
         }
       where
@@ -254,13 +270,6 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
     projLabel dp = withDSum dp (\_ -> projectionLabel)
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
     hw = { height: 700.0, width: 1000.0 }
-    testP =
-        { projection: D3.sInt :=> projection
-            { base: bConfirmed
-            , operations: Delta D3.nInt refl C.:> C.nil
-            }
-      , numScale: NScale (DProd (D3.Linear <<< Right))
-      }
 
 handleAction
     :: forall o m. MonadEffect m
@@ -269,14 +278,18 @@ handleAction
      -> H.HalogenM State Action ChildSlots o m Unit
 handleAction dat = case _ of
     SetCountries cs   -> H.modify_ (\st -> st { countries = cs })
-                      *> reRender dat Nothing
+                      *> reRender dat (Just Nothing)
     SetProjection a p -> do
        axisLens a .= p
-       reRender dat (Just a)
+       reRender dat (Just (Just a))
     LoadProjection a p -> loadProj a p
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
     Redraw -> reRender dat Nothing
+    Reset  -> do
+      H.modify_ (_ { loaded = S.singleton Nothing :: Set (Maybe Axis) })
+      for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
+        loadProj a (defaultState ^. axisLens a)
     LoadURI -> loadUri
     CopyURI -> void <<< runMaybeT $ do
          e  <- MaybeT $ H.getHTMLElementRef loaduriRef
@@ -304,43 +317,86 @@ handleAction dat = case _ of
               Left e  -> defaultState ^. axisLens a
               Right p -> p
         loadProj a proj
+      ctyRes <- liftEffect $ parseAtKey usp countrySpec.param parseSet
+      let ctys = case ctyRes of
+            Left  e  -> defaultState.countries
+            Right cs -> cs
+      loadCountries ctys
+    loadCountries ctys = do
+        res <- H.query _multiselect unit $
+          MultiSelect.SetState (\x -> { new: setter x, next: unit })
+        when (isNothing res) $
+          warn "warning: country load did not return response"
+      where
+        setter ms = ms
+          { selected = S.fromFoldable <<< A.catMaybes $
+                mapWithIndex (\i x ->
+                    if x.value `S.member` ctys
+                      then Just i
+                      else Nothing
+                  ) ms.options
+          }
+
+type URISpec =
+        { default :: String
+        , write   :: State -> String
+        , param   :: String
+        , include :: Boolean
+        }
+
+uriSpecs :: Array URISpec
+uriSpecs = A.snoc axisSpec countrySpec
+  where
+    axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a -> do
+      { default: Projection.stateSerialize $ defaultState ^. axisLens a
+      , write: \st -> Projection.stateSerialize $ st ^. axisLens a
+      , param: axisParam a
+      , include: true
+      }
+
+countrySpec :: URISpec
+countrySpec =
+  { default: serializeSet defaultState.countries
+  , write: \st -> serializeSet $ st.countries
+  , param: "r"
+  , include: false
+  }
 
 generateUri
     :: forall o m. MonadEffect m
     => H.HalogenM State Action ChildSlots o m
-            { noDefault :: String, withDefault :: String }
+            { historyPush :: String, permalink :: String }
 generateUri = do
     st <- H.get
     liftEffect $ do
-      uspNoDef <- USP.new ""
-      uspWithDef <- USP.new ""
-      for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
-        let toWrite = Projection.stateSerialize $ st ^. axisLens a
-            default = Projection.stateSerialize $ defaultState ^. axisLens a
-        USP.set uspWithDef (axisParam a) toWrite
-        unless (toWrite == default) $
-          USP.set uspNoDef (axisParam a) toWrite
-      srchNoDef   <- USP.toString uspNoDef
-      srchWithDef <- USP.toString uspWithDef
+      uspHistPush <- USP.new ""
+      uspPerma <- USP.new ""
+      for_ uriSpecs $ \spec -> do
+        let toWrite = spec.write st
+        USP.set uspPerma spec.param toWrite
+        unless (toWrite == spec.default || not spec.include) $
+          USP.set uspHistPush spec.param toWrite
+      srchHistPush   <- USP.toString uspHistPush
+      srchPerma <- USP.toString uspPerma
       bn <- fullPagename
       let genStr str
             | String.null str = ""
             | otherwise       = "?" <> str
-      pure { noDefault: bn <> genStr srchNoDef
-           , withDefault: bn <> genStr srchWithDef
+      pure { historyPush: bn <> genStr srchHistPush
+           , permalink: bn <> genStr srchPerma
            }
 
 
 reRender
     :: forall o m. MonadEffect m
      => CoronaData
-     -> Maybe Axis
+     -> Maybe (Maybe Axis)
      -> H.HalogenM State Action ChildSlots o m Unit
 reRender dat initter = do
     loaded <- for initter $ \a -> do
       State.state $ \st ->
         let newLoaded = S.insert a st.loaded
-        in  Tuple (S.size newLoaded >= 4) (st { loaded = newLoaded })
+        in  Tuple (S.size newLoaded >= 5) (st { loaded = newLoaded })
     when (and loaded) $ do
       st :: State <- H.get
       -- traceM (show st)
@@ -368,13 +424,13 @@ reRender dat initter = do
         )
       )
       uri <- generateUri
-      H.modify_ (_ { loadUri = Just uri.withDefault })
+      H.modify_ (_ { permalink = Just uri.permalink })
       liftEffect $ do
         hist <- liftEffect $ Window.history =<< Web.window
         History.pushState
-          (Foreign.unsafeToForeign uri.noDefault)
+          (Foreign.unsafeToForeign uri.historyPush)
           (History.DocumentTitle "Coronavirus Data Tracker")
-          (History.URL uri.noDefault)
+          (History.URL uri.historyPush)
           hist
 
 
@@ -389,7 +445,14 @@ parseAtKey u k p = runExceptT $ do
                 =<< lift (USP.get u k)
     either (throwError <<< show) pure $ P.runParser p val
 
+serializeSet
+    :: Set String
+    -> String
+serializeSet = String.joinWith "|" <<< A.fromFoldable
 
+parseSet :: P.Parser (Set String)
+parseSet = S.fromFoldable <<< String.split (Pattern.Pattern "|")
+       <$> Marshal.parse
 
 _scatter :: SProxy "scatter"
 _scatter = SProxy

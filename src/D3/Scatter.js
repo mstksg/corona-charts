@@ -325,7 +325,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           function moved() {
             d3.event.preventDefault();
             const mouse = d3.mouse(this);
-            const closest = quadtree.find(mouse[0], mouse[1], 50);
+            const closest = quadtree.find(mouse[0], mouse[1], 75);
             const foundPoint = !(closest === undefined);
             const xc = foundPoint ? closest.x : mouse[0];
             const yc = foundPoint ? closest.y : mouse[1];
