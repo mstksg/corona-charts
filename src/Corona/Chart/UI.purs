@@ -149,8 +149,8 @@ render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Acti
 render dat st = HH.div [HU.classProp "ui-wrapper"] [
       HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
         HH.h2_ [HH.text title]
-      , HH.a [HE.onClick (\_ -> Just (LoadProjection XAxis testP))]
-            [ HH.text "test" ]
+      -- , HH.a [HE.onClick (\_ -> Just (LoadProjection XAxis testP))]
+      --       [ HH.text "test" ]
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
         HH.slot _projection YAxis (Projection.component "Y Axis")
@@ -212,10 +212,11 @@ handleAction dat = case _ of
     SetCountries cs   -> H.modify_ (\st -> st { countries = cs }) *> reRender dat
     SetProjection a p -> (axisLens a .= p) *> reRender dat
     LoadProjection a p -> do
+      -- log "LoadProjection action..."
       res <- H.query _projection a $
         HQ.tell (Projection.QueryPut p)
       when (isNothing res) $
-        log "warning: projection load did not return response"
+        warn "warning: projection load did not return response"
       pure unit
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight

@@ -173,6 +173,14 @@ sTypeCompare = case _ of
     SNumber  r -> \x y -> compare (equivTo r x) (equivTo r y)
     SPercent r -> \x y -> compare (equivTo r x) (equivTo r y)
 
+allSType :: Array (Exists SType)
+allSType = 
+    [ mkExists sDay
+    , mkExists sDays
+    , mkExists sInt
+    , mkExists sNumber
+    , mkExists sPercent
+    ]
 
 -- | subset of numeric stypes
 data NType a =

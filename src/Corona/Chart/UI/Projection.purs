@@ -100,7 +100,16 @@ render label aState = HH.div [HU.classProp "axis-options"] [
           ) sbp
       ]
     , HH.div [HU.classProp "axis-op-chain"] [
-        HH.span_ [HH.text "Transformations"]
+        HH.span_ [HH.text "Transformations"] 
+      -- , HH.div [HU.classProp "possible-op-chain"] $ D3.allSType <#> \t ->
+      --     HH.slot _opSelect
+      --       {tagIn: mkWrEx tBase}
+      --       (chainPicker tBase)
+      --       unit
+      --       $ \_ -> Just SetOps
+          
+
+
       , withDSum aState.projection (\_ spr ->
           withProjection spr (\pr ->
             let tBase = baseType pr.base
@@ -157,6 +166,9 @@ handleAction act = do
       SetBase sb -> H.modify_ $ \st ->
           st { projection = runExists (flip setBase st.projection) sb }
       SetOps -> do
+        log "heyo"
+        -- HEY here is the bug here myabe, it uses the state instead of
+        -- querying each time?
         dsp <- H.gets (_.projection)
         withDSum dsp (\tOut proj -> withProjection proj (\pr -> do
             let tIn = baseType pr.base
@@ -169,7 +181,8 @@ handleAction act = do
             case qres of
               Nothing       -> log "no response from component"
               Just (Left e) -> log $ "type mismatch: " <> runExists show e
-              Just (Right dsc) -> withDSum dsc (\tNewOut chain ->
+              Just (Right dsc) -> withDSum dsc (\tNewOut chain -> do
+                log $ show chain
                 H.modify_ $ \st ->
                   st { projection = tNewOut :=> projection
                          { base: pr.base, operations: chain }
@@ -178,6 +191,7 @@ handleAction act = do
         )
       )
       SetNumScale s -> H.modify_ $ _ { numScale = s }
+    -- log <<< show =<< H.get
     H.raise <<< Update =<< H.get
 
 handleQuery
@@ -187,15 +201,22 @@ handleQuery
 handleQuery = case _ of 
     QueryAsk f -> Just <$> State.gets f
     QueryPut s next -> do
-      H.modify_ (_ { numScale = s.numScale })
-      dsp <- H.gets _.projection
-      withDSum dsp (\tOut sp -> withProjection sp (\p -> do
+      -- log "QueryPut handler"
+      -- log $ show s
+      H.put s   -- we are double-putting?
+      -- H.modify_ (_ { numScale = s.numScale })
+      -- dsp <- H.gets _.projection
+      withDSum s.projection (\tOut sp -> withProjection sp (\p -> do
           let tBase = baseType p.base
               decorated = decorateOpChain tBase p.operations
           res <- H.query _opselect { tagIn: mkWrEx tBase } $
             ChainPicker.WQPut (dsum2 tBase tOut decorated) identity
+            -- i think it isn't finding the index bc it hasn't been allocated
+            -- yet.
+            -- here's an idea: allocate *all* possible ix, and only display
+            -- the one being currently rendered?
           case res of
-            Nothing -> log "no response from chainpicker"
+            Nothing -> log "no response from ChainPicker"
             Just (Just t) -> runExists (\t' ->
               log $ "chainpicker of is the wrong input type (" <> gshow t' <> ") according to its index " <> gshow tBase
             ) t

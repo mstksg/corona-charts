@@ -7,12 +7,14 @@ import CSS as CSS
 import Control.Alternative
 import Control.Monad.Except
 import Control.Monad.Maybe.Trans
+import Control.Monad.RWS
 import Control.Monad.State
 import Control.Monad.State.Class
 import Control.MonadZero as MZ
 import Data.Array as A
 import Data.Bifunctor as BF
 import Data.Boolean
+import Data.Const
 import Data.Either
 import Data.Exists
 import Data.Foldable
@@ -39,14 +41,14 @@ import Data.Traversable
 import Data.Tuple
 import Debug.Trace
 import Effect.Class
+import Effect.Class.Console (log, error, warn)
 import Effect.Exception (throw)
-import Effect.Class.Console (log, error)
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.Query as HQ
 import Halogen.HTML.CSS as HC
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Query as HQ
 import Halogen.Util as HU
 import Type.Ap
 import Type.Chain (Chain)
@@ -81,7 +83,8 @@ import Web.UIEvent.MouseEvent as ME
 -- is "generated" by that picker.
 newtype Picker f m a b = Picker
     { label     :: String
-    , component :: H.Component HH.HTML (PickerQuery f a b) Unit Unit m
+    -- yeah we ened to be able to give initial part as state
+    , component :: H.Component HH.HTML (PickerQuery f a b) (Maybe (f a b)) Unit m
     , handles   :: f a b -> Boolean
     }
 
@@ -152,14 +155,23 @@ data Query tag f a r =
 -- | The only thing a chain outputs is an "update me" signal.
 data Output = ChainUpdate
 
-newtype LinkState tag a b = LinkState
+newtype LinkState tag f a b = LinkState
     { tagIn  :: tag a
     , tagOut :: tag b
+    , value  :: Maybe (f a b)     -- used to initialize
     , option :: Int
     }
 
-type State tag a =
-    { chain :: DSum tag (Chain (LinkState tag) a)
+instance gshowLinkState :: (GShow tag, GShow2 f) => GShow2 (LinkState tag f) where
+    gshow2 (LinkState { tagIn, tagOut, value, option }) =
+      "LinkState " <> gshow tagIn <> " " <> gshow tagOut <> " " <> showval <> " " <> show option
+      where
+        showval = case value of
+          Nothing -> "Nothing"
+          Just x  -> "(Just (" <> gshow2 x <> "))"
+
+type State tag f a =
+    { chain :: DSum tag (Chain (LinkState tag f) a)
     }
 
 type PickerIx tag =
@@ -180,10 +192,10 @@ data Action tag =
       | PickerRemove (PickerIx tag)
       | PickerAdd    (Exists tag) Int
 
-type M tag f m a = H.HalogenM (State tag a) (Action tag) (ChildSlots tag f) Output m
+type M tag f m a = H.HalogenM (State tag f a) (Action tag) (ChildSlots tag f) Output m
 
 component
-    :: forall f tag a m i. GOrd tag => GShow tag => MonadEffect m
+    :: forall f tag a m i. GOrd tag => GShow tag => GShow2 f => MonadEffect m
     => tag a            -- ^ initial input type
     -> PickerMap tag f m
     -> H.Component HH.HTML (Query tag f a) i Output m
@@ -207,7 +219,7 @@ data WrappedQuery tag f r =
     --         r                 -- you can give any @b@
 
 wrappedComponent
-    :: forall tag f a m i. GOrd tag => GShow tag => MonadEffect m
+  :: forall tag f a m i. GOrd tag => GShow tag => MonadEffect m => GShow2 f
     => tag a                   -- ^ initial initial type
     -> PickerMap tag f m
     -> H.Component HH.HTML (WrappedQuery tag f) i Output m
@@ -234,48 +246,62 @@ unwrapQuery tA = case _ of
 -- | ** Implementation
 -- -----------------------------
 
+data P2 a b = P2
+
 render
     :: forall tag f m a. GOrd tag
     => PickerMap tag f m
-    -> State tag a
+    -> State tag f a
     -> H.ComponentHTML (Action tag) (ChildSlots tag f) m
 render pMap st = HH.div_ [
       HH.ul [HU.classProp "op-list"] $
         A.snoc
-          (mapWithIndex mkOpSlot chainList)
+          -- (mapWithIndex mkOpSlot chainList)
+          slotList
           (withDSum st.chain (\tOut _ -> mkPendingSlot tOut))
-
-
     ]
   where
-    mkOpSlot i link = runExists go link.tagIn
+    slotList
+        :: Array (H.ComponentHTML (Action tag) (ChildSlots tag f) m)
+    slotList = withDSum st.chain (\_ chain ->
+        snd (evalRWS (C.hoistChainA go chain) unit 0)
+      )
       where
-        go :: forall b. tag b -> H.ComponentHTML (Action tag) (ChildSlots tag f) m
-        go tIn = case pMap tIn A.!! link.option of
-          Nothing -> HH.li [HU.classProp "chain-error"] [
-            HH.text $ "chain picker error: index out of bounds"
-          ]
-          Just dsc -> withDSum dsc (\tOut (Picker c) ->
-            HH.li [HU.classProp "picker-slot"] [
-              HH.div [HU.classProp "picker-slot-title"] [
-                HH.span [HU.classProp "picker-slot-name"] [HH.text c.label]
-              , HH.a [ HU.classProp "picker-slot-delete"
-                     , HE.onClick $ \e ->
-                         if ME.buttons e == 0
-                            then Just (PickerRemove pIx)
-                            else Nothing
-                     ]
-                     [HH.text "x"]
-              ]
-            , HH.div [HU.classProp "picker-slot-opts"] [
-                HH.slot _pickerLink pIx
-                  (HU.hoistQuery (sq2pq tIn tOut) c.component)
-                  unit
-                  (const $ Just (PickerUpdate pIx))
-              ]
+        go  :: forall r s.
+               LinkState tag f r s
+            -> RWS Unit (Array (H.ComponentHTML (Action tag) (ChildSlots tag f) m)) Int
+                  (P2 r s)
+        go (LinkState tl) = do
+          i <- get
+          modify_ (_ + 1)
+          tell <<< A.singleton $ case pMap tl.tagIn A.!! tl.option of
+            Nothing -> HH.li [HU.classProp "chain-error"] [
+              HH.text "chain picker error: index out of bounds"
             ]
-          )
-        pIx = { tagIn: WrEx link.tagIn, chainIx: i, optionIx: link.option }
+            Just dsc -> withDSum dsc (\tOut (Picker c) ->
+              let pIx = { tagIn: mkWrEx tl.tagIn, chainIx: i, optionIx: tl.option }
+              in  case decide tl.tagOut tOut of
+                    Nothing -> undefined
+                    Just r  -> HH.li [HU.classProp "picker-slot"] [
+                      HH.div [HU.classProp "picker-slot-title"] [
+                         HH.span [HU.classProp "picker-slot-name"] [HH.text c.label]
+                       , HH.a [ HU.classProp "picker-slot-delete"
+                              , HE.onClick $ \e ->
+                                  if ME.buttons e == 0
+                                     then Just (PickerRemove pIx)
+                                     else Nothing
+                              ]
+                              [HH.text "x"]
+                       ]
+                     , HH.div [HU.classProp "picker-slot-opts"] [
+                         HH.slot _pickerLink pIx
+                           (HU.hoistQuery (sq2pq tl.tagIn tOut) c.component)
+                           (map (equivToF r) tl.value)
+                           (const $ Just (PickerUpdate pIx))
+                       ]
+                     ]
+            )
+          pure P2
     mkPendingSlot :: forall b. tag b -> H.ComponentHTML (Action tag) (ChildSlots tag f) m
     mkPendingSlot tOut = HH.div [HU.classProp "pending-picker"] [
           HH.select [ HE.onSelectedIndexChange (commitPicker <<< (_ - 1)) ] $
@@ -288,12 +314,6 @@ render pMap st = HH.div_ [
         commitPicker i
             | i < A.length options = Just (PickerAdd (mkExists tOut) i)
             | otherwise            = Nothing
-    chainList :: Array { tagIn :: Exists tag, option :: Int }
-    chainList = withDSum st.chain (\_ ->
-        C.foldMapChain (\(LinkState tl) ->
-          [{ tagIn: mkExists tl.tagIn, option: tl.option }]
-        )
-      )
 
 handleAction
     :: forall f tag m a. Decide tag => GShow tag => MonadEffect m
@@ -308,13 +328,15 @@ handleAction pMap act = do
         withDSum st.chain (\tOut chain ->
           withAp (C.splitAt pIx.chainIx chain) (\xs ys -> do
             case ys of
-              C.Nil _ -> error $ "error: removed link at ix " <> show pIx.chainIx
-                              <> " but there's nothing here?"
+              C.Nil _ -> liftEffect <<< throw $
+                    "error: removed link at ix " <> show pIx.chainIx
+                 <> " but there's nothing here?"
               C.Cons cap -> withAp cap (\(LinkState ls) zs -> do
                 case decide tOutNew ls.tagIn of
-                  Nothing -> log $ "warning: removed link claims input " <> gshow tOutNew
-                                 <> " at " <> show pIx.chainIx <> " but the chain shows "
-                                 <> gshow ls.tagIn
+                  Nothing -> warn $
+                    "warning: removed link claims input " <> gshow tOutNew
+                      <> " at " <> show pIx.chainIx <> " but the chain shows "
+                      <> gshow ls.tagIn
                   Just _ -> pure unit
                 H.put { chain: ls.tagIn :=> xs }
               )
@@ -322,11 +344,12 @@ handleAction pMap act = do
         )
       ) (unwrap (pIx.tagIn))
       PickerAdd wtOutOld i -> runExists (\tOutOld -> do
-        st <- H.get
+        st :: State tag f a <- H.get
         withDSum st.chain (\tOut chain -> do
           case decide tOutOld tOut of
-            Nothing -> log $ "warning: added link claims input " <> gshow tOutOld
-                           <> " but the chain shows " <> gshow tOut
+            Nothing -> warn $
+                  "warning: added link claims input " <> gshow tOutOld
+               <> " but the chain shows " <> gshow tOut
             Just _  -> pure unit
           case pMap tOut A.!! i of
             Nothing -> error $ "error: invalid added index: " <> show i <> ", but with "
@@ -336,6 +359,7 @@ handleAction pMap act = do
               let lsNew = LinkState
                     { tagIn: tOut
                     , tagOut: newOut
+                    , value: Nothing
                     , option: i
                     }
               H.put { chain: newOut :=> C.snoc chain lsNew }
@@ -345,7 +369,7 @@ handleAction pMap act = do
     H.raise ChainUpdate
 
 handleQuery
-    :: forall tag f m a r. GOrd tag => GShow tag => MonadEffect m =>
+    :: forall tag f m a r. GOrd tag => GShow tag => MonadEffect m => GShow2 f =>
        PickerMap tag f m
     -> Query tag f a r
     -> M tag f m a (Maybe r)
@@ -357,20 +381,23 @@ handleQuery pMap = case _ of
       )
 --     | QPut (DSum tag (Chain f a)) r                 -- you can give any @b@
     QPut dschain next -> withDSum dschain (\newTOut newChain -> do
+      -- log "putting new chain"
+      -- log $ show newChain
       st <- writeChain pMap newChain
+      -- log $ show st
       H.put { chain: newTOut :=> st }
-      H.raise ChainUpdate
+      -- H.raise ChainUpdate
       pure (Just next)
     )
 
 assembleChain
     :: forall tag f m a b. GOrd tag => GShow tag => MonadEffect m
     => PickerMap tag f m
-    -> Chain (LinkState tag) a b
+    -> Chain (LinkState tag f) a b
     -> M tag f m a (Chain f a b)
 assembleChain pMap = flip evalStateT 0 <<< C.hoistChainA go
   where
-    go  :: forall r s. LinkState tag r s -> StateT Int (M tag f m a) (f r s)
+    go  :: forall r s. LinkState tag f r s -> StateT Int (M tag f m a) (f r s)
     go (LinkState{ tagIn, tagOut, option }) = do
       i <- get
       modify_ (_ + 1)
@@ -406,16 +433,20 @@ newtype TaggedLink tag f a b = TaggedLink
     , link   :: f a b
     }
 
+instance gshowTaggedLink :: (GShow2 f, GShow tag) => GShow2 (TaggedLink tag f) where
+    gshow2 (TaggedLink { tagIn, tagOut, link }) =
+      "TaggedLink " <> gshow tagIn <> " " <> gshow tagOut <> " " <> gshow2 link
+
 writeChain
-    :: forall tag f m a b. GShow tag => GOrd tag => MonadEffect m
+    :: forall tag f m a b. GShow tag => GOrd tag => MonadEffect m => GShow2 f
     => PickerMap tag f m
     -> Chain (TaggedLink tag f) a b
-    -> M tag f m a (Chain (LinkState tag) a b)
+    -> M tag f m a (Chain (LinkState tag f) a b)
 writeChain pMap = flip evalStateT 0 <<< C.hoistChainA go
   where
     go  :: forall r s.
            TaggedLink tag f r s
-        -> StateT Int (M tag f m a) (LinkState tag r s)
+        -> StateT Int (M tag f m a) (LinkState tag f r s)
     go (TaggedLink {tagIn, tagOut, link}) = do
         i <- get
         modify_ (_ + 1)
@@ -424,6 +455,8 @@ writeChain pMap = flip evalStateT 0 <<< C.hoistChainA go
                   "writeChain: no handler found for link of type "
                <> gshow tagIn <> " -> " <> gshow tagOut
           Just oi -> pure oi
+        -- TODO: the bug is here. you watn to 'set' it to be the state you
+        -- want but  it might not exist
         res <- lift $ H.query
           _pickerLink
           { tagIn: mkWrEx tagIn, chainIx: i, optionIx: optIx }
@@ -446,12 +479,16 @@ writeChain pMap = flip evalStateT 0 <<< C.hoistChainA go
             )
           )
         case res of
-          Nothing -> liftEffect $ throw $
-            "writeChain: link at " <> show i <> " returned no response"
+          -- here is what happens
+          -- we need to somehow maybe cache this to be given as it is
+          -- initialized.  maybe as Input/state?
+          Nothing -> pure unit    -- we let the defualt value do the trick
+          -- Nothing -> liftEffect $ throw $
+          --   "writeChain: link at " <> show i <> " returned no response"
           Just Nothing -> pure unit
           Just (Just e) -> liftEffect $ throw $
             "writeChain: error when writing link: " <> e
-        pure $ LinkState { tagIn, tagOut, option: optIx }
+        pure $ LinkState { tagIn, tagOut, option: optIx, value: Just link }
       where
         picked = flip A.findIndex (pMap tagIn) $ \ds ->
           withDSum ds (\tagOut' (Picker pk) -> isJust do
