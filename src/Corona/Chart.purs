@@ -401,17 +401,18 @@ operationLabel :: forall a b. Operation a b -> String
 operationLabel = case _ of
     Delta   _ _ -> "Daily Change in"
     PGrowth _ _ -> "Daily Percent Growth in"
-    Window  _ n -> "Moving Average (+/-" <> show n <> ") of"
+    Window  _ n -> "Moving Average (±" <> show n <> ") of"
     PMax _ _    -> "Percent of maximum in"
-    Restrict t _ co cond -> fold
-        [ "(With only points "
-        , case co of
-            After -> "after"
-            Before -> "before"
-        , " being "
-        , conditionLabel t cond
-        , ")"
-        ]
+    Restrict _ _ _ _ -> ""
+    -- Restrict t _ co cond -> fold
+    --     [ "(With only points "
+    --     , case co of
+    --         After -> "after"
+    --         Before -> "before"
+    --     , " being "
+    --     , conditionLabel t cond
+    --     , ")"
+    --     ]
     Take r n c ->
       let cStr = case c of
             After -> "last"

@@ -3,6 +3,9 @@ module Corona.Chart.UI where
 import Prelude
 
 import Control.Monad.Except
+import Control.Monad.Maybe.Trans
+import Control.Monad.State.Class as State
+import Control.MonadZero as MZ
 import Corona.Chart
 import Corona.Chart.UI.Projection as Projection
 import Corona.JHU
@@ -17,6 +20,7 @@ import Data.Functor.Compose
 import Data.Int
 import Data.Lens
 import Data.Lens.Record as LR
+import Data.Map as Map
 import Data.Maybe
 import Data.ModifiedJulianDay as MJD
 import Data.Set (Set)
@@ -24,6 +28,7 @@ import Data.Set as S
 import Data.String as String
 import Data.Symbol (SProxy(..))
 import Data.Traversable
+import Data.Tuple
 import Debug.Trace
 import Effect
 import Effect.Class
@@ -49,6 +54,8 @@ import Type.DSum
 import Type.Equiv
 import Type.GCompare
 import Web.HTML as Web
+import Web.HTML.HTMLElement as HTMLElement
+import Web.HTML.HTMLInputElement as HTMLInputElement
 import Web.HTML.History as History
 import Web.HTML.Location as Location
 import Web.HTML.Window as Window
@@ -66,6 +73,9 @@ type State =
     , zAxis     :: Projection.State
     , tAxis     :: Projection.State
     , countries :: Set Country
+    , loadUri   :: Maybe String
+    -- , active    :: Boolean
+    , loaded    :: Set Axis
     }
 
 data Axis = XAxis | YAxis | ZAxis | TAxis
@@ -169,6 +179,9 @@ defaultState = {
       , numScale: NScale (DProd D3.Log)
       }
     , countries: initialCountries
+    , loadUri: Nothing
+    , loaded: S.empty
+    -- , active: false
     }
   where
     day0 = MJD.fromGregorian 2020 Date.February 17
@@ -177,13 +190,25 @@ render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Acti
 render dat st = HH.div [HU.classProp "ui-wrapper"] [
       HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
         HH.h2_ [HH.text title]
-      -- , HH.a [HE.onClick (\_ -> Just CopyURI)]
-      --       [ HH.text "test" ]
+      , HH.button [
+            HP.type_ HP.ButtonButton
+          , HE.onClick (\_ -> Just CopyURI)
+          , HU.classProp "copy-uri-button"
+          ]
+          [ HH.text "Copy Link to Chart" ]
+      , HH.input [
+          HP.type_ HP.InputText
+        , HP.value (fromMaybe "" st.loadUri)
+        , HP.readOnly true
+        , HP.ref loaduriRef
+        , HU.classProp "loaduri-input"
+        , HP.prop (HH.PropName "hidden") true
+        ]
       ]
     -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 left-column"] [
         HH.div [HU.classProp "save-link"] [
-            
+
         ]
       , HH.div [HU.classProp "axis-y"] [
           HH.slot _projection YAxis (Projection.component "Y Axis")
@@ -243,14 +268,25 @@ handleAction
      -> Action
      -> H.HalogenM State Action ChildSlots o m Unit
 handleAction dat = case _ of
-    SetCountries cs   -> H.modify_ (\st -> st { countries = cs }) *> reRender dat
-    SetProjection a p -> (axisLens a .= p) *> reRender dat
+    SetCountries cs   -> H.modify_ (\st -> st { countries = cs })
+                      *> reRender dat Nothing
+    SetProjection a p -> do
+       axisLens a .= p
+       reRender dat (Just a)
     LoadProjection a p -> loadProj a p
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
-    Redraw -> reRender dat
-    LoadURI -> loadUri *> reRender dat
-    CopyURI -> log =<< generateUri
+    Redraw -> reRender dat Nothing
+    LoadURI -> loadUri
+    CopyURI -> void <<< runMaybeT $ do
+         e  <- MaybeT $ H.getHTMLElementRef loaduriRef
+         ie <- maybe MZ.empty pure $ HTMLInputElement.fromHTMLElement e
+         liftEffect $ do
+            HTMLElement.setHidden false e
+            HTMLInputElement.select ie
+            HTMLInputElement.setSelectionRange 0 999999 "none" ie
+            execCopy
+            HTMLElement.setHidden true e
   where
     loadProj a p = do
       res <- H.query _projection a $
@@ -269,59 +305,77 @@ handleAction dat = case _ of
               Right p -> p
         loadProj a proj
 
-generateUri :: forall o m. MonadEffect m => H.HalogenM State Action ChildSlots o m String
+generateUri
+    :: forall o m. MonadEffect m
+    => H.HalogenM State Action ChildSlots o m
+            { noDefault :: String, withDefault :: String }
 generateUri = do
     st <- H.get
     liftEffect $ do
-      usp <- USP.new ""
+      uspNoDef <- USP.new ""
+      uspWithDef <- USP.new ""
       for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
         let toWrite = Projection.stateSerialize $ st ^. axisLens a
             default = Projection.stateSerialize $ defaultState ^. axisLens a
+        USP.set uspWithDef (axisParam a) toWrite
         unless (toWrite == default) $
-          USP.set usp  (axisParam a) toWrite
-      srch <- USP.toString usp
+          USP.set uspNoDef (axisParam a) toWrite
+      srchNoDef   <- USP.toString uspNoDef
+      srchWithDef <- USP.toString uspWithDef
       bn <- fullPagename
-      pure (bn <> if String.null srch then "" else "?" <> srch)
+      let genStr str
+            | String.null str = ""
+            | otherwise       = "?" <> str
+      pure { noDefault: bn <> genStr srchNoDef
+           , withDefault: bn <> genStr srchWithDef
+           }
 
 
 reRender
     :: forall o m. MonadEffect m
      => CoronaData
+     -> Maybe Axis
      -> H.HalogenM State Action ChildSlots o m Unit
-reRender dat = do
-    st :: State <- H.get
-    -- traceM (show st)
-    withDSum st.xAxis.projection (\tX pX ->
-      withDSum st.yAxis.projection (\tY pY ->
-        withDSum st.zAxis.projection (\tZ pZ ->
-          withDSum st.tAxis.projection (\tT pT -> void $
-            H.query _scatter unit $ HQ.tell $ Scatter.Update
-              (\f -> f tX tY tZ tT (
-                    toScatterPlot
-                      dat
-                      pX
-                      (lookupScale tX (st.xAxis.numScale))
-                      pY
-                      (lookupScale tY (st.yAxis.numScale))
-                      pZ
-                      (lookupScale tZ (st.zAxis.numScale))
-                      pT
-                      (lookupScale tT (st.tAxis.numScale))
-                      st.countries
-                  )
-              )
+reRender dat initter = do
+    loaded <- for initter $ \a -> do
+      State.state $ \st ->
+        let newLoaded = S.insert a st.loaded
+        in  Tuple (S.size newLoaded >= 4) (st { loaded = newLoaded })
+    when (and loaded) $ do
+      st :: State <- H.get
+      -- traceM (show st)
+      withDSum st.xAxis.projection (\tX pX ->
+        withDSum st.yAxis.projection (\tY pY ->
+          withDSum st.zAxis.projection (\tZ pZ ->
+            withDSum st.tAxis.projection (\tT pT -> void $
+              H.query _scatter unit $ HQ.tell $ Scatter.Update
+                (\f -> f tX tY tZ tT (
+                      toScatterPlot
+                        dat
+                        pX
+                        (lookupScale tX (st.xAxis.numScale))
+                        pY
+                        (lookupScale tY (st.yAxis.numScale))
+                        pZ
+                        (lookupScale tZ (st.zAxis.numScale))
+                        pT
+                        (lookupScale tT (st.tAxis.numScale))
+                        st.countries
+                    )
+                )
+            )
           )
         )
       )
-    )
-    uri  <- generateUri
-    liftEffect $ do
-      hist <- liftEffect $ Window.history =<< Web.window
-      History.pushState
-       (Foreign.unsafeToForeign uri)
-       (History.DocumentTitle "Coronavirus Data Tracker")
-       (History.URL uri)
-       hist
+      uri <- generateUri
+      H.modify_ (_ { loadUri = Just uri.withDefault })
+      liftEffect $ do
+        hist <- liftEffect $ Window.history =<< Web.window
+        History.pushState
+          (Foreign.unsafeToForeign uri.noDefault)
+          (History.DocumentTitle "Coronavirus Data Tracker")
+          (History.URL uri.noDefault)
+          hist
 
 
 parseAtKey
@@ -346,4 +400,8 @@ _multiselect = SProxy
 _projection :: SProxy "projection"
 _projection = SProxy
 
+loaduriRef ∷ H.RefLabel
+loaduriRef = H.RefLabel "loaduri-input"
+
 foreign import fullPagename :: Effect String
+foreign import execCopy :: Effect Unit

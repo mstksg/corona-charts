@@ -13,6 +13,8 @@
 *   symlog?
 *   window should have final day as the label, not the center
 *   configure playback speed?
+*   localization
+*   linear scale should admit zero axis choice
 
 # Weird 
 

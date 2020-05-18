@@ -259,7 +259,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .raise();
         }
         const unhighlight = subplot => function() {
-            subplot.selectAll("path").attr("stroke-width",1.5);
+            subplot.selectAll("path").attr("stroke-width",2);
         }
 
         const mkQuadPoints = ss => ss.map(s =>
@@ -399,7 +399,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
              .join("g")
              .append("path")
              .attr("fill", "none")
-             .attr("stroke-width", 1.5)
+             .attr("stroke-width", 2)
              .attr("stroke-linejoin", "round")
              .attr("stroke-linecap", "round")
              .attr("stroke", d => z(d.pair[1].z))
