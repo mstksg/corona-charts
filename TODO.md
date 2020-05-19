@@ -1,7 +1,6 @@
 
 # Features
 
-*   disable time axis for non-time data
 *   symlog?
 *   linear scale should admit zero axis choice
 *   proper tooltip
@@ -10,11 +9,14 @@
 
 *   the onLeave handler seems to be called too late when leaving the area
 *   toggle switch for log/linear
+*   Better labeling system
+*   fast-forward to end button
 
 # Someday
 
 *   Discrete data: consider dot plots or bar graphs
 *   localization
+*   scale per capita
 
 # Meh
 

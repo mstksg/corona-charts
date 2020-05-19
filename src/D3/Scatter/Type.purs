@@ -174,7 +174,7 @@ sTypeCompare = case _ of
     SPercent r -> \x y -> compare (equivTo r x) (equivTo r y)
 
 allSType :: Array (Exists SType)
-allSType = 
+allSType =
     [ mkExists sDay
     , mkExists sDays
     , mkExists sInt

@@ -180,7 +180,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                         .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)])
                         .interpolate(d3.interpolateCubehelix.gamma(3));
         // legend
-        const legdim = { left: 12, top: 65, width: 200 };
+        const legdim = { left: 12, top: 55, width: 200 };
         const z_ = scaleFunc(scatter.zAxis.scale)
                         .domain(extentz)
                         .range([0, legdim.width]);
@@ -202,10 +202,10 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .call(g => g.append("text")
                             .attr("x", width - margin.right - 4)
                             .attr("y", -5)
-                            .attr("fill", "#888")
+                            .attr("fill", "#666")
                             .attr("text-anchor", "end")
                             // .attr("font-weight", "bold")
-                            .attr("font-size", 32)
+                            .attr("font-size", 24)
                             .text(scatter.xAxis.label)
                      )
                 .call(g => g.selectAll(".tick line").clone()
@@ -222,10 +222,10 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                      )
                 .call(g => g.select(".tick:last-of-type text").clone()
                         .attr("x", 8)
-                        .attr("y", 18)
+                        .attr("y", 12)
                         .attr("text-anchor", "start")
-                        .attr("font-size", 32)
-                        .attr("fill", "#888")
+                        .attr("font-size", 24)
+                        .attr("fill", "#666")
                         .text(scatter.yAxis.label)
                     );
         };
@@ -560,17 +560,18 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             requad(t_);
         }
 
-        const sliderino = tAxis(svg.append("g"))
+        const subslider = svg.append("g");
+        const sliderino = tAxis(subslider.append("g"))
                 // .on('onchange', v => setTime(subplot,v))
                 .on('onchange', _.throttle(v => setTime(subplot,v), 50))
                 // .on('end',v => requad(v));
 
         const button = svg.append("g")
                     .attr("transform",`translate(-5,${height-margin.slider-15})`)
-                    .style("cursor","pointer")
+                    .style("cursor", validTimeScale ? "pointer" : "not-allowed")
                     .style('pointer-events','all');
 
-        const drawButton = function(g,isPlaying,callback) {
+        const drawButton = function(g,isPlaying,isEnabled,callback) {
             g.selectAll("*").remove();
             g.on("click",null)
                 .on("click",callback);
@@ -578,7 +579,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .attr("width",30)
                 .attr("height",30)
                 .attr("rx",3)
-                .style("fill",d3.schemeDark2[1]);
+                .style("fill",validTimeScale ? d3.schemeDark2[1] : "#999");
             if (isPlaying) {
                 g.append("rect")
                     .attr("width",6)
@@ -653,12 +654,24 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             }
         }
 
-        window.sliderino = sliderino;
-        window.tt = t;
+        // window.sliderino = sliderino;
+        // window.tt = t;
 
         button.call(drawButton,false,play_start);
 
         moveSetSlider(extentt[1]);
+
+        if (!validTimeScale) {
+            subslider.attr("display","none");
+            svg.append("text")
+                .attr("fill","none")
+                .attr("x",margin.left-5)
+                .attr("y", height-15)
+                .attr("fill", "currentColor")
+                .attr("font-style", "italic")
+                .attr("font-size", 14)
+                .text("(Time controls disabled for non-time axis)");
+        }
 
         const saveFile = function (fname) {
             saveSvgAsPng(mainplot._groups[0][0], fname);
