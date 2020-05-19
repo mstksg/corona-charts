@@ -182,18 +182,14 @@ defaultState = {
     , tAxis: {
         projection: D3.sDay :=> projection {
             base: Time refl
-          , operations: Restrict D3.sDay refl After (AtLeast day0)
-                   C.:> C.nil
+          , operations: C.nil
           }
       , numScale: NScale (DProd D3.Log)
       }
     , countries: initialCountries
     , permalink: Nothing
     , loaded: S.empty
-    -- , active: false
     }
-  where
-    day0 = MJD.fromGregorian 2020 Date.February 17
 
 render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Action ChildSlots m
 render dat st = HH.div [HU.classProp "ui-wrapper"] [

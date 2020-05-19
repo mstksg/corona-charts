@@ -180,7 +180,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                         .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)])
                         .interpolate(d3.interpolateCubehelix.gamma(3));
         // legend
-        const legdim = { left: 12, top: 55, width: 200 };
+        const legdim = { left: 12, top: 58, width: 200 };
         const z_ = scaleFunc(scatter.zAxis.scale)
                         .domain(extentz)
                         .range([0, legdim.width]);
@@ -222,7 +222,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                      )
                 .call(g => g.select(".tick:last-of-type text").clone()
                         .attr("x", 8)
-                        .attr("y", 12)
+                        .attr("y", 14)
                         .attr("text-anchor", "start")
                         .attr("font-size", 24)
                         .attr("fill", "#666")
