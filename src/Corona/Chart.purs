@@ -313,13 +313,13 @@ applyOperation
     -> Dated b
 applyOperation = case _ of
     Delta num rab -> \(Dated x) -> Dated
-        { start: MJD.addDays (-1) x.start
+        { start: MJD.addDays 1 x.start
         , values: withConsec
             (\y0 y1 -> equivTo rab (nTypeSubtract num y1 y0))
             x.values
         }
     PGrowth num rbp -> \(Dated x) -> Dated
-        { start: MJD.addDays (-1) x.start
+        { start: MJD.addDays 1 x.start
         , values: withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
                                 (nTypeNumber num y0)
                                 (nTypeNumber num y1)

@@ -11,6 +11,7 @@
 *   toggle switch for log/linear
 *   Better labeling system
 *   fast-forward to end button
+*   behavior when no data supported, on plot
 
 # Someday
 
