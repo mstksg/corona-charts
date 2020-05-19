@@ -154,16 +154,12 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                        };
             });
         const sliceSeries = timedSeries(series);
-        console.log(series);
+        // console.log(series);
 
-        // var filteredSeries;
-
-
-
-        const allx = series.map(s => s.values.map(p => p.x) ).flat();
-        const ally = series.map(s => s.values.map(p => p.y) ).flat();
-        const allz = series.map(s => s.values.map(p => p.z) ).flat();
-        const allt = series.map(s => s.values.map(p => p.t) ).flat();
+        const allx = series.flatMap(s => s.values.map(p => p.x) );
+        const ally = series.flatMap(s => s.values.map(p => p.y) );
+        const allz = series.flatMap(s => s.values.map(p => p.z) );
+        const allt = series.flatMap(s => s.values.map(p => p.t) );
         const extentx = d3.extent(allx);
         const extenty = d3.extent(ally);
         const extentz = d3.extent(allz);
@@ -254,7 +250,6 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
 
         const highlight = subplot => function(name) {
-          // console.log(path, name);
           subplot.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 0.5)
                 .filter(d => d.name === name)
                 .raise();
@@ -263,9 +258,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             subplot.selectAll("path").attr("stroke-width",2);
         }
 
-        const mkQuadPoints = ss => ss.map(s =>
+        const mkQuadPoints = ss => ss.flatMap(s =>
               s.values.map(p => ({ x: x(p.x), y: y(p.y), z: p.z, t: p.t, name: s.name }))
-            ).flat();
+            );
 
         var currQuadPoints = mkQuadPoints(series);
         // quadtree to look up nearest point. note z is not encoded
@@ -372,7 +367,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
         }
 
-        const flatSegments = ss => ss.map(s => s.segments.map (p => ({ name: s.name, pair: p }))).flat()
+        const flatSegments = ss => ss.flatMap(s => s.segments.map (p => ({ name: s.name, pair: p })));
         // const mkTimed = timedSeries(series);
 
         const mainplot = svg.append("g")
@@ -415,28 +410,44 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         subplot.call(hover, highlight(subplot),unhighlight(subplot));
 
 
-        const setTime = function(subplot, t) {
+        const setTime = function(subplot, t_) {
             subplot.selectAll("path")
-                .attr("display", function(d) {
-                    // console.log(d.pair[1].t, t);
-                    return (d.pair[0].t <= t) ? null : "none";
+                .attr("display", d => (d.pair[0].t < t_) ? null : "none")
+                .attr("stroke-dasharray", function (d) {
+                    if (d.pair[0].t < t_ && d.pair[1].t > t_) {
+                        const dx = x(d.pair[1].x) - x(d.pair[0].x);
+                        const dy = y(d.pair[1].y) - y(d.pair[0].y);
+                        const dist = Math.sqrt( dx*dx + dy*dy );
+                        const timeScaled = (t(t_) - t(d.pair[0].t)) / (t(d.pair[1].t) - t(d.pair[0].t));
+                        return `${dist*timeScaled},${dist}`
+                    } else {
+                        return null;
+                    }
                 });
 
             endDots.selectAll("*").remove();
 
-
-            const dotData = series.map(function(s) {
-              const cutoff = d3.bisector(p => p.t).right(s.values,t);
+            const dotData = series.flatMap(function(s) {
+              const cutoff = d3.bisector(p => p.t).right(s.values,t_);
               if (cutoff == 0) {
                   return [];
-              } else {
+              } else if (cutoff >= s.values.length) {
                   return [{
                       name: s.name
-                    , last: s.values[Math.min(cutoff,s.values.length-1)]
+                    , last: last(s.values)
                   }];
+              } else {
+                  const hereIx = Math.min(cutoff,s.values.length-1);
+                  const here = s.values[cutoff-1];
+                  const there = s.values[cutoff];
+                  const interp = d3.interpolate(here, there);
+                  const timeScaled = (t(t_) - t(here.t)) / (t(there.t) - t(here.t));
+                  return [{
+                      name: s.name
+                    , last: interp(timeScaled)
+                  }]
               }
-            }).flat();
-            // console.log(dotData);
+            });
 
             endDots.append("g")
                 .attr("text-anchor","start")
@@ -459,7 +470,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .attr("transform", d => `translate(${x(d.last.x)},${y(d.last.y)})`)
                 .style('pointer-events','none')
 
-            requad(t);
+            requad(t_);
         }
 
         const sliderino = tAxis(svg.append("g"))
@@ -541,7 +552,6 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             const currval = t(sliderino.value());
             const nextval = currval + playdata.stepAmt;
             const hitTheEnd = nextval > playdata.maxT;
-            // console.log(currval,nextval,hitTheEnd);
             if (hitTheEnd) {
                 if (is_playing) {
                     return play_stop();
@@ -581,7 +591,6 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 // takes a (maybe string)
 exports._highlight = function(handleMaybe,interactors,name) {
     return function() {
-        // console.log(interactors, name);
         handleMaybe(name)(
             { nothing: (() => interactors.unhighlight())
             , just: (n => interactors.highlight(n))
