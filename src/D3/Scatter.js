@@ -9,13 +9,13 @@ const last = xs => xs[xs.length - 1];
 
 
 
-const segmentize = function(xs) {
-    var out = [];
-    for (let i = 1; i < xs.length; i++) {
-        out.push( [xs[i-1], xs[i]] );
-    }
-    return out;
-}
+// const segmentize = function(xs) {
+//     var out = [];
+//     for (let i = 1; i < xs.length; i++) {
+//         out.push( [xs[i-1], xs[i]] );
+//     }
+//     return out;
+// }
 
 
 
@@ -88,15 +88,16 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const fmtT = fmt(typeT);
     const axisTicker = tp =>
         handleType(tp)(
-            { day:     (() => a => a.ticks().tickFormat(d3.timeFormat("%b %d")))
-            , days:    (() => a => a.ticks(10, ".3~s"))
-            , "int":   (() => a => a.ticks(10, ".3~s"))
-            , number:  (() => a => a.ticks(10, ".3~s"))
-            , percent: (() => a => a.ticks(10, "+.3~p"))
+            { day:     (() => (a,n) => a.ticks(n).tickFormat(d3.timeFormat("%b %d")))
+            , days:    (() => (a,n) => a.ticks(n ? n : 10, ".3~s"))
+            , "int":   (() => (a,n) => a.ticks(n ? n : 10, ".3~s"))
+            , number:  (() => (a,n) => a.ticks(n ? n : 10, ".3~s"))
+            , percent: (() => (a,n) => a.ticks(n ? n : 10, "+.3~p"))
             }
         );
     const axisTickerX = axisTicker(typeX);
     const axisTickerY = axisTicker(typeY);
+    const axisTickerZ = axisTicker(typeZ);
     const axisTickerT = axisTicker(typeT);
 
     const validVal = scale => val =>
@@ -150,7 +151,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                          );
                 return { name: s.name
                        , values: vals
-                       , segments: segmentize(vals)
+                       , segments: d3.pairs(vals)
                        };
             });
         const sliceSeries = timedSeries(series);
@@ -178,8 +179,11 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                         .domain(extentz)        // not nice
                         .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)])
                         .interpolate(d3.interpolateCubehelix.gamma(3));
-
-                        // .range([d3.schemeDark2[1],d3.schemeAccent[1]]);
+        // legend
+        const legdim = { left: 12, top: 65, width: 200 };
+        const z_ = scaleFunc(scatter.zAxis.scale)
+                        .domain(extentz)
+                        .range([0, legdim.width]);
         const t = scaleFunc(scatter.tAxis.scale)
                         .domain(extentt)        // not nice
                         .range([margin.left, width - margin.right]);
@@ -196,12 +200,12 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             g.attr("transform", `translate(0,${height - margin.bottom})`)
                 .call(axisTickerX(d3.axisBottom(x)))
                 .call(g => g.append("text")
-                            .attr("x", width - margin.right)
+                            .attr("x", width - margin.right - 4)
                             .attr("y", -5)
-                            .attr("fill", "currentColor")
+                            .attr("fill", "#888")
                             .attr("text-anchor", "end")
-                            .attr("font-weight", "bold")
-                            .attr("font-size", 12)
+                            // .attr("font-weight", "bold")
+                            .attr("font-size", 32)
                             .text(scatter.xAxis.label)
                      )
                 .call(g => g.selectAll(".tick line").clone()
@@ -217,21 +221,47 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                                 .attr("x2", width - margin.left - margin.right)
                      )
                 .call(g => g.select(".tick:last-of-type text").clone()
-                        .attr("x", 3)
-                        .attr("y", -5)
+                        .attr("x", 8)
+                        .attr("y", 18)
                         .attr("text-anchor", "start")
-                        .attr("font-weight", "bold")
-                        .attr("font-size", 12)
+                        .attr("font-size", 32)
+                        .attr("fill", "#888")
                         .text(scatter.yAxis.label)
                     );
         };
-        // const zLegend = function(g) {
-        //     const leg = d3.legendColor()
-        //                     .labelFormat(fmtZ)
-        //                     .scale(z);
-
-        //     g.call(leg);
-        // }
+        const zLegend = function(g) {
+            const segs = d3.pairs(d3.range(33).map(function(x) {
+                // between 0 and width
+                const xx     = x/32 * legdim.width;
+                const xm     = z_.invert(xx);
+                const xcolor = z(xm);
+                // console.log({ xx: xx, xcolor: xcolor });
+                return { xx: xx, xcolor: xcolor }
+              }));
+            g.attr("transform", `translate(${margin.left + legdim.left},${margin.top + legdim.top})`)
+                .call(axisTickerZ(d3.axisBottom(z_),4))
+                .call(g => g.append("g")
+                            .attr("stroke-width",10)
+                            .attr("fill","none")
+                            .selectAll("line")
+                            .data(segs)
+                            .join("line")
+                            .attr("x1", d => d[0].xx)
+                            .attr("x2", d => d[1].xx+1)
+                            .attr("y1", -4.5)
+                            .attr("y2", -4.5)
+                            .attr("stroke", d => d[0].xcolor)
+                        )
+                .call(g => g.append("text")
+                        .attr("x",0)
+                        .attr("y",-12.5)
+                        .attr("text-anchor", "start")
+                        .attr("font-weight", "bold")
+                        .attr("font-size", 12)
+                        .attr("fill","currentColor")
+                        .text(scatter.zAxis.label)
+                    );
+        }
         const tAxis = function(g) {
             const sliderino = d3.sliderBottom(t)
                         .tickFormat(fmtT)
@@ -318,11 +348,27 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .style("stroke","#777")
                 .style("fill","none");
 
+          const colorline = crosshair.append("line")
+                .style("stroke-width",8)
+                .style("stroke","#fff")
+                .style("fill","none")
+                .attr("y1", -5.5)
+                .attr("y2", 5.5);
+          const colorcenter = crosshair.append("line")
+              .style("stroke-width",2)
+              .attr("fill","none")
+              .attr("y1", -7)
+              .attr("y2", 7);
+
+
           const syncDots = crosshair.append("g");
 
           function moved() {
             d3.event.preventDefault();
-            const mouse = d3.mouse(this);
+            const mouse0 = d3.mouse(this);
+            const mouse = [Math.max(margin.left,Math.min(width-margin.right,mouse0[0])),
+                           Math.max(margin.top,Math.min(height-margin.bottom,mouse0[1]))
+                          ];
             const closest = quadtree.find(mouse[0], mouse[1], 75);
             const foundPoint = !(closest === undefined);
             const xc = foundPoint ? closest.x : mouse[0];
@@ -355,6 +401,16 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                                     .filter(st => st !== showx && st !== showy)
                                     .join(", ")
                 );
+
+              const zloc = z_(closest.z) + legdim.left + margin.left;
+              colorline.attr("display", null);
+              colorcenter.attr("display", null);
+              colorline
+                  .attr("transform",`translate(${-xc+zloc},${-yc+margin.top+legdim.top-4.5})`);
+              colorcenter
+                  .attr("transform",`translate(${-xc+zloc},${-yc+margin.top+legdim.top-4.5})`)
+                  .attr("stroke",z(closest.z));
+
               const syncDotData = series.flatMap(function(s) {
                 const cutoff = d3.bisector(p => p.t).right(s.values,closest.t);
                 if (cutoff == 0 || s.name == closest.name) {
@@ -375,6 +431,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                   .attr("transform", d => `translate(${x(d.x)-xc},${y(d.y)-yc})`)
                   .style('pointer-events','none')
             } else {
+              colorline.attr("display", "none");
+              colorcenter.attr("display", "none");
               ch_center.attr("r",4.0)
                        .attr("fill","white")
                        .attr("cursor",null);
@@ -406,8 +464,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             .call(xAxis);
         mainplot.append("g")
             .call(yAxis);
-        // svg.append("g")
-        //     .call(zLegend);
+        mainplot.append("g")
+            .call(zLegend);
 
         const subplot = mainplot.append("g")
 
@@ -422,6 +480,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           .attr('width',width - margin.right - margin.left)
           .attr('height',height - margin.top - margin.bottom);
 
+        // yo this is it
         subplot.append("g")
              .selectAll("g")
              .data(flatSegments(series))
@@ -546,7 +605,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         const moveSetSlider = function(t) {
             sliderino.value(t);
             setTime(subplot,t);
-            resting = false;
+            resting = t == extentt[1];
         }
 
         var timer = null;
