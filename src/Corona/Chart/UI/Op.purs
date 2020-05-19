@@ -174,7 +174,7 @@ windowPickOp :: forall m a b. ToFractional a b -> PickOp m a b
 windowPickOp tf = mkPickOp
     { label: "Moving Average"
     , render: \st -> HH.div [HU.classProp "moving-average"] [
-        HH.span_ [HH.text "Window size (before/after)"]
+        HH.span_ [HH.text "Window (before/after)"]
       , HH.input [
           HP.type_ HP.InputNumber
         , HP.value (show st)

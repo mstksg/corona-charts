@@ -4,6 +4,10 @@
 *   symlog?
 *   linear scale should admit zero axis choice
 *   proper tooltip
+*   select to get statistics (mean, median, min, max)
+*   data for different regions
+*   exponential/logistic fits and projections
+*   fourier transform
 
 # Fixes
 
@@ -12,12 +16,15 @@
 *   Better labeling system
 *   fast-forward to end button
 *   behavior when no data supported, on plot
+*   apparent bug: restrict-before for dates
+*   feedback for parse errors
 
 # Someday
 
 *   Discrete data: consider dot plots or bar graphs
 *   localization
 *   scale per capita
+*   zoom in
 
 # Meh
 

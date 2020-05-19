@@ -140,7 +140,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     return function () {
         exports.clearSvg(svg)();
         // console.log(scatter);
-        const margin = { top: 20, right: 20, bottom: 70, left: 50, slider: 20 };
+        const margin = { top: 20, right: 20, bottom: 80, left: 50, slider: 30 };
         const series = scatter.series.map(function(s) {
                 const vals = s.values.filter(validPair).map( p =>
                             ({ x: convertX(p.x)
@@ -581,7 +581,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 // .on('end',v => requad(v));
 
         const button = svg.append("g")
-                    .attr("transform",`translate(-5,${height-margin.slider-15})`)
+                    .attr("transform",`translate(0,${height-margin.slider-15})`)
                     .style("cursor", validTimeScale ? "pointer" : "not-allowed")
                     .style('pointer-events','all');
 
@@ -688,7 +688,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             svg.append("text")
                 .attr("fill","none")
                 .attr("x",margin.left-5)
-                .attr("y", height-15)
+                .attr("y", height-margin.slider+5)
                 .attr("fill", "currentColor")
                 .attr("font-style", "italic")
                 .attr("font-size", 14)

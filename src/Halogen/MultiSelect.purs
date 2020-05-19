@@ -82,7 +82,7 @@ component lab =
 
 render :: forall a m. String -> State a -> H.ComponentHTML Action () m
 render lab st =
-    HH.div [HU.classProp "multiselect"] [
+    HH.div [HU.classProp "multiselect dialog"] [
         HH.h3_ [HH.text lab]
       , HH.div [HU.classProp "select-options grid__col grid__col--1-of-2"] [
           HH.input [
@@ -123,6 +123,7 @@ render lab st =
                       else Nothing
                 , HE.onMouseOver $ \_ -> Just (MouseOver il.ix)
                 , HE.onMouseOut  $ \_ -> Just MouseOff
+                , HP.title "Remove"
                 ] [
                   HH.span_ [HH.text il.label]
                 ]

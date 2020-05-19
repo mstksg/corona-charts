@@ -290,6 +290,7 @@ render pMap st = HH.div_ [
                                   if ME.buttons e == 0
                                      then Just (PickerRemove pIx)
                                      else Nothing
+                              , HP.title "Remove"
                               ]
                               [HH.text "x"]
                        ]

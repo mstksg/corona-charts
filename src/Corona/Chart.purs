@@ -404,16 +404,16 @@ operationLabel = case _ of
     -- Window  _ n -> "Moving Average (±" <> show n <> ") of"
     Window  _ _ -> ""
     PMax _ _    -> "Percent of maximum of"
-    -- Restrict _ _ _ _ -> ""
-    Restrict t _ co cond -> fold
-        [ "("
-        , case co of
-            After -> "after"
-            Before -> "before"
-        , " "
-        , conditionLabel t cond
-        , ")"
-        ]
+    Restrict _ _ _ _ -> ""
+    -- Restrict t _ co cond -> fold
+    --     [ "("
+    --     , case co of
+    --         After -> "after"
+    --         Before -> "before"
+    --     , " "
+    --     , conditionLabel t cond
+    --     , ")"
+    --     ]
     Take r n c ->
       let cStr = case c of
             After -> "last"

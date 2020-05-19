@@ -234,7 +234,8 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
         ]
       ]
     , HH.div [HU.classProp "grid__col grid__col--4-of-5 plot"] [
-        HH.slot _scatter unit (Scatter.component hw) unit absurd
+        HH.div [HU.classProp "dialog"]
+        [ HH.slot _scatter unit (Scatter.component hw) unit absurd ]
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
         HH.slot _projection ZAxis (Projection.component "Color Axis")

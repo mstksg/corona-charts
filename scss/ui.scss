@@ -1,4 +1,13 @@
 
+.dialog {
+  // border-style: solid;
+  margin: 1.5rem 0.2rem;
+  padding: 18px;
+  // border-width: 1px;
+  border-radius: 18px;
+  background-color: #ffffff;
+}
+
 .multiselect {
   input, select, button {
     display: block;
@@ -32,38 +41,21 @@
     }
   }
 
-  border-style: solid;
-  margin: 1.5rem 0.2rem;
-  padding: 0.6rem;
-  border-width: 1px;
-  border-radius: 2px;
-  background-color: #fff7f7;
-
   h3 {
     margin-bottom: 1rem;
   }
 
-  // .multiselect-title {
-  //   padding-left: 0;
-  // }
-
 }
 
 .axis-options {
-  border-style: solid;
-  margin: 1.5rem 0.2rem;
-  padding: 0.6rem;
-  border-width: 1px;
-  border-radius: 2px;
-  background-color: #f7f7ff;
 
   .base-projection, .axis-op-chain, .axis-scale {
     span {
       display: block;
       width: 100%;
-      font-style: italic;
-      font-size: 85%;
+      font-size: 90%;
       margin: 0;
+      color: #666;
     }
     select {
         display: block;
@@ -79,15 +71,23 @@
     // text-align: center;
     li {
       display: block;
-      margin: 0.2rem 0;
-      padding: 0.4rem;
-      background: #ddf;
+      margin: 0.3rem 0;
+      padding: 0.7rem;
+      background: #fcfcff;
+      border: 1px solid #eee;
+      border-radius: 2px;
 
       span.picker-slot-name {
         display: inline;
-        font-size: 105%;
-        font-weight: bold;
-        font-style: normal;
+        font-size: 90%;
+        font-weight: 500;
+        color: #000;
+        // color: #1a1a1a;
+      }
+      .picker-slot-opts span {
+        font-size: 80%;
+        font-style: italic;
+        color: #000;
       }
       a.picker-slot-delete {
         cursor: pointer;
@@ -115,4 +115,39 @@
   white-space: nowrap;
   user-select: none;
   cursor: pointer;
+}
+
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #f5f6f7;
+  background-image: url("data:image/svg+xml;utf8,<svg fill='grey' height='24' viewBox='0 0 24 24' width='30' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>");
+  background-repeat: no-repeat;
+  background-position-x: 100%;
+  background-position-y: 5px;
+  border: none;
+  border-radius: 2px;
+  margin: 0 2rem 0.3rem 0;
+  padding: 0.6rem;
+  padding-right: 2rem;
+}
+
+
+input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #ffffff;
+  // background-image: url("data:image/svg+xml;utf8,<svg fill='grey' height='24' viewBox='0 0 24 24' width='30' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>");
+  // background-repeat: no-repeat;
+  // background-position-x: 100%;
+  // background-position-y: 5px;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  margin: 0 0 0.3rem 0;
+  padding: 0.6rem;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+  width: 100%;
+  // padding-right: 2rem;
 }

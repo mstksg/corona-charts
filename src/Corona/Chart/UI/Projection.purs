@@ -89,7 +89,7 @@ render
     => String     -- ^ axis label
     -> State
     -> H.ComponentHTML Action ChildSlots m
-render label aState = HH.div [HU.classProp "axis-options"] [
+render label aState = HH.div [HU.classProp "axis-options dialog"] [
       HH.h3_ [HH.text label]
     , HH.div [HU.classProp "base-projection"] [
         HH.span_ [HH.text "Base Projection"]
