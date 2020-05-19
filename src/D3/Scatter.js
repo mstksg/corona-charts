@@ -323,7 +323,6 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     .attr("stroke","steelblue")
                     .attr("stroke-width",2);
 
-
           const mkLabel = (g,anchor,x,y) => g.append("text")
               .attr("font-family", "sans-serif")
               .attr("font-size", 12)
@@ -393,9 +392,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                            moveSetSlider(closest.t);
                            play_stop();
                         })
-                       .attr("cursor","pointer");
-                       // .attr("title","Jump to time " + fmtT(closest.t))
-                       // .attr("alt","Jump to time " + fmtT(closest.t));
+                       .attr("cursor","pointer")
+              ch_center.selectAll("title").remove()
+              ch_center.append("title").text("Jump to time " + fmtT(closest.t));
               highlight(closest.name);
               bottomlabel.text(closest.name);
               footlabel.text(
@@ -440,6 +439,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
               ch_center.attr("r",4.0)
                        .attr("fill","white")
                        .attr("cursor",null);
+              ch_center.selectAll("title").remove()
               unhighlight();
               bottomlabel.text("");
               footlabel.text("");
@@ -593,7 +593,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .attr("width",30)
                 .attr("height",30)
                 .attr("rx",3)
-                .style("fill",validTimeScale ? d3.schemeDark2[1] : "#999");
+                .style("fill",validTimeScale ? d3.schemeDark2[1] : "#999")
+                .append("title")
+                .text(isPlaying ? "Pause" : "Play");
             if (isPlaying) {
                 g.append("rect")
                     .attr("width",6)
@@ -601,22 +603,24 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     .attr("x",6)
                     .attr("y",6)
                     .attr("rx",1)
-                    .style("fill","white");
-                    // .attr("title","Play")
-                    // .attr("alt","Play");
+                    .style("fill","white")
+                    .append("title")
+                    .text("Pause");
                 g.append("rect")
                     .attr("width",6)
                     .attr("height",18)
                     .attr("x",18)
                     .attr("y",6)
                     .attr("rx",1)
-                    .style("fill","white");
-                    // .attr("title","Pause")
-                    // .attr("alt","Pause");
+                    .style("fill","white")
+                    .append("title")
+                    .text("Pause");
             } else {
                 g.append("path")
                     .attr("d","M9 6 L9 24 L21 15 Z")
-                    .style("fill","white");
+                    .style("fill","white")
+                    .append("title")
+                    .text("Play");
             }
         }
 

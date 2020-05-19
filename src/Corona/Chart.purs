@@ -401,27 +401,28 @@ operationLabel :: forall a b. Operation a b -> String
 operationLabel = case _ of
     Delta   _ _ -> "Daily Change in"
     PGrowth _ _ -> "Daily Percent Growth in"
-    Window  _ n -> "Moving Average (±" <> show n <> ") of"
-    PMax _ _    -> "Percent of maximum in"
-    Restrict _ _ _ _ -> ""
-    -- Restrict t _ co cond -> fold
-    --     [ "(With only points "
-    --     , case co of
-    --         After -> "after"
-    --         Before -> "before"
-    --     , " being "
-    --     , conditionLabel t cond
-    --     , ")"
-    --     ]
+    -- Window  _ n -> "Moving Average (±" <> show n <> ") of"
+    Window  _ _ -> ""
+    PMax _ _    -> "Percent of maximum of"
+    -- Restrict _ _ _ _ -> ""
+    Restrict t _ co cond -> fold
+        [ "("
+        , case co of
+            After -> "after"
+            Before -> "before"
+        , " "
+        , conditionLabel t cond
+        , ")"
+        ]
     Take r n c ->
       let cStr = case c of
             After -> "last"
             Before -> "first"
       in  "Keeping the " <> cStr <> " " <> show n <> " points of"
     DayNumber _ c -> case c of
-      After  -> "Number of days since initial"
-      Before -> "Number of days until final"
-    PointDate _ -> "Observed date for value of"
+      After  -> "Days of"
+      Before -> "Days left of"
+    PointDate _ -> "Date for value of"
 
 -- | TODO: pretty print
 conditionLabel :: forall a. SType a -> Condition a -> String

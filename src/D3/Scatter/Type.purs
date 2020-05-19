@@ -268,7 +268,7 @@ type SeriesData a b c d =
 infixr 1 type Either as ||
 
 data Scale a = Date   (a ~ Day)
-             | Linear (a ~ Days || NType a)
+             | Linear (a ~ Days || NType a) -- Boolean         -- ^ to zero or not
              | Log    (NType a)
 
 instance gshowScale :: GShow Scale where
@@ -291,7 +291,6 @@ defaultScale :: forall a. SType a -> Scale a
 defaultScale = case _ of
     SDay  r    -> Date r
     SDays r    -> Linear (Left r)
-    -- SDays r    -> Linear (NDays r)
     SInt  r    -> Log (NInt  r)  -- maybe log?
     SNumber r  -> Log (NNumber r)
     SPercent r -> Linear (Right (NPercent r))
