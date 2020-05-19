@@ -419,17 +419,19 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     return [s.values[Math.min(cutoff-1,s.values.length-1)]];
                 }
               });
-              syncDots.append("g")
-                  .selectAll("circle")
-                  .data(syncDotData)
-                  .join("circle")
-                  .attr("r", 3)
-                  .attr("stroke",d => z(d.z))
-                  .attr("stroke-width",2)
-                  .attr("fill",null)
-                  .attr("fill-opacity","0")
-                  .attr("transform", d => `translate(${x(d.x)-xc},${y(d.y)-yc})`)
-                  .style('pointer-events','none')
+              if (validTimeScale) {
+                syncDots.append("g")
+                    .selectAll("circle")
+                    .data(syncDotData)
+                    .join("circle")
+                    .attr("r", 3)
+                    .attr("stroke",d => z(d.z))
+                    .attr("stroke-width",2)
+                    .attr("fill",null)
+                    .attr("fill-opacity","0")
+                    .attr("transform", d => `translate(${x(d.x)-xc},${y(d.y)-yc})`)
+                    .style('pointer-events','none')
+              }
             } else {
               colorline.attr("display", "none");
               colorcenter.attr("display", "none");
@@ -499,40 +501,50 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
 
         const setTime = function(subplot, t_) {
-            subplot.selectAll("path")
-                .attr("display", d => (d.pair[0].t < t_) ? null : "none")
-                .attr("stroke-dasharray", function (d) {
-                    if (d.pair[0].t < t_ && d.pair[1].t > t_) {
-                        const dx = x(d.pair[1].x) - x(d.pair[0].x);
-                        const dy = y(d.pair[1].y) - y(d.pair[0].y);
-                        const dist = Math.sqrt( dx*dx + dy*dy );
-                        const timeScaled = (t(t_) - t(d.pair[0].t)) / (t(d.pair[1].t) - t(d.pair[0].t));
-                        return `${dist*timeScaled},${dist}`
-                    } else {
-                        return null;
-                    }
-                });
+            if (validTimeScale) {
+              subplot.selectAll("path")
+                  .attr("display", d => (d.pair[0].t < t_) ? null : "none")
+                  .attr("stroke-dasharray", function (d) {
+                      if (d.pair[0].t < t_ && d.pair[1].t > t_) {
+                          const dx = x(d.pair[1].x) - x(d.pair[0].x);
+                          const dy = y(d.pair[1].y) - y(d.pair[0].y);
+                          const dist = Math.sqrt( dx*dx + dy*dy );
+                          const timeScaled = (t(t_) - t(d.pair[0].t)) / (t(d.pair[1].t) - t(d.pair[0].t));
+                          return `${dist*timeScaled},${dist}`
+                      } else {
+                          return null;
+                      }
+                  });
+            }
 
             endDots.selectAll("*").remove();
 
             const dotData = series.flatMap(function(s) {
-              const cutoff = d3.bisector(p => p.t).right(s.values,t_);
-              if (cutoff == 0) {
-                  return [];
-              } else if (cutoff >= s.values.length) {
-                  return [{
-                      name: s.name
-                    , last: last(s.values)
-                  }];
+              if (validTimeScale) {
+                  const cutoff = d3.bisector(p => p.t).right(s.values,t_);
+                  if (cutoff == 0) {
+                      return [];
+                  } else if (cutoff >= s.values.length) {
+                      return [{
+                          name: s.name
+                        , last: last(s.values)
+                      }];
+                  } else {
+                      const here = s.values[cutoff-1];
+                      const there = s.values[cutoff];
+                      const interp = d3.interpolate(here, there);
+                      const timeScaled = (t(t_) - t(here.t)) / (t(there.t) - t(here.t));
+                      return [{
+                          name: s.name
+                        , last: interp(timeScaled)
+                      }]
+                  }
               } else {
-                  const here = s.values[cutoff-1];
-                  const there = s.values[cutoff];
-                  const interp = d3.interpolate(here, there);
-                  const timeScaled = (t(t_) - t(here.t)) / (t(there.t) - t(here.t));
-                  return [{
-                      name: s.name
-                    , last: interp(timeScaled)
-                  }]
+                  if (s.values.length > 0) {
+                      return [{name: s.name, last: last(s.values)}];
+                  } else {
+                      return [];
+                  }
               }
             });
 
