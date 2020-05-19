@@ -248,9 +248,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             return sliderino;
         }
 
-
         const highlight = subplot => function(name) {
-          subplot.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 0.5)
+          subplot.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 1)
                 .filter(d => d.name === name)
                 .raise();
         }
@@ -293,6 +292,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           const ch_center = crosshair.append("circle")
                     .attr("stroke","steelblue")
                     .attr("stroke-width",2);
+                    
 
           const mkLabel = (g,anchor,x,y) => g.append("text")
               .attr("font-family", "sans-serif")
@@ -318,6 +318,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .style("stroke","#777")
                 .style("fill","none");
 
+          const syncDots = crosshair.append("g");
+
           function moved() {
             d3.event.preventDefault();
             const mouse = d3.mouse(this);
@@ -331,6 +333,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             crosshair.attr("transform", `translate(${xc},${yc})`);
             vertline.attr("y1", -yc+margin.top).attr("y2", -yc+height-margin.bottom);
             horizline.attr("x1", -xc+margin.left).attr("x2", -xc+width-margin.right);
+            syncDots.selectAll("*").remove();
 
             const showx = fmtX(xm);
             const showy = fmtY(ym);
@@ -338,7 +341,13 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
             if (foundPoint) {
               ch_center.attr("r",6.0)
-                       .attr("fill",z(closest.z));
+                       .attr("fill",z(closest.z))
+                       .on("click",null)
+                       .on("click", function() {
+                           moveSetSlider(closest.t);
+                           play_stop();
+                        })
+                       .attr("cursor","pointer");
               highlight(closest.name);
               bottomlabel.text(closest.name);
               footlabel.text(
@@ -346,9 +355,29 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                                     .filter(st => st !== showx && st !== showy)
                                     .join(", ")
                 );
+              const syncDotData = series.flatMap(function(s) {
+                const cutoff = d3.bisector(p => p.t).right(s.values,closest.t);
+                if (cutoff == 0 || s.name == closest.name) {
+                    return [];
+                } else {
+                    return [s.values[Math.min(cutoff-1,s.values.length-1)]];
+                }
+              });
+              syncDots.append("g")
+                  .selectAll("circle")
+                  .data(syncDotData)
+                  .join("circle")
+                  .attr("r", 3)
+                  .attr("stroke",d => z(d.z))
+                  .attr("stroke-width",2)
+                  .attr("fill",null)
+                  .attr("fill-opacity","0")
+                  .attr("transform", d => `translate(${x(d.x)-xc},${y(d.y)-yc})`)
+                  .style('pointer-events','none')
             } else {
               ch_center.attr("r",4.0)
-                       .attr("fill","white");
+                       .attr("fill","white")
+                       .attr("cursor",null);
               unhighlight();
               bottomlabel.text("");
               footlabel.text("");
@@ -437,7 +466,6 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     , last: last(s.values)
                   }];
               } else {
-                  const hereIx = Math.min(cutoff,s.values.length-1);
                   const here = s.values[cutoff-1];
                   const there = s.values[cutoff];
                   const interp = d3.interpolate(here, there);
@@ -514,13 +542,14 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             }
         }
 
-        var timer = null;
-        var is_playing = false;
 
         const moveSetSlider = function(t) {
             sliderino.value(t);
             setTime(subplot,t);
         }
+
+        var timer = null;
+        var is_playing = false;
 
         const playdata = (function () {
             const playtime = 15000;

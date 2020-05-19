@@ -141,7 +141,6 @@ initialCountries = S.fromFoldable [
   , "Italy"
   , "Japan"
   , "Russia"
-  , "Germany"
   ]
 
 component :: forall f i o m. MonadEffect m => CoronaData -> H.Component HH.HTML f i o m
