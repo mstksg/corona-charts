@@ -394,6 +394,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                            play_stop();
                         })
                        .attr("cursor","pointer");
+                       // .attr("title","Jump to time " + fmtT(closest.t))
+                       // .attr("alt","Jump to time " + fmtT(closest.t));
               highlight(closest.name);
               bottomlabel.text(closest.name);
               footlabel.text(
@@ -583,7 +585,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     .style("cursor", validTimeScale ? "pointer" : "not-allowed")
                     .style('pointer-events','all');
 
-        const drawButton = function(g,isPlaying,isEnabled,callback) {
+        const drawButton = function(g,isPlaying,callback) {
             g.selectAll("*").remove();
             g.on("click",null)
                 .on("click",callback);
@@ -600,6 +602,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     .attr("y",6)
                     .attr("rx",1)
                     .style("fill","white");
+                    // .attr("title","Play")
+                    // .attr("alt","Play");
                 g.append("rect")
                     .attr("width",6)
                     .attr("height",18)
@@ -607,6 +611,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     .attr("y",6)
                     .attr("rx",1)
                     .style("fill","white");
+                    // .attr("title","Pause")
+                    // .attr("alt","Pause");
             } else {
                 g.append("path")
                     .attr("d","M9 6 L9 24 L21 15 Z")
