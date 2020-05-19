@@ -41,12 +41,12 @@ exports.clearSvg = function(svg) {
     }
 }
 
-const timedSeries = series => function(t) {
+const timedSeries = series => function(t,keeplast) {
     return series.map(function (s) {
         const cutoff = d3.bisector(p => p.t).right(s.values,t);
         return {
             name: s.name
-          , values: s.values.slice(0,cutoff+1)
+          , values: s.values.slice(0,cutoff+(keeplast ? 1 : 0))
         };
     }).filter(s => s.values.length > 0);
 }
@@ -88,7 +88,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const fmtT = fmt(typeT);
     const axisTicker = tp =>
         handleType(tp)(
-            { day:     (() => a => a.ticks(10))
+            { day:     (() => a => a.ticks().tickFormat(d3.timeFormat("%b %d")))
             , days:    (() => a => a.ticks(10, ".3~s"))
             , "int":   (() => a => a.ticks(10, ".3~s"))
             , number:  (() => a => a.ticks(10, ".3~s"))
@@ -269,9 +269,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .extent([x(extentx[0]),y(extenty[0])], [x(extentx[1]),y(extenty[1])])
                 .addAll(currQuadPoints);
 
-        const requad = function(t) {
+        const requad = function(t_) {
             quadtree.removeAll(currQuadPoints);
-            currQuadPoints = mkQuadPoints(sliceSeries(t));
+            currQuadPoints = mkQuadPoints(sliceSeries(t_, t_ == extentt[1]));
             quadtree.addAll(currQuadPoints);
         }
 
@@ -292,7 +292,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           const ch_center = crosshair.append("circle")
                     .attr("stroke","steelblue")
                     .attr("stroke-width",2);
-                    
+
 
           const mkLabel = (g,anchor,x,y) => g.append("text")
               .attr("font-family", "sans-serif")
@@ -546,10 +546,11 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         const moveSetSlider = function(t) {
             sliderino.value(t);
             setTime(subplot,t);
+            resting = false;
         }
 
         var timer = null;
-        var is_playing = false;
+        var resting = true;
 
         const playdata = (function () {
             const playtime = 15000;
@@ -575,18 +576,18 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             button.call(drawButton,false,play_start);
             clearInterval(timer);
             timer = null;
-            is_playing = false;
         }
         const play_tick = function () {
             const currval = t(sliderino.value());
             const nextval = currval + playdata.stepAmt;
             const hitTheEnd = nextval > playdata.maxT;
             if (hitTheEnd) {
-                if (is_playing) {
-                    return play_stop();
-                } else {
+                if (resting) {
                     moveSetSlider(extentt[0]);
-                    is_playing = true;
+                } else {
+                    resting = true;
+                    moveSetSlider(extentt[1]);
+                    return play_stop();
                 }
             } else {
                 moveSetSlider(t.invert(nextval));
