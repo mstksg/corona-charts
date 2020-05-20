@@ -43,49 +43,14 @@ exports.cutInnerHTML = function(e) {
     }
 }
 
+exports.toast = function(str) {
+    return function () {
+      Toastify({
+        text: str,
+        duration: 2000,
+        gravity: "bottom",
+        backgroundColor: "#00b09b"
+      }).showToast();
+    }
+}
 
-// exports.initLinkifier = () => ({
-//         callback: function () { return; };
-//         linkify: function () {
-//             const links = document.querySelectorAll("a");
-//             for (const a of links) {
-//                 const targ = a.getAttribute('href');
-//                 a.setAttribute('href','#');
-//                 a.addEventListener('click', () => this.callback(targ)());
-//             }
-//         }
-//     });
-
-// exports.setLinkifier = function (linkifier,cb) {
-//     return function() {
-//         linkifier.callback = cb;
-//     }
-// }
-
-// exports.runLinkifier = function (linkifier) {
-//     return function() {
-//         linkifier.linkify()
-//     }
-// }
-
-// exports.moveDiv = function(x,y) {
-//     return function () {
-//         x.appendChild(y);
-//     }
-// }
-
-// exports.linkify = function(callback) {
-//     return function () {
-//         window.linkify = gcap
-//     }
-// }
-// // exports.linkify = function (callback) {
-// //     return function () {
-// //         const links = document.querySelectorAll("a");
-// //         for (const a of links) {
-// //             const targ = a.getAttribute('href');
-// //             a.setAttribute('href','#');
-// //             a.addEventListener('click', () => callback(targ));
-// //         }
-// //     }
-// // }

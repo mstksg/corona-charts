@@ -409,6 +409,7 @@ handleAction dat = case _ of
         HTMLInputElement.setSelectionRange 0 999999 "none" ie
         execCopy
         HTMLElement.setHidden true e
+        toast "Copied Link to Clipboard!"
     Linkify -> do
       -- log "linkify me, captain"
       void $ H.subscribe $ ES.effectEventSource $ \e -> do
@@ -631,4 +632,5 @@ foreign import linkify
            (Effect Unit)
            (Effect Unit)
 foreign import cutInnerHTML :: HTMLElement.HTMLElement -> Effect String
+foreign import toast :: String -> Effect Unit
 -- foreign import moveDiv :: Fn2 HTMLElement.HTMLElement HTMLElement.HTMLElement (Effect Unit)
