@@ -140,7 +140,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     return function () {
         exports.clearSvg(svg)();
         // console.log(scatter);
-        const margin = { top: 10, right: 20, bottom: 80, left: 50, slider: 35 };
+        const margin = { top: 10, right: 40, bottom: 80, left: 50, slider: 35 };
         const series = scatter.series.map(function(s) {
                 const vals = s.values.filter(validPair).map( p =>
                             ({ x: convertX(p.x)

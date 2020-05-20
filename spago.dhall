@@ -19,6 +19,8 @@ You can edit this file as you like.
   , "undefined"
   , "string-parsers"
   , "web-urlsearchparams"
+  , "halogen-select"
+  , "random"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

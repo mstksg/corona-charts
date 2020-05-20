@@ -97,9 +97,14 @@ buildData xs = case A.uncons xs of
       pure { start, counts }
     go :: Array Country -> Maybe (Tuple Country (Array Int))
     go val = do
-       country <- val A.!! 1
+       country <- filterCountry <$> (val A.!! 1)
        valnum  <- traverse (flip parseInt (toRadix 10)) (A.drop 4 val)
        pure (Tuple country valnum)
+
+filterCountry :: Country -> Country
+filterCountry = case _ of
+    "US" -> "United States"
+    c    -> c
 
 fetchData :: String -> Aff (Either String CSVData)
 fetchData url = do

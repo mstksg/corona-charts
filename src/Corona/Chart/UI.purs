@@ -33,11 +33,14 @@ import Data.Traversable
 import Data.Tuple
 import Debug.Trace
 import Effect
+import Effect.Aff
+import Effect.Aff.Class
 import Effect.Class
 import Effect.Class.Console
 import Foreign as Foreign
 import Foreign.Object as O
 import Halogen as H
+import Halogen.Autocomplete as Autocomplete
 import Halogen.ChainPicker as ChainPicker
 import Halogen.HTML as HH
 import Halogen.HTML.Core as HH
@@ -62,6 +65,7 @@ import Web.HTML.HTMLInputElement as HTMLInputElement
 import Web.HTML.History as History
 import Web.HTML.Location as Location
 import Web.HTML.Window as Window
+import Web.UIEvent.MouseEvent as ME
 import Web.URLSearchParams as USP
 
 
@@ -76,6 +80,7 @@ type State =
     , zAxis     :: Projection.State
     , tAxis     :: Projection.State
     , countries :: Set Country
+    , allCountries :: Set Country
     , permalink :: Maybe String
     , loaded    :: Set (Maybe Axis)     -- nothing: countries
     }
@@ -90,7 +95,7 @@ instance showAxis :: Show Axis where
       ZAxis -> "ZAxis"
       TAxis -> "TAxis"
 
-axisLens :: Axis -> Lens' State Projection.State
+axisLens :: Axis -> Lens' (Record _) Projection.State
 axisLens = case _ of
     XAxis -> LR.prop (SProxy :: SProxy "xAxis")
     YAxis -> LR.prop (SProxy :: SProxy "yAxis")
@@ -117,6 +122,8 @@ lookupScale st ns = case D3.toNType st of
 
 data Action =
         SetCountries (Set Country)
+      | AddCountry String
+      | RemoveCountry String
       | SetProjection Axis Projection.State
       | LoadProjection Axis Projection.State
       | Highlight Country
@@ -129,24 +136,34 @@ data Action =
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query    Void              Unit
-        , multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
+        -- , multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
+        , autocomplete :: H.Slot Autocomplete.Query Autocomplete.Output Unit
         , projection  :: H.Slot Projection.Query Projection.Output Axis
         )
 
 
 initialCountries :: Set Country
 initialCountries = S.fromFoldable [
-    "US"
+    "United States"
   , "Egypt"
   , "Italy"
   , "Japan"
   , "Russia"
   ]
 
-component :: forall f i o m. MonadEffect m => CoronaData -> H.Component HH.HTML f i o m
+component :: forall f i o m. MonadAff m => CoronaData -> H.Component HH.HTML f i o m
 component dat =
   H.mkComponent
-    { initialState: \_ -> defaultState
+    { initialState: \_ ->
+        { xAxis:  defaultProjections.xAxis
+        , yAxis:  defaultProjections.yAxis
+        , zAxis:  defaultProjections.zAxis
+        , tAxis:  defaultProjections.tAxis
+        , countries: initialCountries
+        , allCountries: S.fromFoldable (O.keys dat.counts)
+        , permalink: Nothing
+        , loaded: S.empty
+        }
     , render: render dat
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction dat
@@ -154,8 +171,13 @@ component dat =
         }
     }
 
-defaultState :: State
-defaultState = {
+defaultProjections ::
+    { xAxis     :: Projection.State
+    , yAxis     :: Projection.State
+    , zAxis     :: Projection.State
+    , tAxis     :: Projection.State
+    }
+defaultProjections = {
       xAxis: {
         projection: D3.sDay :=> projection {
             base: Time refl
@@ -186,12 +208,10 @@ defaultState = {
           }
       , numScale: NScale (DProd D3.Log)
       }
-    , countries: initialCountries
-    , permalink: Nothing
-    , loaded: S.empty
-    }
 
-render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Action ChildSlots m
+  }
+
+render :: forall m. MonadAff m => CoronaData -> State -> H.ComponentHTML Action ChildSlots m
 render dat st = HH.div [HU.classProp "ui-wrapper"] [
       -- HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
       -- ]
@@ -237,12 +257,28 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
             ]
           ]
         , HH.slot _scatter unit (Scatter.component hw) unit absurd
-        ]
-      , HH.div [HU.classProp "countries"] [
-          HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
-            MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
-            MultiSelect.MouseOverOut c -> Just (Highlight c)
-            MultiSelect.MouseOffOut -> Just Unhighlight
+        , HH.div [HU.classProp "country-picker"] [
+            HH.div [HU.classProp "grid__col grid__col--1-of-4 country-picker-input"]
+              [ HH.slot _autocomplete unit
+                  (Autocomplete.component "country-select" "Search for a country...")
+                  (A.fromFoldable (st.allCountries `S.difference` st.countries))
+                  (case _ of Autocomplete.Selected str -> Just (AddCountry str))
+              ]
+          , HH.div [HU.classProp "grid__col grid__col--3-of-4 country-picker-select"]
+              [ HH.ul [HU.classProp "picked-countries"] $
+                  A.fromFoldable st.countries <#> \c ->
+                    HH.li [
+                      HE.onClick $ \e ->
+                        if ME.buttons e == 0
+                          then Just (RemoveCountry c)
+                          else Nothing
+                    , HE.onMouseOver $ \_ -> Just (Highlight c)
+                    , HE.onMouseOut  $ \_ -> Just Unhighlight
+                    , HP.title "Remove"
+                    ]
+                    [ HH.text c ]
+              ]
+          ]
         ]
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-y"] [
@@ -300,16 +336,17 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
       -- ]
     -- ]
   where
-    sel0 :: MultiSelect.State Country
-    sel0 =
-        { options: opts
-        , selected: S.mapMaybe (\c -> A.findIndex (\x -> x.value == c) opts)
-                        initialCountries
-        , filter: ""
-        }
-      where
-        opts = O.keys dat.counts <#> \cty ->
-                  { label: cty, value: cty }
+    -- sel0 :: MultiSelect.State Country
+    -- sel0 =
+    --     { options: opts
+    --     , selected: S.mapMaybe (\c -> A.findIndex (\x -> x.value == c) opts)
+    --                     initialCountries
+    --     , filter: ""
+    --     }
+    --   where
+    --     opts = O.keys dat.counts <#> \cty ->
+    --               { label: cty, value: cty }
+    -- allCountries = A.sort $ O.keys dat.counts
     projLabel dp = withDSum dp (\_ -> projectionLabel)
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
     hw = { height: 600.0, width: 1000.0 }
@@ -320,8 +357,13 @@ handleAction
      -> Action
      -> H.HalogenM State Action ChildSlots o m Unit
 handleAction dat = case _ of
-    SetCountries cs   -> H.modify_ (\st -> st { countries = cs })
-                      *> reRender dat (Just Nothing)
+    SetCountries cs -> loadCountries cs
+    AddCountry c -> do
+      H.modify_ $ \st -> st { countries = S.insert c st.countries }
+      reRender dat Nothing
+    RemoveCountry c -> do
+      H.modify_ $ \st -> st { countries = S.delete c st.countries }
+      reRender dat Nothing
     SetProjection a p -> do
        axisLens a .= p
        reRender dat (Just (Just a))
@@ -334,7 +376,7 @@ handleAction dat = case _ of
     Reset  -> do
       H.modify_ (_ { loaded = S.singleton Nothing :: Set (Maybe Axis) })
       for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
-        loadProj a (defaultState ^. axisLens a)
+        loadProj a (defaultProjections ^. axisLens a)
     LoadURI -> loadUri
     CopyURI -> void <<< runMaybeT $ do
          e  <- MaybeT $ H.getHTMLElementRef loaduriRef
@@ -359,28 +401,17 @@ handleAction dat = case _ of
       for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
         res <- liftEffect $ parseAtKey usp (axisParam a) Projection.stateParser
         let proj = case res of
-              Left e  -> defaultState ^. axisLens a
+              Left e  -> defaultProjections ^. axisLens a
               Right p -> p
         loadProj a proj
       ctyRes <- liftEffect $ parseAtKey usp countrySpec.param parseSet
       let ctys = case ctyRes of
-            Left  e  -> defaultState.countries
+            Left  e  -> initialCountries
             Right cs -> cs
       loadCountries ctys
     loadCountries ctys = do
-        res <- H.query _multiselect unit $
-          MultiSelect.SetState (\x -> { new: setter x, next: unit })
-        when (isNothing res) $
-          warn "warning: country load did not return response"
-      where
-        setter ms = ms
-          { selected = S.fromFoldable <<< A.catMaybes $
-                mapWithIndex (\i x ->
-                    if x.value `S.member` ctys
-                      then Just i
-                      else Nothing
-                  ) ms.options
-          }
+       H.modify_ (_ { countries = ctys })
+       reRender dat (Just Nothing)
 
 type URISpec =
         { default :: String
@@ -393,7 +424,7 @@ uriSpecs :: Array URISpec
 uriSpecs = A.snoc axisSpec countrySpec
   where
     axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a -> do
-      { default: Projection.stateSerialize $ defaultState ^. axisLens a
+      { default: Projection.stateSerialize $ defaultProjections ^. axisLens a
       , write: \st -> Projection.stateSerialize $ st ^. axisLens a
       , param: axisParam a
       , include: true
@@ -401,7 +432,7 @@ uriSpecs = A.snoc axisSpec countrySpec
 
 countrySpec :: URISpec
 countrySpec =
-  { default: serializeSet defaultState.countries
+  { default: serializeSet initialCountries
   , write: \st -> serializeSet $ st.countries
   , param: "r"
   , include: false
@@ -444,6 +475,8 @@ reRender dat initter = do
         in  Tuple (S.size newLoaded >= 5) (st { loaded = newLoaded })
     when (and loaded) $ do
       st :: State <- H.get
+      _ <- H.query _autocomplete unit $ HQ.tell $ Autocomplete.SetOptions $
+          A.fromFoldable (st.allCountries `S.difference` st.countries)
       -- traceM (show st)
       withDSum st.xAxis.projection (\tX pX ->
         withDSum st.yAxis.projection (\tY pY ->
@@ -502,8 +535,11 @@ parseSet = S.fromFoldable <<< String.split (Pattern.Pattern "|")
 _scatter :: SProxy "scatter"
 _scatter = SProxy
 
-_multiselect :: SProxy "multiselect"
-_multiselect = SProxy
+-- _multiselect :: SProxy "multiselect"
+-- _multiselect = SProxy
+
+_autocomplete :: SProxy "autocomplete"
+_autocomplete = SProxy
 
 _projection :: SProxy "projection"
 _projection = SProxy
