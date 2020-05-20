@@ -21,6 +21,7 @@ You can edit this file as you like.
   , "web-urlsearchparams"
   , "halogen-select"
   , "random"
+  , "halogen-rawhtml"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

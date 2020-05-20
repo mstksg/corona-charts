@@ -44,6 +44,16 @@ p {
   margin: 0;
 }
 
+a {
+  color: #44b;
+  border-bottom: 1px dotted #bbb;
+  text-decoration: none;
+
+  &:visited {
+    color: #228;
+  }
+}
+
 h1 {
   font-family: $sans;
   font-size: 300%;
@@ -65,7 +75,7 @@ h2 {
   // font-style: italic;
   // font-weight: 100;
   // font-size: 133%;
-  margin: 1rem 0 0 0;
+  margin: 0.5rem 0 0 0;
   font-size: 250%;
   // margin: 0 0 0.66em 0;
   // letter-spacing: 0.1em;
@@ -82,6 +92,7 @@ h3 {
   margin: 0 0 0.75rem 0;
   display: block;
   border: none;
+  line-height: 125%;
   // border-width: 0 0 1px 0;
   // border-style: solid;
   // border-color: #ddd;

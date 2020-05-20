@@ -180,8 +180,13 @@ let additions =
           }
       , iterable =
           { dependencies = [] : List Text
-          , repo = "https://github.com/Risto-Stevcev/purescript-iterable"
+          , repo = "https://github.com/Risto-Stevcev/purescript-iterable.git"
           , version = "v2.0.0"
+          }
+      , halogen-rawhtml =
+          { dependencies = [] : List Text
+          , repo = "https://github.com/naglalakk/purescript-halogen-rawhtml.git"
+          , version = "0.1.1"
           }
       }
 

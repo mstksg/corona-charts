@@ -139,7 +139,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
     return function () {
         exports.clearSvg(svg)();
-        // console.log(scatter);
+        console.log(scatter);
         const margin = { top: 10, right: 40, bottom: 80, left: 50, slider: 35 };
         const series = scatter.series.map(function(s) {
                 const vals = s.values.filter(validPair).map( p =>
@@ -385,14 +385,15 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             toplabel.text(showx + ", " + showy);
 
             if (foundPoint) {
-              ch_center.attr("r",6.0)
-                       .attr("fill",z(closest.z))
+              ch_center.attr("fill",z(closest.z))
                        .on("click",null)
                        .on("click", function() {
                            moveSetSlider(closest.t);
                            play_stop();
                         })
                        .attr("cursor","pointer")
+                       .attr("r",6.0)
+
               ch_center.selectAll("title").remove()
               ch_center.append("title").text("Jump to time " + fmtT(closest.t));
               highlight(closest.name);

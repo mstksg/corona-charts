@@ -3,11 +3,11 @@
 
 *   symlog?
 *   linear scale should admit zero axis choice
-*   proper tooltip
-*   select to get statistics (mean, median, min, max)
+*   proper tooltip, text wrapping
 *   data for different regions
 *   exponential/logistic fits and projections
-*   maybe add countries as button
+*   textwrap labels
+*   toggle sidebar on and off
 
 # Fixes
 
@@ -17,10 +17,12 @@
 *   fast-forward to end button
 *   behavior when no data supported, on plot
 *   apparent bug: restrict-before for dates
-*   feedback for parse errors
+*   feedback for parse errors in form elements
+*   graceful handling of 0 countries
 
 # Someday
 
+*   select to get statistics (mean, median, min, max)
 *   icons
 *   Discrete data: consider dot plots or bar graphs
 *   localization

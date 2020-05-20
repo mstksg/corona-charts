@@ -4,7 +4,10 @@ import Prelude
 
 import Control.Monad.Except
 import Control.Monad.Maybe.Trans
+import Data.Const
+import Control.Monad.State
 import Control.Monad.State.Class as State
+import Control.Monad.Writer
 import Control.MonadZero as MZ
 import Corona.Chart
 import Corona.Chart.UI.Projection as Projection
@@ -13,11 +16,15 @@ import Corona.Marshal as Marshal
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
+import Data.Bifunctor
 import Data.Date as Date
 import Data.Either
 import Data.Exists
+import Data.Foldable
+import Data.Function.Uncurried
 import Data.Functor.Compose
 import Data.FunctorWithIndex
+import Data.Identity as Identity
 import Data.Int
 import Data.Lens
 import Data.Lens.Record as LR
@@ -40,8 +47,10 @@ import Effect.Class.Console
 import Foreign as Foreign
 import Foreign.Object as O
 import Halogen as H
+import Halogen.Aff.Util as HU
 import Halogen.Autocomplete as Autocomplete
 import Halogen.ChainPicker as ChainPicker
+import Halogen.Component.RawHTML as RawHTML
 import Halogen.HTML as HH
 import Halogen.HTML.Core as HH
 import Halogen.HTML.Elements as HH
@@ -49,6 +58,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.MultiSelect as MultiSelect
 import Halogen.Query as HQ
+import Halogen.Query.EventSource as ES
 import Halogen.Scatter as Scatter
 import Halogen.Util as HU
 import Text.Parsing.StringParser as P
@@ -59,6 +69,9 @@ import Type.DSum
 import Type.Equiv
 import Type.GCompare
 import Undefined
+import Web.DOM.Element as Element
+import Web.DOM.Node as Node
+import Web.DOM.ParentNode as DOM
 import Web.HTML as Web
 import Web.HTML.HTMLElement as HTMLElement
 import Web.HTML.HTMLInputElement as HTMLInputElement
@@ -75,14 +88,16 @@ type AxisState =
     }
 
 type State =
-    { xAxis     :: Projection.State
-    , yAxis     :: Projection.State
-    , zAxis     :: Projection.State
-    , tAxis     :: Projection.State
-    , countries :: Set Country
+    { xAxis        :: Projection.State
+    , yAxis        :: Projection.State
+    , zAxis        :: Projection.State
+    , tAxis        :: Projection.State
+    , countries    :: Set Country
+    , unselected   :: Set Country
     , allCountries :: Set Country
-    , permalink :: Maybe String
-    , loaded    :: Set (Maybe Axis)     -- nothing: countries
+    , permalink    :: Maybe String
+    , waiting      :: Set (Maybe Axis)     -- ^ only render when empty. nothing: countries
+    , welcomeText  :: Maybe String
     }
 
 data Axis = XAxis | YAxis | ZAxis | TAxis
@@ -124,6 +139,8 @@ data Action =
         SetCountries (Set Country)
       | AddCountry String
       | RemoveCountry String
+      | ClearCountries
+      | DumpCountries
       | SetProjection Axis Projection.State
       | LoadProjection Axis Projection.State
       | Highlight Country
@@ -131,14 +148,18 @@ data Action =
       | SaveFile
       | Redraw
       | Reset
-      | LoadURI
       | CopyURI
+      | LoadURIString String
+      | Initialize
+      | Linkify
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query    Void              Unit
         -- , multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
         , autocomplete :: H.Slot Autocomplete.Query Autocomplete.Output Unit
         , projection  :: H.Slot Projection.Query Projection.Output Axis
+        , postRender  :: H.Slot (Const Void) Unit Unit     -- hm we could integrate this
+        , welcomeFrame :: H.Slot (Const Void) Void Unit    -- with this
         )
 
 
@@ -147,7 +168,7 @@ initialCountries = S.fromFoldable [
     "United States"
   , "Egypt"
   , "Italy"
-  , "Japan"
+  , "South Korea"
   , "Russia"
   ]
 
@@ -155,21 +176,25 @@ component :: forall f i o m. MonadAff m => CoronaData -> H.Component HH.HTML f i
 component dat =
   H.mkComponent
     { initialState: \_ ->
-        { xAxis:  defaultProjections.xAxis
-        , yAxis:  defaultProjections.yAxis
-        , zAxis:  defaultProjections.zAxis
-        , tAxis:  defaultProjections.tAxis
+        { xAxis: defaultProjections.xAxis
+        , yAxis: defaultProjections.yAxis
+        , zAxis: defaultProjections.zAxis
+        , tAxis: defaultProjections.tAxis
         , countries: initialCountries
-        , allCountries: S.fromFoldable (O.keys dat.counts)
+        , unselected: allCountries `S.difference` initialCountries
+        , allCountries
         , permalink: Nothing
-        , loaded: S.empty
+        , waiting: S.empty
+        , welcomeText: Nothing
         }
     , render: render dat
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction dat
-        , initialize   = Just LoadURI
+        , initialize   = Just Initialize
         }
     }
+  where
+    allCountries = S.fromFoldable (O.keys dat.counts)
 
 defaultProjections ::
     { xAxis     :: Projection.State
@@ -215,15 +240,13 @@ render :: forall m. MonadAff m => CoronaData -> State -> H.ComponentHTML Action 
 render dat st = HH.div [HU.classProp "ui-wrapper"] [
       -- HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
       -- ]
-      HH.div [HU.classProp "grid__col grid__col--1-of-4 left-column"] [
-        HH.div [HU.classProp "dialog"] [
-          HH.h3_ [HH.text "Welcome"]
-        , HH.div [HU.classProp "sample-copy"] [
-            HH.span_ [HH.text "Welcome!"]
-          ]
-        ]
+      HH.div [HU.classProp "grid__col grid__col--1-of-5 left-column"] [
+        HH.h2_ [HH.text "Coronavirus Data Plotter"]
+      , HH.slot _projection YAxis (Projection.component "Y Axis")
+          st.yAxis
+          (\(Projection.Update s) -> Just (SetProjection YAxis s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--3-of-4 plot"] [
+    , HH.div [HU.classProp "grid__col grid__col--4-of-5 plot"] [
         -- HH.div [HU.classProp "plot-title"] [
         -- ]
         HH.div [HU.classProp "dialog"] [
@@ -233,18 +256,21 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
                 HP.type_ HP.ButtonButton
               , HE.onClick (\_ -> Just CopyURI)
               , HU.classProp "copy-uri-button"
+              , HP.title "Copy Permalink to Chart"
               ]
-              [ HH.text "Copy Link to Chart" ]
+              [ HH.text "Copy Link" ]
           , HH.button [
                 HP.type_ HP.ButtonButton
               , HE.onClick (\_ -> Just SaveFile)
               , HU.classProp "save-image-button"
+              , HP.title "Save Chart as Image"
               ]
-              [ HH.text "Save as Image" ]
+              [ HH.text "Save Image" ]
           , HH.button [
                 HP.type_ HP.ButtonButton
               , HE.onClick (\_ -> Just Reset)
               , HU.classProp "reset-button"
+              , HP.title "Reset Projections to Default"
               ]
               [ HH.text "Reset projections" ]
           , HH.input [
@@ -258,13 +284,13 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
           ]
         , HH.slot _scatter unit (Scatter.component hw) unit absurd
         , HH.div [HU.classProp "country-picker"] [
-            HH.div [HU.classProp "grid__col grid__col--1-of-4 country-picker-input"]
-              [ HH.slot _autocomplete unit
-                  (Autocomplete.component "country-select" "Search for a country...")
-                  (A.fromFoldable (st.allCountries `S.difference` st.countries))
-                  (case _ of Autocomplete.Selected str -> Just (AddCountry str))
-              ]
-          , HH.div [HU.classProp "grid__col grid__col--3-of-4 country-picker-select"]
+            HH.div [HU.classProp "grid__col grid__col--2-of-8 country-picker-input"] [
+              HH.slot _autocomplete unit
+                (Autocomplete.component "country-select" "Search for a country...")
+                (A.fromFoldable st.unselected)
+                (case _ of Autocomplete.Selected str -> Just (AddCountry str))
+            ]
+          , HH.div [HU.classProp "grid__col grid__col--4-of-8 country-picker-select"]
               [ HH.ul [HU.classProp "picked-countries"] $
                   A.fromFoldable st.countries <#> \c ->
                     HH.li [
@@ -278,91 +304,86 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
                     ]
                     [ HH.text c ]
               ]
+          , HH.div [HU.classProp "grid__col grid__col--2-of-8 country-picker-buttons"] [
+              HH.button [
+                  HP.type_ HP.ButtonButton
+                , HE.onClick (\_ -> Just DumpCountries)
+                , HU.classProp "add-all-button"
+                ]
+                [ HH.text "Add All" ]
+            , HH.button [
+                  HP.type_ HP.ButtonButton
+                , HE.onClick (\_ -> Just ClearCountries)
+                , HU.classProp "remove-all-button"
+                ]
+                [ HH.text "Remove All" ]
+            ]
           ]
         ]
       ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-y"] [
-        HH.slot _projection YAxis (Projection.component "Y Axis")
-          st.yAxis
-          (\(Projection.Update s) -> Just (SetProjection YAxis s))
-      ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-z"] [
+    , HH.div [ HU.classProp "grid__col grid__col--2-of-5 welcome dialog" ]
+        case st.welcomeText of
+          Nothing -> []
+          Just t  -> [ HH.slot _welcomeFrame
+              unit
+              RawHTML.component
+              { html: t, elRef: "welcome-ref" }
+              absurd
+            ]
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
         HH.slot _projection ZAxis (Projection.component "Color Axis")
           st.zAxis
           (\(Projection.Update s) -> Just (SetProjection ZAxis s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-t"] [
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t"] [
         HH.slot _projection TAxis (Projection.component "Time Axis")
           st.tAxis
           (\(Projection.Update s) -> Just (SetProjection TAxis s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-x"] [
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
         HH.slot _projection XAxis (Projection.component "X Axis")
           st.xAxis
           (\(Projection.Update s) -> Just (SetProjection XAxis s))
       ]
+    , HH.slot _postRender unit postRender unit (\_ -> Just Linkify)
     ]
-    -- -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
-    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 left-column"] [
-      --   HH.div [HU.classProp "save-link"] [
-
-      --   ]
-      -- , HH.div [HU.classProp "axis-y"] [
-      --     HH.slot _projection YAxis (Projection.component "Y Axis")
-      --       st.yAxis
-      --       (\(Projection.Update s) -> Just (SetProjection YAxis s))
-      --   ]
-      -- ]
-    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
-      --   HH.slot _projection ZAxis (Projection.component "Color Axis")
-      --     st.zAxis
-      --     (\(Projection.Update s) -> Just (SetProjection ZAxis s))
-      -- ]
-    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t"] [
-      --   HH.slot _projection TAxis (Projection.component "Time Axis")
-      --     st.tAxis
-      --     (\(Projection.Update s) -> Just (SetProjection TAxis s))
-      -- ]
-    -- , HH.div [HU.classProp "grid__col grid__col--2-of-5 countries"] [
-      --   HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
-      --     MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
-      --     MultiSelect.MouseOverOut c -> Just (Highlight c)
-      --     MultiSelect.MouseOffOut -> Just Unhighlight
-      -- ]
-    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
-      --   HH.slot _projection XAxis (Projection.component "X Axis")
-      --     st.xAxis
-      --     (\(Projection.Update s) -> Just (SetProjection XAxis s))
-      -- ]
-    -- ]
   where
-    -- sel0 :: MultiSelect.State Country
-    -- sel0 =
-    --     { options: opts
-    --     , selected: S.mapMaybe (\c -> A.findIndex (\x -> x.value == c) opts)
-    --                     initialCountries
-    --     , filter: ""
-    --     }
-    --   where
-    --     opts = O.keys dat.counts <#> \cty ->
-    --               { label: cty, value: cty }
-    -- allCountries = A.sort $ O.keys dat.counts
     projLabel dp = withDSum dp (\_ -> projectionLabel)
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
-    hw = { height: 600.0, width: 1000.0 }
+    hw = { height: 666.6, width: 1000.0 }
+
+type M = H.HalogenM State Action ChildSlots
 
 handleAction
-    :: forall o m. MonadEffect m
+    :: forall o m. MonadAff m
      => CoronaData
      -> Action
-     -> H.HalogenM State Action ChildSlots o m Unit
+     -> M o m Unit
 handleAction dat = case _ of
-    SetCountries cs -> loadCountries cs
+    SetCountries cs -> loadCountries dat cs
     AddCountry c -> do
-      H.modify_ $ \st -> st { countries = S.insert c st.countries }
+      H.modify_ $ \st -> st
+        { countries  = S.insert c st.countries
+        , unselected = S.delete c st.unselected
+        }
       reRender dat Nothing
     RemoveCountry c -> do
-      H.modify_ $ \st -> st { countries = S.delete c st.countries }
+      H.modify_ $ \st -> st
+        { countries  = S.delete c st.countries
+        , unselected = S.insert c st.unselected
+        }
+      reRender dat Nothing
+    ClearCountries -> do
+      H.modify_ $ \st -> st
+        { countries = S.empty :: Set Country
+        , unselected = st.allCountries
+        }
+      reRender dat Nothing
+    DumpCountries -> do
+      H.modify_ $ \st -> st
+        { countries = st.allCountries
+        , unselected = S.empty :: Set Country
+        }
       reRender dat Nothing
     SetProjection a p -> do
        axisLens a .= p
@@ -374,80 +395,117 @@ handleAction dat = case _ of
         (Scatter.Export "coronavirus-plot.png")
     Redraw -> reRender dat Nothing
     Reset  -> do
-      H.modify_ (_ { loaded = S.singleton Nothing :: Set (Maybe Axis) })
+      H.modify_ $ \st ->
+        st { waiting = S.fromFoldable [Just XAxis, Just YAxis, Just ZAxis, Just TAxis] <> st.waiting }
+        -- (_ { waiting = S.singleton Nothing :: Set (Maybe Axis) })
       for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
         loadProj a (defaultProjections ^. axisLens a)
-    LoadURI -> loadUri
     CopyURI -> void <<< runMaybeT $ do
-         e  <- MaybeT $ H.getHTMLElementRef loaduriRef
-         ie <- maybe MZ.empty pure $ HTMLInputElement.fromHTMLElement e
-         liftEffect $ do
-            HTMLElement.setHidden false e
-            HTMLInputElement.select ie
-            HTMLInputElement.setSelectionRange 0 999999 "none" ie
-            execCopy
-            HTMLElement.setHidden true e
+      e  <- MaybeT $ H.getHTMLElementRef loaduriRef
+      ie <- maybe MZ.empty pure $ HTMLInputElement.fromHTMLElement e
+      liftEffect $ do
+        HTMLElement.setHidden false e
+        HTMLInputElement.select ie
+        HTMLInputElement.setSelectionRange 0 999999 "none" ie
+        execCopy
+        HTMLElement.setHidden true e
+    Linkify -> do
+      -- log "linkify me, captain"
+      void $ H.subscribe $ ES.effectEventSource $ \e -> do
+        ac <- runFn3 linkify
+          (ES.emit e <<< LoadURIString)
+          (ES.emit e CopyURI)
+          (ES.emit e SaveFile)
+        pure mempty
+    LoadURIString str -> loadUriString false str
+    Initialize -> do
+      welcome     <- liftAff $ HU.selectElement (DOM.QuerySelector "#welcome-text")
+      for_ welcome $ \wcm -> do
+        welcomeText <- liftEffect $ cutInnerHTML wcm
+        H.modify_ $ _ { welcomeText = Just welcomeText }
+      wrapper <- liftAff $ HU.selectElement (DOM.QuerySelector "#ui")
+      for_ wrapper $ \wrp -> do
+        liftEffect $ HTMLElement.setClassName "" wrp
+
+      loadUri
   where
-    loadProj a p = do
-      res <- H.query _projection a $
-        HQ.tell (Projection.QueryPut p)
-      when (isNothing res) $
-        warn "warning: projection load did not return response"
+    loadUriString useDef str = do
+      usp <- liftEffect $ USP.new str
+      launches <- map A.catMaybes <<< for (uriSpecs dat) $ \uspec -> do
+         res <- uspec.loader usp
+         case res of
+           Left  def
+             | useDef    -> pure $ Just (Tuple uspec.waiter def)
+             | otherwise -> pure Nothing
+           Right r -> pure $ Just (Tuple uspec.waiter r)
+      H.modify_ $ \st -> st { waiting = S.fromFoldable (map fst launches) <> st.waiting }
+      traverse_ snd launches
     loadUri = do
-      usp <- liftEffect $ USP.new
-                      =<< Location.search
+      str <- liftEffect $ Location.search
                       =<< Window.location
                       =<< Web.window
-      for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
-        res <- liftEffect $ parseAtKey usp (axisParam a) Projection.stateParser
-        let proj = case res of
-              Left e  -> defaultProjections ^. axisLens a
-              Right p -> p
-        loadProj a proj
-      ctyRes <- liftEffect $ parseAtKey usp countrySpec.param parseSet
-      let ctys = case ctyRes of
-            Left  e  -> initialCountries
-            Right cs -> cs
-      loadCountries ctys
-    loadCountries ctys = do
-       H.modify_ (_ { countries = ctys })
-       reRender dat (Just Nothing)
+      loadUriString true str
 
-type URISpec =
-        { default :: String
+type URISpec m =
+        { waiter  :: Maybe Axis
+        , default :: String
         , write   :: State -> String
         , param   :: String
         , include :: Boolean
+        -- | Left: run if nothing is found, Right: run if thing is found.
+        , loader  :: USP.URLSearchParams -> m (Either (m Unit) (m Unit))
         }
 
-uriSpecs :: Array URISpec
-uriSpecs = A.snoc axisSpec countrySpec
+uriSpecs :: forall o m. MonadEffect m => CoronaData -> Array (URISpec (M o m))
+uriSpecs dat = A.snoc axisSpec (countrySpec dat)
   where
-    axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a -> do
-      { default: Projection.stateSerialize $ defaultProjections ^. axisLens a
-      , write: \st -> Projection.stateSerialize $ st ^. axisLens a
-      , param: axisParam a
-      , include: true
-      }
+    axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a ->
+      let def = defaultProjections ^. axisLens a
+      in  { waiter: Just a
+          , default: Projection.stateSerialize def
+          , write: \st -> Projection.stateSerialize $ st ^. axisLens a
+          , param: axisParam a
+          , include: true
+          , loader: \usp -> bimap (const (loadProj a def)) (loadProj a)
+                <$> liftEffect (parseAtKey usp (axisParam a) Projection.stateParser)
+          }
 
-countrySpec :: URISpec
-countrySpec =
-  { default: serializeSet initialCountries
-  , write: \st -> serializeSet $ st.countries
-  , param: "r"
-  , include: false
-  }
+loadProj :: forall o m. MonadEffect m => Axis -> Projection.State -> M o m Unit
+loadProj a p = do
+  res <- H.query _projection a $
+    HQ.tell (Projection.QueryPut p)
+  when (isNothing res) $
+    warn "warning: projection load did not return response"
+
+loadCountries :: forall o m. MonadEffect m => CoronaData -> Set String -> M o m Unit
+loadCountries dat ctys = do
+   H.modify_ (_ { countries = ctys })
+   reRender dat (Just Nothing)
+
+countrySpec :: forall o m. MonadEffect m => CoronaData -> URISpec (M o m)
+countrySpec dat =
+    { waiter: Nothing
+    , default: serializeSet initialCountries
+    , write: \st -> serializeSet $ st.countries
+    , param
+    , include: false
+    , loader: \usp -> bimap (const (load initialCountries)) load
+            <$> liftEffect (parseAtKey usp param parseSet)
+    }
+  where
+    load = loadCountries dat
+    param = "r"
 
 generateUri
     :: forall o m. MonadEffect m
-    => H.HalogenM State Action ChildSlots o m
-            { historyPush :: String, permalink :: String }
-generateUri = do
+    => CoronaData
+    -> M o m { historyPush :: String, permalink :: String }
+generateUri dat = do
     st <- H.get
     liftEffect $ do
       uspHistPush <- USP.new ""
       uspPerma <- USP.new ""
-      for_ uriSpecs $ \spec -> do
+      for_ (uriSpecs dat :: Array (URISpec (M o m))) $ \spec -> do
         let toWrite = spec.write st
         USP.set uspPerma spec.param toWrite
         unless (toWrite == spec.default || not spec.include) $
@@ -469,14 +527,15 @@ reRender
      -> Maybe (Maybe Axis)
      -> H.HalogenM State Action ChildSlots o m Unit
 reRender dat initter = do
-    loaded <- for initter $ \a -> do
+    -- log $ show initter
+    waiting <- for initter $ \a -> do
       State.state $ \st ->
-        let newLoaded = S.insert a st.loaded
-        in  Tuple (S.size newLoaded >= 5) (st { loaded = newLoaded })
-    when (and loaded) $ do
+        let newWaiting = S.delete a st.waiting
+        in  Tuple (null newWaiting) (st { waiting = newWaiting })
+    when (and waiting) $ do
       st :: State <- H.get
       _ <- H.query _autocomplete unit $ HQ.tell $ Autocomplete.SetOptions $
-          A.fromFoldable (st.allCountries `S.difference` st.countries)
+          A.fromFoldable st.unselected
       -- traceM (show st)
       withDSum st.xAxis.projection (\tX pX ->
         withDSum st.yAxis.projection (\tY pY ->
@@ -501,7 +560,7 @@ reRender dat initter = do
           )
         )
       )
-      uri <- generateUri
+      uri <- generateUri dat
       H.modify_ (_ { permalink = Just uri.permalink })
       liftEffect $ do
         hist <- liftEffect $ Window.history =<< Web.window
@@ -511,6 +570,17 @@ reRender dat initter = do
           (History.URL uri.historyPush)
           hist
 
+-- really hacky way to have post-render hooks
+postRender
+    :: forall f i m. H.Component HH.HTML f i Unit m
+postRender = H.mkComponent
+    { initialState: \_ -> unit
+    , render: \_ -> HH.text ""
+    , eval: H.mkEval $ H.defaultEval
+        { handleAction = \_ -> H.raise unit
+        , receive = \_ -> Just unit
+        }
+    }
 
 parseAtKey
     :: forall a.
@@ -544,8 +614,21 @@ _autocomplete = SProxy
 _projection :: SProxy "projection"
 _projection = SProxy
 
+_postRender :: SProxy "postRender"
+_postRender = SProxy
+
+_welcomeFrame :: SProxy "welcomeFrame"
+_welcomeFrame = SProxy
+
 loaduriRef ∷ H.RefLabel
 loaduriRef = H.RefLabel "loaduri-input"
 
 foreign import fullPagename :: Effect String
 foreign import execCopy :: Effect Unit
+foreign import linkify
+    :: Fn3 (String -> Effect Unit)
+           (Effect Unit)
+           (Effect Unit)
+           (Effect Unit)
+foreign import cutInnerHTML :: HTMLElement.HTMLElement -> Effect String
+-- foreign import moveDiv :: Fn2 HTMLElement.HTMLElement HTMLElement.HTMLElement (Effect Unit)

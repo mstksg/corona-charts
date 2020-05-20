@@ -104,6 +104,7 @@ buildData xs = case A.uncons xs of
 filterCountry :: Country -> Country
 filterCountry = case _ of
     "US" -> "United States"
+    "Korea, South" -> "South Korea"
     c    -> c
 
 fetchData :: String -> Aff (Either String CSVData)
