@@ -193,72 +193,112 @@ defaultState = {
 
 render :: forall m. MonadEffect m => CoronaData -> State -> H.ComponentHTML Action ChildSlots m
 render dat st = HH.div [HU.classProp "ui-wrapper"] [
-      HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
-        HH.h2_ [HH.text title]
-      , HH.button [
-            HP.type_ HP.ButtonButton
-          , HE.onClick (\_ -> Just CopyURI)
-          , HU.classProp "copy-uri-button"
+      -- HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
+      -- ]
+      HH.div [HU.classProp "grid__col grid__col--1-of-4 left-column"] [
+        HH.div [HU.classProp "dialog"] [
+          HH.h3_ [HH.text "Welcome"]
+        , HH.div [HU.classProp "sample-copy"] [
+            HH.span_ [HH.text "Welcome!"]
           ]
-          [ HH.text "Copy Link to Chart" ]
-      , HH.button [
-            HP.type_ HP.ButtonButton
-          , HE.onClick (\_ -> Just SaveFile)
-          , HU.classProp "save-image-button"
-          ]
-          [ HH.text "Save as Image" ]
-      , HH.button [
-            HP.type_ HP.ButtonButton
-          , HE.onClick (\_ -> Just Reset)
-          , HU.classProp "reset-button"
-          ]
-          [ HH.text "Reset projections" ]
-      , HH.input [
-          HP.type_ HP.InputText
-        , HP.value (fromMaybe "" st.permalink)
-        , HP.readOnly true
-        , HP.ref loaduriRef
-        , HU.classProp "loaduri-input"
-        , HP.prop (HH.PropName "hidden") true
         ]
       ]
-    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
-    , HH.div [HU.classProp "grid__col grid__col--1-of-5 left-column"] [
-        HH.div [HU.classProp "save-link"] [
-
+    , HH.div [HU.classProp "grid__col grid__col--3-of-4 plot"] [
+        -- HH.div [HU.classProp "plot-title"] [
+        -- ]
+        HH.div [HU.classProp "dialog"] [
+          HH.h3_ [HH.text title]
+        , HH.div [HU.classProp "plot-buttons"] [
+            HH.button [
+                HP.type_ HP.ButtonButton
+              , HE.onClick (\_ -> Just CopyURI)
+              , HU.classProp "copy-uri-button"
+              ]
+              [ HH.text "Copy Link to Chart" ]
+          , HH.button [
+                HP.type_ HP.ButtonButton
+              , HE.onClick (\_ -> Just SaveFile)
+              , HU.classProp "save-image-button"
+              ]
+              [ HH.text "Save as Image" ]
+          , HH.button [
+                HP.type_ HP.ButtonButton
+              , HE.onClick (\_ -> Just Reset)
+              , HU.classProp "reset-button"
+              ]
+              [ HH.text "Reset projections" ]
+          , HH.input [
+              HP.type_ HP.InputText
+            , HP.value (fromMaybe "" st.permalink)
+            , HP.readOnly true
+            , HP.ref loaduriRef
+            , HU.classProp "loaduri-input"
+            , HP.prop (HH.PropName "hidden") true
+            ]
+          ]
+        , HH.slot _scatter unit (Scatter.component hw) unit absurd
         ]
-      , HH.div [HU.classProp "axis-y"] [
-          HH.slot _projection YAxis (Projection.component "Y Axis")
-            st.yAxis
-            (\(Projection.Update s) -> Just (SetProjection YAxis s))
+      , HH.div [HU.classProp "countries"] [
+          HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
+            MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
+            MultiSelect.MouseOverOut c -> Just (Highlight c)
+            MultiSelect.MouseOffOut -> Just Unhighlight
         ]
       ]
-    , HH.div [HU.classProp "grid__col grid__col--4-of-5 plot"] [
-        HH.div [HU.classProp "dialog"]
-        [ HH.slot _scatter unit (Scatter.component hw) unit absurd ]
+    , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-y"] [
+        HH.slot _projection YAxis (Projection.component "Y Axis")
+          st.yAxis
+          (\(Projection.Update s) -> Just (SetProjection YAxis s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
+    , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-z"] [
         HH.slot _projection ZAxis (Projection.component "Color Axis")
           st.zAxis
           (\(Projection.Update s) -> Just (SetProjection ZAxis s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t"] [
+    , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-t"] [
         HH.slot _projection TAxis (Projection.component "Time Axis")
           st.tAxis
           (\(Projection.Update s) -> Just (SetProjection TAxis s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--2-of-5 countries"] [
-        HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
-          MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
-          MultiSelect.MouseOverOut c -> Just (Highlight c)
-          MultiSelect.MouseOffOut -> Just Unhighlight
-      ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
+    , HH.div [HU.classProp "grid__col grid__col--1-of-4 axis-x"] [
         HH.slot _projection XAxis (Projection.component "X Axis")
           st.xAxis
           (\(Projection.Update s) -> Just (SetProjection XAxis s))
       ]
     ]
+    -- -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-y"] [
+    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 left-column"] [
+      --   HH.div [HU.classProp "save-link"] [
+
+      --   ]
+      -- , HH.div [HU.classProp "axis-y"] [
+      --     HH.slot _projection YAxis (Projection.component "Y Axis")
+      --       st.yAxis
+      --       (\(Projection.Update s) -> Just (SetProjection YAxis s))
+      --   ]
+      -- ]
+    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
+      --   HH.slot _projection ZAxis (Projection.component "Color Axis")
+      --     st.zAxis
+      --     (\(Projection.Update s) -> Just (SetProjection ZAxis s))
+      -- ]
+    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t"] [
+      --   HH.slot _projection TAxis (Projection.component "Time Axis")
+      --     st.tAxis
+      --     (\(Projection.Update s) -> Just (SetProjection TAxis s))
+      -- ]
+    -- , HH.div [HU.classProp "grid__col grid__col--2-of-5 countries"] [
+      --   HH.slot _multiselect unit (MultiSelect.component "Countries") sel0 $ case _ of
+      --     MultiSelect.SelectionChanged c -> Just (SetCountries (S.fromFoldable c))
+      --     MultiSelect.MouseOverOut c -> Just (Highlight c)
+      --     MultiSelect.MouseOffOut -> Just Unhighlight
+      -- ]
+    -- , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
+      --   HH.slot _projection XAxis (Projection.component "X Axis")
+      --     st.xAxis
+      --     (\(Projection.Update s) -> Just (SetProjection XAxis s))
+      -- ]
+    -- ]
   where
     sel0 :: MultiSelect.State Country
     sel0 =
@@ -272,7 +312,7 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
                   { label: cty, value: cty }
     projLabel dp = withDSum dp (\_ -> projectionLabel)
     title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
-    hw = { height: 700.0, width: 1000.0 }
+    hw = { height: 600.0, width: 1000.0 }
 
 handleAction
     :: forall o m. MonadEffect m

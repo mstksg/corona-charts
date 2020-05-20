@@ -1,7 +1,7 @@
 
 .dialog {
   // border-style: solid;
-  margin: 1.5rem 0.2rem;
+  margin: 1rem 0.2rem;
   padding: 18px;
   // border-width: 1px;
   border-radius: 18px;
@@ -110,11 +110,38 @@
   }
 }
 
+button {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #f4f5f6;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  margin: 0.2rem 0.3rem;
+  padding: 0.6rem;
+  cursor: pointer;
+  color: #333;
+  &:hover {
+    background: #f8f9fa;
+  }
+}
+
 .loaduri-input {
   // display: none;
   white-space: nowrap;
   user-select: none;
   cursor: pointer;
+}
+
+.plot-buttons {
+  // margin-top: 1rem;
+  // text-align: right;
+  float: right;
+  font-size: 75%;
+  margin-top: -3.4rem;
+  button {
+    padding: 0.4rem;
+  }
+
 }
 
 select {
@@ -137,10 +164,6 @@ input {
   -webkit-appearance: none;
   -moz-appearance: none;
   background: #ffffff;
-  // background-image: url("data:image/svg+xml;utf8,<svg fill='grey' height='24' viewBox='0 0 24 24' width='30' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>");
-  // background-repeat: no-repeat;
-  // background-position-x: 100%;
-  // background-position-y: 5px;
   border: 1px solid #ddd;
   border-radius: 2px;
   margin: 0 0 0.3rem 0;

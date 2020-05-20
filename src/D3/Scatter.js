@@ -140,7 +140,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     return function () {
         exports.clearSvg(svg)();
         // console.log(scatter);
-        const margin = { top: 20, right: 20, bottom: 80, left: 50, slider: 30 };
+        const margin = { top: 10, right: 20, bottom: 80, left: 50, slider: 35 };
         const series = scatter.series.map(function(s) {
                 const vals = s.values.filter(validPair).map( p =>
                             ({ x: convertX(p.x)
@@ -180,7 +180,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                         .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)])
                         .interpolate(d3.interpolateCubehelix.gamma(3));
         // legend
-        const legdim = { left: 12, top: 58, width: 200 };
+        const legdim = { left: 12, top: 55, width: 200 };
         const z_ = scaleFunc(scatter.zAxis.scale)
                         .domain(extentz)
                         .range([0, legdim.width]);
@@ -205,7 +205,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                             .attr("fill", "#666")
                             .attr("text-anchor", "end")
                             // .attr("font-weight", "bold")
-                            .attr("font-size", 24)
+                            .attr("font-size", 20)
                             .text(scatter.xAxis.label)
                      )
                 .call(g => g.selectAll(".tick line").clone()
@@ -222,9 +222,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                      )
                 .call(g => g.select(".tick:last-of-type text").clone()
                         .attr("x", 8)
-                        .attr("y", 14)
+                        .attr("y", 12)
                         .attr("text-anchor", "start")
-                        .attr("font-size", 24)
+                        .attr("font-size", 20)
                         .attr("fill", "#666")
                         .text(scatter.yAxis.label)
                     );

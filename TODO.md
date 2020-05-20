@@ -7,7 +7,7 @@
 *   select to get statistics (mean, median, min, max)
 *   data for different regions
 *   exponential/logistic fits and projections
-*   fourier transform
+*   maybe add countries as button
 
 # Fixes
 
@@ -21,10 +21,13 @@
 
 # Someday
 
+*   icons
 *   Discrete data: consider dot plots or bar graphs
 *   localization
 *   scale per capita
 *   zoom in
+*   fourier transform?  but this requires something on both axes...or at least
+    to do them separately.
 
 # Meh
 

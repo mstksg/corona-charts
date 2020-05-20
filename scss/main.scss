@@ -33,7 +33,8 @@ div#main-container {
 }
 
 html {
-  line-height: 125%;
+  line-height: 100%;
+  font-size: 16px;
   font-family: $sans;
   // font-family: $serif;
   color: #1a1a1a;
@@ -45,7 +46,7 @@ p {
 
 h1 {
   font-family: $sans;
-  font-size: 500%;
+  font-size: 300%;
   font-weight: 100;
   line-height: normal;
   margin: 0;
@@ -64,7 +65,8 @@ h2 {
   // font-style: italic;
   // font-weight: 100;
   // font-size: 133%;
-  margin: 0;
+  margin: 1rem 0 0 0;
+  font-size: 250%;
   // margin: 0 0 0.66em 0;
   // letter-spacing: 0.1em;
   line-height: normal;
