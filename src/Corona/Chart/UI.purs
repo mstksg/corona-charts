@@ -88,18 +88,23 @@ type AxisState =
     , numScale   :: NScale                   -- ^ date scale is always day
     }
 
+type RegionState =
+  { selected   :: Set Region
+  , unselected :: Set Region
+  , allRegions :: Set Region
+  , sourceSpec :: Corona.Dataset
+  }
+
 type State =
     { datasetSpec  :: Corona.Dataset
     , xAxis        :: Projection.State
     , yAxis        :: Projection.State
     , zAxis        :: Projection.State
     , tAxis        :: Projection.State
-    , regions      :: Set Region
-    , unselected   :: Set Region
-    , allRegions   :: Set Region
+    , regionState  :: Either (Set Region) RegionState   -- ^ queued up
     , dataset      :: Maybe CoronaData
     , permalink    :: Maybe String
-    , waiting      :: Set (Maybe Axis)     -- ^ only render when empty. nothing: regions
+    , waiting      :: Set Aspect     -- ^ do not load unless empty
     , welcomeText  :: Maybe String
     }
 
@@ -126,6 +131,17 @@ axisParam = case _ of
     YAxis -> "y"
     ZAxis -> "z"
     TAxis -> "t"
+
+data Aspect = ADataset
+            | AAxis Axis
+            | ARegions
+derive instance eqAspect :: Eq Aspect
+derive instance ordAspect :: Ord Aspect
+instance showAspect :: Show Aspect where
+    show = case _ of
+      ADataset -> "ADataset"
+      AAxis a  -> "AAxis " <> show a
+      ARegions -> "ARegions"
 
 
 lookupScale
@@ -167,23 +183,20 @@ type ChildSlots =
         )
 
 
-initialRegions :: Corona.Dataset -> Set Region
-initialRegions = case _ of
-  Corona.WorldData -> S.fromFoldable [
-    "United States"
-  , "Egypt"
-  , "Italy"
-  , "South Korea"
-  , "Russia"
-  ]
-  Corona.USData -> S.fromFoldable [
-    "California"
-  , "New York"
-  , "Washington"
-  , "Texas"
-  , "Georgia"
-  , "Florida"
-  ]
+-- | make sure to intersection before usage
+initialRegions :: Set Region
+initialRegions = S.fromFoldable [
+      "United States"
+    , "Egypt"
+    , "Italy"
+    , "South Korea"
+    , "Russia"
+    , "California"
+    , "New York"
+    , "Washington"
+    , "South Carolina"
+    , "Florida"
+    ]
 
 
 component :: forall f i o m. MonadAff m => H.Component HH.HTML f i o m
@@ -195,9 +208,7 @@ component =
         , yAxis: defaultProjections.yAxis
         , zAxis: defaultProjections.zAxis
         , tAxis: defaultProjections.tAxis
-        , regions: S.empty
-        , unselected: S.empty
-        , allRegions: S.empty
+        , regionState: Left S.empty
         , dataset: Nothing
         , permalink: Nothing
         , waiting: S.empty
@@ -308,12 +319,12 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
             HH.div [HU.classProp "grid__col grid__col--2-of-8 region-picker-input"] [
               HH.slot _autocomplete unit
                 (Autocomplete.component "region-select" "Search for a region...")
-                (A.fromFoldable st.unselected)
+                (A.fromFoldable $ foldMap _.unselected st.regionState)
                 (case _ of Autocomplete.Selected str -> Just (AddRegion str))
             ]
           , HH.div [HU.classProp "grid__col grid__col--4-of-8 region-picker-select"]
               [ HH.ul [HU.classProp "picked-regions"] $
-                  A.fromFoldable st.regions <#> \c ->
+                  A.fromFoldable (either identity _.selected st.regionState) <#> \c ->
                     HH.li [
                       HE.onClick $ \e ->
                         if ME.buttons e == 0
@@ -387,35 +398,49 @@ handleAction = case _ of
     SetRegions cs -> loadRegions cs
     AddRegion c -> do
       H.modify_ $ \st -> st
-        { regions  = S.insert c st.regions
-        , unselected = S.delete c st.unselected
+        { regionState = case st.regionState of
+            Left cs  -> Left (S.insert c cs)
+            Right rs -> Right $ rs
+              { selected   = S.insert c rs.selected
+              , unselected = S.delete c rs.unselected
+              }
         }
       reRender Nothing
     RemoveRegion c -> do
       H.modify_ $ \st -> st
-        { regions  = S.delete c st.regions
-        , unselected = S.insert c st.unselected
+        { regionState = case st.regionState of
+            Left cs  -> Left (S.delete c cs)
+            Right rs -> Right $ rs
+              { selected   = S.delete c rs.selected
+              , unselected = S.insert c rs.unselected
+              }
         }
       reRender Nothing
     ClearRegions -> do
       H.modify_ $ \st -> st
-        { regions = S.empty :: Set Region
-        , unselected = st.allRegions
+        { regionState = case st.regionState of
+            Left _ -> Left (S.empty :: Set Region)
+            Right rs       -> Right $ rs
+              { selected   = S.empty :: Set Region
+              , unselected = rs.allRegions
+              }
         }
       reRender Nothing
     DumpRegions -> do
       H.modify_ $ \st -> st
-        { regions = st.allRegions
-        , unselected = S.empty :: Set Region
+        { regionState = case st.regionState of
+            Left cs  -> Left cs      -- ^ can't really dump here
+            Right rs -> Right $ rs
+              { selected   = rs.allRegions
+              , unselected = S.empty :: Set Region
+              }
         }
       reRender Nothing
     SetProjection a p -> do
        axisLens a .= p
-       reRender (Just (Just a))
+       reRender (Just (AAxis a))
     LoadProjection a p -> loadProj a p
-    LoadDataset ds -> do
-      loadDataset ds
-      reRender (Just Nothing)
+    LoadDataset ds -> loadDataset ds
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
     SaveFile -> void $ H.query _scatter unit $ HQ.tell
@@ -423,7 +448,7 @@ handleAction = case _ of
     Redraw -> reRender Nothing
     Reset  -> do
       H.modify_ $ \st ->
-        st { waiting = S.fromFoldable [Just XAxis, Just YAxis, Just ZAxis, Just TAxis] <> st.waiting }
+        st { waiting = S.fromFoldable (AAxis <$> [XAxis, YAxis, ZAxis, TAxis]) <> st.waiting }
         -- (_ { waiting = S.singleton Nothing :: Set (Maybe Axis) })
       for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
         loadProj a (defaultProjections ^. axisLens a)
@@ -460,17 +485,13 @@ handleAction = case _ of
       for_ wrapper $ \wrp -> do
         liftEffect $ HTMLElement.setClassName "" wrp
 
-      -- load initial dataset
-      dspec <- H.gets _.datasetSpec
-      loadDataset dspec
-
       -- load uri
       loadUri
   where
+    -- useDef: if not found, use the default value
     loadUriString useDef str = do
       usp <- liftEffect $ USP.new str
-      dspec <- H.gets _.datasetSpec
-      launches <- map A.catMaybes <<< for (uriSpecs dspec) $ \uspec -> do
+      launches <- map A.catMaybes <<< for uriSpecs $ \uspec -> do
          res <- uspec.loader usp
          case res of
            Left  def
@@ -484,26 +505,10 @@ handleAction = case _ of
                       =<< Window.location
                       =<< Web.window
       loadUriString true str
-  -- where
-  --   allRegions = S.fromFoldable (O.keys dat.counts)
-    loadDataset dspec = liftAff (Corona.fetchDataset dspec) >>= case _ of
-        Left e  -> warn $ "warning: dataset failed to load -- " <> e
-        Right dset ->  do
-          let allRegs = S.fromFoldable (O.keys dset.counts)
-          H.modify_ $ \st -> st
-            { datasetSpec = dspec
-            , dataset = Just dset
-            , allRegions = allRegs
-            , regions = defRegs
-            , unselected = allRegs `S.difference` defRegs
-            }
-      where
-        defRegs = initialRegions dspec
-
 
 
 type URISpec m =
-        { waiter  :: Maybe Axis
+        { waiter  :: Aspect
         , default :: String
         , write   :: State -> String
         , param   :: String
@@ -512,12 +517,14 @@ type URISpec m =
         , loader  :: USP.URLSearchParams -> m (Either (m Unit) (m Unit))
         }
 
-uriSpecs :: forall o m. MonadEffect m => Corona.Dataset -> Array (URISpec (M o m))
-uriSpecs dspec = A.snoc axisSpec (regionSpec dspec)
+uriSpecs :: forall o m. MonadAff m => Array (URISpec (M o m))
+uriSpecs = axisSpec <> [datasetSpec, regionSpec]
   where
+    regionParam = "r"
+    datasetParam = "d"
     axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a ->
       let def = defaultProjections ^. axisLens a
-      in  { waiter: Just a
+      in  { waiter: AAxis a
           , default: Projection.stateSerialize def
           , write: \st -> Projection.stateSerialize $ st ^. axisLens a
           , param: axisParam a
@@ -525,6 +532,25 @@ uriSpecs dspec = A.snoc axisSpec (regionSpec dspec)
           , loader: \usp -> bimap (const (loadProj a def)) (loadProj a)
                 <$> liftEffect (parseAtKey usp (axisParam a) Projection.stateParser)
           }
+    regionSpec =
+        { waiter: ARegions
+        , default: serializeSet initialRegions
+        , write: serializeSet <<< either identity _.selected <<< _.regionState
+        , param: regionParam
+        , include: false
+        , loader: \usp -> bimap (const (loadRegions initialRegions)) loadRegions
+                <$> liftEffect (parseAtKey usp regionParam parseSet)
+        }
+    datasetSpec =
+        { waiter: ADataset
+        , default: Marshal.serialize Corona.WorldData
+        , write: Marshal.serialize <<< _.datasetSpec
+        , param: datasetParam
+        , include: false
+        , loader: \usp -> bimap (const (loadDataset Corona.WorldData)) loadDataset
+                <$> liftEffect (parseAtKey usp datasetParam Marshal.parse)
+        }
+
 
 loadProj :: forall o m. MonadEffect m => Axis -> Projection.State -> M o m Unit
 loadProj a p = do
@@ -533,33 +559,60 @@ loadProj a p = do
   when (isNothing res) $
     warn "warning: projection load did not return response"
 
-loadRegions :: forall o m. MonadEffect m => Set String -> M o m Unit
+-- hm maybe make sure source spec matches?
+loadRegions :: forall o m. MonadAff m => Set String -> M o m Unit
 loadRegions ctys = do
-   H.modify_ (_ { regions = ctys })
-   reRender (Just Nothing)
+   H.modify_ $ \st -> st
+     { regionState = case st.regionState of
+        Left _   -> Left ctys
+        Right rs ->
+          let newSelected = ctys `S.intersection` rs.allRegions
+          in  Right $ rs
+                { selected   = newSelected
+                , unselected = rs.allRegions `S.difference` newSelected
+                }
+     }
+   reRender (Just ARegions)
 
-regionSpec :: forall o m. MonadEffect m => Corona.Dataset -> URISpec (M o m)
-regionSpec dspec =
-    { waiter: Nothing
-    , default: serializeSet $ initialRegions dspec
-    , write: \st -> serializeSet $ st.regions
-    , param
-    , include: false
-    , loader: \usp -> bimap (const (loadRegions (initialRegions dspec))) loadRegions
-            <$> liftEffect (parseAtKey usp param parseSet)
-    }
-  where
-    param = "r"
+loadDataset :: forall o m. MonadAff m => Corona.Dataset -> M o m Unit
+loadDataset dspec = do
+    st0 <- H.get
+    oldDspec <- H.gets _.datasetSpec
+    currDset <- H.gets _.dataset
+    let skip = dspec == oldDspec
+            && not (null currDset)
+            && not (isLeft st0.regionState)
+    unless skip $ liftAff (Corona.fetchDataset dspec) >>= case _ of
+      Left e     -> warn $ "warning: dataset failed to load -- " <> e
+      Right dset -> H.modify_ $ \st ->
+        let allRegs = S.fromFoldable (O.keys dset.counts)
+            freshRegs = case st.regionState of
+              Left  cs -> cs
+              Right _  -> initialRegions `S.intersection` allRegs
+            newRegionState = case st.regionState of
+              Right rs | rs.sourceSpec == dspec -> rs
+              _ ->
+                { allRegions: allRegs
+                , selected: freshRegs
+                , unselected: allRegs `S.difference` freshRegs
+                , sourceSpec: dspec
+                }
+        in  st { datasetSpec = dspec
+               , dataset     = Just dset
+               , regionState = Right newRegionState
+               }
+    reRender (Just ADataset)
+
 
 generateUri
-    :: forall o m. MonadEffect m
+    :: forall o m. MonadAff m
     => M o m { historyPush :: String, permalink :: String }
 generateUri = do
     st <- H.get
     liftEffect $ do
       uspHistPush <- USP.new ""
       uspPerma <- USP.new ""
-      for_ (uriSpecs st.datasetSpec :: Array (URISpec (M o m))) $ \spec -> do
+      for_ (uriSpecs :: Array (URISpec (M o m))) $ \spec -> do
         let toWrite = spec.write st
         USP.set uspPerma spec.param toWrite
         unless (toWrite == spec.default || not spec.include) $
@@ -576,8 +629,8 @@ generateUri = do
 
 
 reRender
-    :: forall o m. MonadEffect m
-    => Maybe (Maybe Axis)
+    :: forall o m. MonadAff m
+    => Maybe Aspect
     -> H.HalogenM State Action ChildSlots o m Unit
 reRender initter = do
     -- log $ show initter
@@ -585,44 +638,47 @@ reRender initter = do
       State.state $ \st ->
         let newWaiting = S.delete a st.waiting
         in  Tuple (null newWaiting) (st { waiting = newWaiting })
+    -- log <<< show =<< H.gets _.regionState.selected
+    -- log <<< show =<< H.gets _.dataset
     when (and waiting) $ do
       st :: State <- H.get
-      for_ st.dataset $ \dat -> do
-        _ <- H.query _autocomplete unit $ HQ.tell $ Autocomplete.SetOptions $
-            A.fromFoldable st.unselected
-        -- traceM (show st)
-        withDSum st.xAxis.projection (\tX pX ->
-          withDSum st.yAxis.projection (\tY pY ->
-            withDSum st.zAxis.projection (\tZ pZ ->
-              withDSum st.tAxis.projection (\tT pT -> void $
-                H.query _scatter unit $ HQ.tell $ Scatter.Update
-                  (\f -> f tX tY tZ tT (
-                        toScatterPlot
-                          dat
-                          pX
-                          (lookupScale tX (st.xAxis.numScale))
-                          pY
-                          (lookupScale tY (st.yAxis.numScale))
-                          pZ
-                          (lookupScale tZ (st.zAxis.numScale))
-                          pT
-                          (lookupScale tT (st.tAxis.numScale))
-                          st.regions
-                      )
-                  )
+      for_ st.dataset $ \dat ->
+        for_ st.regionState $ \regionState -> do
+          _ <- H.query _autocomplete unit $ HQ.tell $ Autocomplete.SetOptions $
+              A.fromFoldable regionState.unselected
+          -- traceM (show st)
+          withDSum st.xAxis.projection (\tX pX ->
+            withDSum st.yAxis.projection (\tY pY ->
+              withDSum st.zAxis.projection (\tZ pZ ->
+                withDSum st.tAxis.projection (\tT pT -> void $
+                  H.query _scatter unit $ HQ.tell $ Scatter.Update
+                    (\f -> f tX tY tZ tT (
+                          toScatterPlot
+                            dat
+                            pX
+                            (lookupScale tX (st.xAxis.numScale))
+                            pY
+                            (lookupScale tY (st.yAxis.numScale))
+                            pZ
+                            (lookupScale tZ (st.zAxis.numScale))
+                            pT
+                            (lookupScale tT (st.tAxis.numScale))
+                            regionState.selected
+                        )
+                    )
+                )
               )
             )
           )
-        )
-        uri <- generateUri
-        H.modify_ (_ { permalink = Just uri.permalink })
-        liftEffect $ do
-          hist <- liftEffect $ Window.history =<< Web.window
-          History.pushState
-            (Foreign.unsafeToForeign uri.historyPush)
-            (History.DocumentTitle "Coronavirus Data Plotter")
-            (History.URL uri.historyPush)
-            hist
+          uri <- generateUri
+          H.modify_ (_ { permalink = Just uri.permalink })
+          liftEffect $ do
+            hist <- liftEffect $ Window.history =<< Web.window
+            History.pushState
+              (Foreign.unsafeToForeign uri.historyPush)
+              (History.DocumentTitle "Coronavirus Data Plotter")
+              (History.URL uri.historyPush)
+              hist
 
 -- really hacky way to have post-render hooks
 postRender

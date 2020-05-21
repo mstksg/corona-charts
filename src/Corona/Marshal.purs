@@ -4,11 +4,11 @@ module Corona.Marshal where
 import Prelude
 
 import Corona.Chart
+import Corona.Data as Corona
 import D3.Scatter.Type
 import Data.Array as A
 import Data.Either
 import Data.Exists
-import Type.DProd
 import Data.Int
 import Data.Int.Parse
 import Data.Maybe
@@ -21,6 +21,7 @@ import Text.Parsing.StringParser.CodeUnits as P
 import Text.Parsing.StringParser.Combinators as P
 import Type.Ap
 import Type.Chain as C
+import Type.DProd
 import Type.DSum
 import Type.Equiv
 import Type.GCompare
@@ -99,6 +100,18 @@ instance marCutoffType :: Marshal CutoffType where
         'a' -> pure After
         'b' -> pure Before
         _   -> P.fail $ "invalid cutoff type: " <> show c
+
+instance marDataset :: Marshal Corona.Dataset where
+    serialize = case _ of
+      Corona.WorldData -> "w"
+      Corona.USData    -> "u"
+    parse = do
+      c <- P.anyChar
+      case c of
+        'w' -> pure Corona.WorldData
+        'u' -> pure Corona.USData
+        _   -> P.fail $ "invalid dataset: " <> show c
+
 
 sTypeSerialize :: forall a. SType a -> a -> String
 sTypeSerialize = case _ of
