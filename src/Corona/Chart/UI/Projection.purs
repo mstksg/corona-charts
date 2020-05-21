@@ -4,6 +4,7 @@ module Corona.Chart.UI.Projection where
 import Prelude
 
 import Control.Monad.State.Class as State
+import Control.Alternative
 import Corona.Chart
 import Corona.Chart.UI.Op as Op
 import Corona.Data
@@ -47,6 +48,11 @@ data NumScaleType = NSTLinear | NSTLog
 
 derive instance eqNST :: Eq NumScaleType
 derive instance ordNST :: Ord NumScaleType
+instance showNST :: Show NumScaleType where
+    show = case _ of
+      NSTLinear -> "NSTLinear"
+      NSTLog -> "NSTLog"
+
 
 allNST :: Array NumScaleType
 allNST = [ NSTLinear, NSTLog ]
@@ -215,11 +221,9 @@ handleAction act = do
               Nothing       -> log "no response from component"
               Just (Left e) -> log $ "type mismatch: " <> runExists show e
               Just (Right dsc) -> withDSum dsc (\tNewOut chain -> do
-                log $ show chain
-                H.modify_ $ \st ->
-                  st { projection = tNewOut :=> projection
-                         { base: pr.base, operations: chain }
-                     }
+                updateProjection (tNewOut :=> projection
+                                    { base: pr.base, operations: chain }
+                                 )
               )
         )
       )
@@ -234,6 +238,26 @@ assembleScale st = withDSum st.projection (\t proj ->
     t :=> Product (Tuple proj (nstToScale t st.numScaleType st.linearZero))
   )
 
+updateProjection
+    :: forall m a i.
+       DSum SType Projection
+    -> H.HalogenM State i ChildSlots Output m Unit
+updateProjection dproj = withDSum dproj (\tNew pNew ->
+    H.modify_ $ \st0 ->
+      withDSum st0.projection (\tOld pOld ->
+        case decide tOld tNew of
+          Just _  -> st0 { projection = dproj }
+          Nothing ->
+            { projection: dproj
+            , numScaleType: fromMaybe st0.numScaleType $ defaultNST tNew
+            , linearZero: false
+            }
+      )
+  )
+
+
+
+
 handleQuery
     :: forall a c o m r. MonadEffect m
     => Query r
@@ -243,10 +267,10 @@ handleQuery = case _ of
     QueryPut s next -> withDSum s (\tOut (Product (Tuple sp scale)) -> do
       H.modify_ $ \st0 ->
         let sout = scaleToNST scale
-        in  { projection: tOut :=> sp
-            , numScaleType: fromMaybe st0.numScaleType sout.numScaleType
-            , linearZero: fromMaybe st0.linearZero sout.linearZero
-            }
+        in  st0 { numScaleType = fromMaybe st0.numScaleType sout.numScaleType
+                , linearZero   = fromMaybe st0.linearZero sout.linearZero
+                }
+      updateProjection (tOut :=> sp)
       withProjection sp (\p -> do
         let tBase     = baseType p.base
             decorated = decorateOpChain tBase p.operations
@@ -264,6 +288,17 @@ handleQuery = case _ of
       H.raise (Update s)
       pure (Just next)
     )
+
+defaultLZ :: Boolean
+defaultLZ = false
+
+defaultNST :: forall a. SType a -> Maybe NumScaleType
+defaultNST = case _ of
+    SDay  _ -> Nothing
+    SDays _ -> Just NSTLinear
+    SInt  _ -> Just NSTLog
+    SNumber _ -> Just NSTLog
+    SPercent _ -> Just NSTLinear
 
 decorateOpChain
     :: forall a b.
