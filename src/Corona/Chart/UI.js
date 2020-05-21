@@ -30,7 +30,7 @@ const linkifier = function (selector, addTitle, callback) {
 exports.linkify = function (dataview, copylink, saveimage) {
     return function () {
         linkifier(".dataview", "Load me!", s => dataview(s.slice(1))());
-        linkifier(".copylink", "Copy Permalink to Chart", () => copyLink());
+        linkifier(".copylink", "Copy Permalink to Chart", () => copylink());
         linkifier(".saveimage", "Save as Image", () => saveimage());
     }
 }

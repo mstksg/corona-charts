@@ -15,12 +15,13 @@
 # Fixes
 
 *   the onLeave handler seems to be called too late when leaving the area
+    * edit: what?
 *   toggle switch for log/linear
 *   Better labeling system
+    *   maybe just a white background
 *   fast-forward to end button
 *   apparent bug: restrict-before for dates
-*   feedback for parse errors in form elements
-*   graceful handling of 0 countries, 0 data
+    * edit: what?
 
 # Someday
 
@@ -34,6 +35,7 @@
     to do them separately.
 *   some sort of loading icon when  things are loading. but this is tricky
     because synchronous.
+*   feedback for parse errors in form elements
 
 # Meh
 

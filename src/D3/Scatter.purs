@@ -26,7 +26,7 @@ foreign import clearSvg :: D3Scatter -> Effect Unit
 
 foreign import _drawData
     :: forall a b c d.
-     Fn8 (HandleFunc1 SType OnSType) 
+     Fn8 (HandleFunc1 SType OnSType)
          (HandleFunc1 Scale OnScale)
          (SType a)
          (SType b)
@@ -45,7 +45,7 @@ foreign import _highlight
 foreign import _saveFile
     :: Fn2 Interactor
            String
-           (Effect Unit)
+           (Effect Boolean)
 
 drawData_
     :: forall a b c d.
@@ -56,7 +56,7 @@ drawData_
     -> D3Scatter
     -> ScatterPlot a b c d
     -> Effect Interactor
-drawData_ = runFn8 _drawData handle1 handle1 
+drawData_ = runFn8 _drawData handle1 handle1
 
 drawData
     :: forall a b c d. STypeable a => STypeable b => STypeable c => STypeable d
@@ -71,5 +71,5 @@ mkSvg = runFn2 _mkSvg
 highlight :: Interactor -> Maybe String -> Effect Unit
 highlight = runFn3 _highlight handle1
 
-saveAsPng :: Interactor -> String -> Effect Unit
+saveAsPng :: Interactor -> String -> Effect Boolean         -- ^ true if success
 saveAsPng = runFn2 _saveFile

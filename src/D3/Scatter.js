@@ -165,7 +165,21 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         const extenty = d3.extent(ally);
         const extentz = d3.extent(allz);
         const extentt = d3.extent(allt);
-        const blues = d3.schemeBlues[9]
+
+        if (allx.length == 0) {
+          svg.append("text")
+              .attr("text-anchor","middle")
+              .attr("x",width/2)
+              .attr("y",height/2)
+              .attr("fill","#666")
+              .attr("font-size",32)
+              .text("No data available to plot for this set of projections or regions :(")
+          return {
+            highlight: (function () { return; }),
+            unhighlight: (function () { return; }),
+            saveFile: (function () { return false; })
+          };
+        }
 
         // this converts to and form the different coordinate systems
         const x = scaleFunc(scatter.xAxis.scale)
@@ -700,6 +714,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
         const saveFile = function (fname) {
             saveSvgAsPng(mainplot._groups[0][0], fname);
+            return true;
         }
 
 
@@ -707,7 +722,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         return {
             highlight: highlight(subplot),
             unhighlight: unhighlight(subplot),
-            settime: (v => setTime(subPlot, v)),
+            // settime: (v => setTime(subPlot, v)),
             saveFile: saveFile
         };
     }
@@ -729,6 +744,6 @@ exports._highlight = function(handleMaybe,interactors,name) {
 // takes a filename
 exports._saveFile = function(interactors, fn) {
     return function() {
-        interactors.saveFile(fn);
+        return interactors.saveFile(fn);
     }
 }

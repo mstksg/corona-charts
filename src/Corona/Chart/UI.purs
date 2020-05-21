@@ -443,8 +443,12 @@ handleAction = case _ of
     LoadDataset ds -> loadDataset ds
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
-    SaveFile -> void $ H.query _scatter unit $ HQ.tell
-        (Scatter.Export "coronavirus-plot.png")
+    SaveFile -> do
+      r <- H.query _scatter unit $ HQ.request (Scatter.Export "coronavirus-plot.png")
+      liftEffect $ toast
+        if or r
+          then "Exported file!"
+          else "No chart to export!"
     Redraw -> reRender Nothing
     Reset  -> do
       H.modify_ $ \st ->
