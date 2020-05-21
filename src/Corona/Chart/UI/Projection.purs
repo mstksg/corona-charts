@@ -44,7 +44,7 @@ import Type.Equiv
 import Type.GCompare
 import Undefined
 
-data NumScaleType = NSTLinear | NSTLog
+data NumScaleType = NSTLinear | NSTLog | NSTSymLog
 
 derive instance eqNST :: Eq NumScaleType
 derive instance ordNST :: Ord NumScaleType
@@ -52,14 +52,16 @@ instance showNST :: Show NumScaleType where
     show = case _ of
       NSTLinear -> "NSTLinear"
       NSTLog -> "NSTLog"
+      NSTSymLog -> "NSTSymLog"
 
 
 allNST :: Array NumScaleType
-allNST = [ NSTLinear, NSTLog ]
+allNST = [ NSTLinear, NSTLog, NSTSymLog ]
 nstLabel :: NumScaleType -> String
 nstLabel = case _ of
     NSTLinear -> "Linear"
-    NSTLog    -> "Log"
+    NSTLog    -> "Logarithmic"
+    NSTSymLog -> "Symmetric Log"
 
 
 nstToScale :: forall a. SType a -> NumScaleType -> Boolean -> Scale a
@@ -69,6 +71,7 @@ nstToScale st = case D3.toNType st of
     Right nt       -> case _ of
       NSTLinear -> D3.Linear (Right nt)
       NSTLog    -> \_ -> D3.Log nt
+      NSTSymLog -> \_ -> D3.SymLog nt
 
 scaleToNST
     :: forall a.
@@ -78,6 +81,7 @@ scaleToNST = case _ of
     Date _     -> { numScaleType: Nothing, linearZero: Nothing }
     Linear _ b -> { numScaleType: Just NSTLinear, linearZero: Just b }
     Log _      -> { numScaleType: Just NSTLog, linearZero: Nothing }
+    SymLog _   -> { numScaleType: Just NSTSymLog, linearZero: Nothing }
     
 type State =
     { projection   :: DSum SType Projection
@@ -178,6 +182,7 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
             , case aState.numScaleType of
                 NSTLinear -> [linearZeroCheck]
                 NSTLog    -> []
+                NSTSymLog -> []
             ]
         )
     ]

@@ -69,6 +69,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             { date:   (() => d3.scaleUtc())
             , linear: (() => () => d3.scaleLinear())
             , log:    (() => d3.scaleLog())
+            , symlog: (() => d3.scaleSymlog())
             }
         );
 
@@ -105,6 +106,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           { date: (() => true)
           , linear: (() => () => true)
           , log: (() => val > 0)
+          , symlog: (() => true)
           }
         );
     const validX = validVal(scatter.xAxis.scale);
@@ -116,6 +118,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           { date: (() => [])
           , linear: (() => zer => zer ? [0] : [])
           , log: (() => [])
+          , symlog: (() => [])
           }
         )
     const validPair = function(p) {

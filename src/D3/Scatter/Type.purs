@@ -270,12 +270,14 @@ infixr 1 type Either as ||
 data Scale a = Date   (a ~ Day)
              | Linear (a ~ Days || NType a) Boolean         -- ^ to zero or not
              | Log    (NType a)
+             | SymLog (NType a)         -- ^ todo: support parameter
 
 instance gshowScale :: GShow Scale where
     gshow = case _ of
       Date _ -> "Date"
       Linear _ b -> "Linear " <> show b
       Log _    -> "Log"
+      SymLog _ -> "SymLog"
 instance showScale :: Show (Scale a) where
     show = gshow
 
@@ -301,6 +303,8 @@ sLinear :: forall a. NTypeable a => Boolean -> Scale a
 sLinear = Linear (Right nType)
 sLog :: forall a. NTypeable a => Scale a
 sLog = Log nType
+sSymLog :: forall a. NTypeable a => Scale a
+sSymLog = SymLog nType
 
 newtype NScale = NScale (DProd NType Scale)
 
@@ -316,6 +320,7 @@ toNScale = case _ of
       Left  d -> Left (Right d)
       Right n -> Right (NScale (DProd (flip Linear b <<< Right)))
     Log    n  -> Right (NScale (DProd Log))
+    SymLog n  -> Right (NScale (DProd SymLog))
 
 runNScale :: forall a. NScale -> NType a -> Scale a
 runNScale (NScale x) = runDProd x
@@ -346,6 +351,7 @@ newtype OnScale a = OnScale
         { date   :: a ~ Day -> r
         , linear :: (a ~ Days || NType a) -> Boolean -> r
         , log    :: NType a -> r
+        , symlog :: NType a -> r
         } -> r
     )
 
@@ -357,7 +363,13 @@ instance handle1Scale :: Handle1 Scale OnScale where
       Date   refl -> OnScale (\h -> h.date   refl)
       Linear nt b -> OnScale (\h -> h.linear nt b)
       Log    nt   -> OnScale (\h -> h.log    nt  )
-    unHandle1 (OnScale f) = f { date: Date, linear: Linear, log: Log }
+      SymLog nt   -> OnScale (\h -> h.symlog nt  )
+    unHandle1 (OnScale f) = f
+      { date: Date
+      , linear: Linear
+      , log: Log
+      , symlog: SymLog
+      }
 
 newtype OnSType a = OnSType (forall r.
       { day     :: a ~ Day    -> r

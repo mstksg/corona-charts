@@ -185,6 +185,8 @@ type ChildSlots =
 
 
 -- | make sure to intersection before usage
+--
+-- also we can't use Georgia lol
 initialRegions :: Set Region
 initialRegions = S.fromFoldable [
       "United States"
@@ -196,7 +198,7 @@ initialRegions = S.fromFoldable [
     , "New York"
     , "Washington"
     , "South Carolina"
-    , "Florida"
+    , "Iowa"
     ]
 
 

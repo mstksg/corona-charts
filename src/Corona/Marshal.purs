@@ -293,6 +293,7 @@ instance marScale :: STypeable a => Marshal (Scale a) where
       Date   _ -> "d"
       Linear _ b -> "i" <> serialize b
       Log    _ -> "o"
+      SymLog _ -> "s"
     parse = do
         c <- P.anyChar
         case c of
@@ -308,6 +309,9 @@ instance marScale :: STypeable a => Marshal (Scale a) where
           'o' -> case toNType t of
             Right nt       -> pure $ Log nt
             _      -> P.fail $ "invalid type for log scale: " <> gshow t
+          's' -> case toNType t of
+            Right nt       -> pure $ SymLog nt
+            _      -> P.fail $ "invalid type for symlog scale: " <> gshow t
           _ -> P.fail $ "invalid scale: " <> show c
       where
         t :: SType a
@@ -318,6 +322,7 @@ instance marNScale :: Marshal NScale where
       Date   _   -> "?"   -- umm...wish we could eliminate this (Int ~ Day) somehow
       Linear _ b -> "i" <> serialize b
       Log    _  -> "o"
+      SymLog _  -> "s"
     parse = do
       c <- P.anyChar
       case c of
@@ -325,6 +330,7 @@ instance marNScale :: Marshal NScale where
            b <- parse
            pure $ NScale (DProd (flip Linear b <<< Right))
         'o' -> pure $ NScale (DProd Log)
+        's' -> pure $ NScale (DProd SymLog)
         _   -> P.fail $ "invalid nscale: " <> show c
 
 instance marDSum :: Marshal1 f => Marshal (DSum SType f) where
