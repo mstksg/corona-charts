@@ -418,7 +418,9 @@ handleAction dat = case _ of
           (ES.emit e CopyURI)
           (ES.emit e SaveFile)
         pure mempty
-    LoadURIString str -> loadUriString false str
+    LoadURIString str -> do
+      liftEffect scrollToTop
+      loadUriString false str
     Initialize -> do
       welcome     <- liftAff $ HU.selectElement (DOM.QuerySelector "#welcome-text")
       for_ welcome $ \wcm -> do
@@ -633,4 +635,5 @@ foreign import linkify
            (Effect Unit)
 foreign import cutInnerHTML :: HTMLElement.HTMLElement -> Effect String
 foreign import toast :: String -> Effect Unit
+foreign import scrollToTop :: Effect Unit
 -- foreign import moveDiv :: Fn2 HTMLElement.HTMLElement HTMLElement.HTMLElement (Effect Unit)
