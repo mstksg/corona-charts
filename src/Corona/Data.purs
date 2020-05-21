@@ -33,19 +33,13 @@ import Corona.Data.Type
 import Corona.Data.JHU as JHU
 import Corona.Data.NYT as NYT
 
--- type Region = String
-
--- type CoronaData =
---     { start  :: Day
---     , counts :: O.Object (Array (Counts Int))
---     }
-
--- type Counts a =
---     { confirmed :: a
---     , deaths    :: a
---     , recovered :: a
---     }
-
 data Dataset = WorldData | USData
 
+derive instance eqDataset :: Eq Dataset
+derive instance ordDataset :: Ord Dataset
+
+fetchDataset :: Dataset -> Aff (Either String CoronaData)
+fetchDataset = case _ of
+    WorldData -> JHU.fetchCoronaData
+    USData    -> NYT.fetchCoronaData
 

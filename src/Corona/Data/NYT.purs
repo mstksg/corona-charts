@@ -6,7 +6,9 @@ import Prelude
 import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Control.Alternative
+import Data.Bifunctor
 import Control.Monad.Except
+import Corona.Data.Type
 import Control.Monad.Maybe.Trans
 import Data.Array as A
 import Data.Date
@@ -29,44 +31,36 @@ import Effect.Aff
 import Effect.Class
 import Foreign.Object as O
 import Foreign.Papa
+import Undefined
 
 type State = String
 
 dataUrl :: String
 dataUrl = "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv"
 
--- fetchCoronaData :: Aff (Either String CoronaData)
--- fetchCoronaData = runExceptT do
---     confirmed <- ExceptT $ fetchData confirmedUrl
---     deaths    <- ExceptT $ fetchData deathsUrl
---     recovered <- ExceptT $ fetchData recoveredUrl
---     unless (confirmed.start == deaths.start && deaths.start == recovered.start) $
---       throwError "non-matching dates for time serieses"
---     let newCounts = forWithIndex confirmed.counts $ \k c -> do
---           d <- O.lookup k deaths.counts
---           r <- O.lookup k recovered.counts
---           pure $
---             A.zipWith ($) (A.zipWith (\c' d' r' ->
---                     { confirmed : c'
---                     , deaths: d'
---                     , recovered: r'
---                     }
---                 ) c d) r
---     case newCounts of
---       Nothing -> throwError "missing data"
---       Just c  -> pure
---         { start: confirmed.start
---         , counts: c
---         }
+fetchCoronaData :: Aff (Either String CoronaData)
+fetchCoronaData = runExceptT do
+    response <- ExceptT $ lmap AX.printError <$> AX.request (AX.defaultRequest
+      { url = dataUrl
+      , method = Left GET
+      , responseFormat = ResponseFormat.string }
+      )
+    let rows = A.drop 1 (parseCSV response.body).data
+        dat  = buildCorona rows
+    start <- maybe (throwError ("bad date: " <> show dat.start)) pure $
+                MJD.fromJSDate dat.start
+    pure
+      { start
+      , counts: dat.counts <#> \d ->
+          { confirmed: d.confirmed
+          , deaths: d.deaths
+          , recovered: []
+          }
+      }
 
--- type CoronaData =
---     { start  :: Day
---     , counts :: O.Object (Array (Counts Int))
---     }
+type CSVData =
+    { start:: JSDate
+    , counts:: O.Object { confirmed:: Array Int, deaths:: Array Int }
+    }
 
--- type Counts a =
---     { confirmed :: a
---     , deaths    :: a
---     , recovered :: a
---     }
-
+foreign import buildCorona :: Array (Array String) -> CSVData

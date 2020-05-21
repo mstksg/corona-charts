@@ -4,9 +4,16 @@
 *   symlog?
 *   linear scale should admit zero axis choice
 *   proper tooltip, text wrapping
-*   data for different regions
 *   exponential/logistic fits and projections
 *   textwrap labels
+
+*   data for different regions
+    *   url loading
+    *   disable recovered
+
+*   add cacheing
+    *   changing scales should be fast
+
 
 # Fixes
 
@@ -14,13 +21,9 @@
 *   toggle switch for log/linear
 *   Better labeling system
 *   fast-forward to end button
-*   behavior when no data supported, on plot
 *   apparent bug: restrict-before for dates
 *   feedback for parse errors in form elements
 *   graceful handling of 0 countries
-*   changing scales should be fast
-*   path segments fall from the sky
-*   add cacheing
 
 # Someday
 
@@ -40,3 +43,4 @@
 *   configure playback speed?
 *   window should have final day as the label, not the center
 *   toggle sidebar on and off
+*   path segments fall from the sky

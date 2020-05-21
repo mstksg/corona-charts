@@ -93,7 +93,7 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
       HH.h3_ [HH.text label]
     , HH.div [HU.classProp "base-projection"] [
         HH.span_ [HH.text "Base Projection"]
-      , HH.select [HE.onSelectedIndexChange (map SetBase <<< indexToBase)] $
+      , HH.select [HE.onSelectedIndexChange (map SetBase <<< (allBaseProjections A.!! _))] $
           allBaseProjections <#> \sbp -> runExists (\bp ->
             let isSelected = withDSum aState.projection (\_ pr ->
                     WrEx sbp == WrEx (baseProjection pr)
@@ -128,13 +128,6 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
         )
     ]
   where
-    indexToBase :: Int -> Maybe (Exists BaseProjection)
-    indexToBase = case _ of
-      0 -> Just (mkExists bTime)
-      1 -> Just (mkExists bConfirmed)
-      2 -> Just (mkExists bDeaths)
-      3 -> Just (mkExists bRecovered)
-      _ -> Nothing
     indexToNScale :: Int -> Maybe NScale
     indexToNScale = case _ of
       0 -> Just (NScale (DProd (Linear <<< Right)))

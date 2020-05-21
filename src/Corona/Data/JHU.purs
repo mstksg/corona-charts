@@ -58,12 +58,6 @@ fetchCoronaData = runExceptT do
             , deaths: d
             , recovered: r
             }
-            -- A.zipWith ($) (A.zipWith (\c' d' r' ->
-            --         { confirmed : c'
-            --         , deaths: d'
-            --         , recovered: r'
-            --         }
-            --     ) c d) r
     case newCounts of
       Nothing -> throwError "missing data"
       Just c  -> pure
@@ -115,18 +109,4 @@ fetchData url = do
          pure case dat of
            Nothing -> Left "data not accumulated"
            Just d  -> Right d
-
--- lookupData
---     :: CoronaData
---     -> String
---     -> Array ({ date :: JSDate, confirmed :: Int })
--- lookupData cd c = case O.lookup c cd.counts of
---     Nothing -> []
---     Just cs -> A.zipWith (\d c -> { date: d, confirmed: c }) cd.dates cs.confirmed
-
-    
--- type CoronaData =
---     { dates  :: Array JSDate
---     , counts :: O.Object Counts
---     }
 

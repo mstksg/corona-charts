@@ -11,54 +11,20 @@
   background-color: #ffffff;
 }
 
-// .multiselect {
-//   input, select, button {
-//     display: block;
-//     width: 100%;
-//   }
-//   .selected {
-//     .none-selected {
-//       font-style: italic;
-//     }
-//     ul {
-//       list-style-type: none;
-//       padding: 0.1rem;
-//       margin: 0 0 0.75rem 0;
-//       // text-align: center;
-//       li {
-//         display: inline-block;
-//         margin: 0.3rem 0.3rem;
-//         background: #dde;
-//         padding: 0.4rem 0.8rem;
-//         border-radius: 3px;
-//         font-size: 95%;
-//         cursor: pointer;
-//         &:hover {
-//           background: #bbe;
-//         }
-//       }
-//     }
-//   }
-//   h3 {
-//     margin-bottom: 1rem;
-//   }
-// }
+.axis-options, .dataset-picker {
 
-.axis-options {
+  span {
+    display: block;
+    width: 100%;
+    font-size: 90%;
+    margin: 0;
+    color: #666;
+  }
+  margin-bottom: 1rem;
 
-  .base-projection, .axis-op-chain, .axis-scale {
-    span {
+  select {
       display: block;
       width: 100%;
-      font-size: 90%;
-      margin: 0;
-      color: #666;
-    }
-    select {
-        display: block;
-        width: 100%;
-    }
-    margin-bottom: 1rem;
   }
 
   ul {
@@ -89,6 +55,7 @@
       a.picker-slot-delete {
         cursor: pointer;
         float: right;
+        border: none;
       }
       // margin: 0.3rem 0.3rem;
       // margin: 0;
@@ -150,7 +117,7 @@ button {
   }
 }
 
-.country-picker {
+.region-picker {
   font-size: 85%;
   margin-top: 0.75rem;
   margin-bottom: -1rem;
@@ -161,7 +128,7 @@ button {
     width: 100%
   }
 
-  .country-picker-buttons {
+  .region-picker-buttons {
     button {
       padding: 0.4rem 0.5rem;
       margin: 0 0.05rem;
@@ -171,7 +138,7 @@ button {
   }
 
   .autocomplete-widget {
-    ul#autocomplete-list-country-select {
+    ul#autocomplete-list-region-select {
       li {
         font-size: 110%;
         padding: 0.3rem 0.6rem;
@@ -187,7 +154,7 @@ button {
     position: relative;
   }
 
-  ul.picked-countries {
+  ul.picked-regions {
     text-align: center;
     list-style-type: none;
     padding: 0;

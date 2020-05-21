@@ -486,6 +486,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           .attr('height',height - margin.top - margin.bottom);
 
         // yo this is it
+        //
+        // we can use line instead of path but it intereferes with selectors
         subplot.append("g")
              .selectAll("g")
              .data(flatSegments(series))
