@@ -13,7 +13,9 @@ import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Either
 import Data.Exists
+import Data.Foldable
 import Data.Functor.Compose
+import Data.Functor.Product
 import Data.Maybe
 import Data.Set (Set)
 import Data.Set as S
@@ -41,10 +43,40 @@ import Type.Equiv
 import Type.GCompare
 import Undefined
 
+data NumScaleType = NSTLinear | NSTLog
 
+derive instance eqNST :: Eq NumScaleType
+derive instance ordNST :: Ord NumScaleType
+
+allNST :: Array NumScaleType
+allNST = [ NSTLinear, NSTLog ]
+nstLabel :: NumScaleType -> String
+nstLabel = case _ of
+    NSTLinear -> "Linear"
+    NSTLog    -> "Log"
+
+
+nstToScale :: forall a. SType a -> NumScaleType -> Boolean -> Scale a
+nstToScale st = case D3.toNType st of
+    Left (Left r)  -> \_ _ -> Date r
+    Left (Right r) -> \_ -> D3.Linear (Left r)
+    Right nt       -> case _ of
+      NSTLinear -> D3.Linear (Right nt)
+      NSTLog    -> \_ -> D3.Log nt
+
+scaleToNST
+    :: forall a.
+       Scale a
+    -> { numScaleType :: Maybe NumScaleType, linearZero :: Maybe Boolean }
+scaleToNST = case _ of
+    Date _     -> { numScaleType: Nothing, linearZero: Nothing }
+    Linear _ b -> { numScaleType: Just NSTLinear, linearZero: Just b }
+    Log _      -> { numScaleType: Just NSTLog, linearZero: Nothing }
+    
 type State =
-    { projection :: DSum SType Projection
-    , numScale   :: NScale                   -- ^ date scale is always day
+    { projection   :: DSum SType Projection
+    , numScaleType :: NumScaleType
+    , linearZero   :: Boolean
     }
 
 type OpIx = { tagIn :: WrEx D3.SType }
@@ -58,13 +90,16 @@ type ChildSlots =
 data Action =
         SetBase      (Exists BaseProjection)
       | SetOps
-      | SetNumScale  NScale
+      | SetNumScaleType  NumScaleType
+      | SetLinearZero    Boolean
 
-data Output = Update State  -- meh because this could change by the time you get it
+type Out = DSum SType (Product Projection Scale)
+
+data Output = Update Out
 
 data Query r = 
-      QueryAsk (State -> r)
-    | QueryPut State r        -- ^ always re-raises
+      QueryAsk (Out -> r)
+    | QueryPut Out r        -- ^ always re-raises
 
   -- QueryOp (State -> Tuple r State)
 
@@ -73,10 +108,16 @@ data Query r =
 component
     :: forall m. MonadEffect m
     => String
-    -> H.Component HH.HTML Query State Output m
+    -> H.Component HH.HTML Query Out Output m
 component label =
   H.mkComponent
-    { initialState: identity
+    { initialState: \o -> withDSum o (\tOut (Product (Tuple proj sc)) ->
+          let stout = scaleToNST sc
+          in  { projection: tOut :=> proj
+              , numScaleType: fromMaybe NSTLog stout.numScaleType
+              , linearZero: fromMaybe false stout.linearZero
+              }
+        )
     , render: render label
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction
@@ -117,22 +158,33 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
     , HH.div [HU.classProp "axis-scale"] $
         withDSum aState.projection (\t _ ->
           case D3.toNType t of
-            Left  _ -> []
-            Right _ -> [
+            Left  (Left _) -> []
+            Left  (Right _) -> [
               HH.span_ [HH.text "Scale"]
-            , HH.select [HE.onSelectedIndexChange (map SetNumScale <<< indexToNScale)]
-                [ HH.option_ [HH.text "Linear"]
-                , HH.option  [HP.selected true] [HH.text "Log"]
-                ]
+            , linearZeroCheck
+            ]
+            Right _ -> fold [
+              [ HH.span_ [HH.text "Scale"]
+              , HH.select [HE.onSelectedIndexChange (map SetNumScaleType <<< (allNST A.!! _))] $
+                  allNST <#> \nst ->
+                    HH.option [HP.selected (nst == aState.numScaleType)] [HH.text (nstLabel nst)]
+              ]
+            , case aState.numScaleType of
+                NSTLinear -> [linearZeroCheck]
+                NSTLog    -> []
             ]
         )
     ]
   where
-    indexToNScale :: Int -> Maybe NScale
-    indexToNScale = case _ of
-      0 -> Just (NScale (DProd (Linear <<< Right)))
-      1 -> Just (NScale (DProd Log))
-      _ -> Nothing
+    linearZeroCheck = HH.div [HU.classProp "linear-zero"] [
+      HH.input [
+        HP.type_ HP.InputCheckbox
+      , HP.checked aState.linearZero
+      , HE.onChecked (Just <<< SetLinearZero)
+      ]
+    , HH.label_ [HH.text "Zero Axis"]
+    ]
+
 
 chainPicker
     :: forall a i m. MonadEffect m
@@ -171,35 +223,47 @@ handleAction act = do
               )
         )
       )
-      SetNumScale s -> H.modify_ $ _ { numScale = s }
-    -- log <<< show =<< H.get
-    H.raise <<< Update =<< H.get
+      SetNumScaleType nst ->
+        H.modify_ $ _ { numScaleType = nst }
+      SetLinearZero b ->
+        H.modify_ $ _ { linearZero = b }
+    H.raise <<< Update <<< assembleScale =<< H.get
+
+assembleScale :: State -> Out
+assembleScale st = withDSum st.projection (\t proj ->
+    t :=> Product (Tuple proj (nstToScale t st.numScaleType st.linearZero))
+  )
 
 handleQuery
     :: forall a c o m r. MonadEffect m
     => Query r
     -> H.HalogenM State a ChildSlots Output m (Maybe r)
 handleQuery = case _ of 
-    QueryAsk f -> Just <$> State.gets f
-    QueryPut s next -> do
-      H.put s   -- we are double-putting?
-      withDSum s.projection (\tOut sp -> withProjection sp (\p -> do
-          let tBase = baseType p.base
-              decorated = decorateOpChain tBase p.operations
-          res <- H.query _opselect { tagIn: mkWrEx tBase } $
-            ChainPicker.WQPut (dsum2 tBase tOut decorated) identity
-            -- i think it isn't finding the index bc it hasn't been allocated
-            -- yet.
-          case res of
-            Nothing -> warn "no response from ChainPicker"
-            Just (Just t) -> runExists (\t' ->
-              log $ "chainpicker of is the wrong input type (" <> gshow t' <> ") according to its index " <> gshow tBase
-            ) t
-            Just Nothing -> pure unit
-        )
+    QueryAsk f -> Just <<< f <$> State.gets assembleScale
+    QueryPut s next -> withDSum s (\tOut (Product (Tuple sp scale)) -> do
+      H.modify_ $ \st0 ->
+        let sout = scaleToNST scale
+        in  { projection: tOut :=> sp
+            , numScaleType: fromMaybe st0.numScaleType sout.numScaleType
+            , linearZero: fromMaybe st0.linearZero sout.linearZero
+            }
+      withProjection sp (\p -> do
+        let tBase     = baseType p.base
+            decorated = decorateOpChain tBase p.operations
+        res <- H.query _opselect { tagIn: mkWrEx tBase } $
+          ChainPicker.WQPut (dsum2 tBase tOut decorated) identity
+          -- i think it isn't finding the index bc it hasn't been allocated
+          -- yet.
+        case res of
+          Nothing -> warn "no response from ChainPicker"
+          Just (Just t) -> runExists (\t' ->
+            log $ "chainpicker of is the wrong input type (" <> gshow t' <> ") according to its index " <> gshow tBase
+          ) t
+          Just Nothing -> pure unit
       )
       H.raise (Update s)
       pure (Just next)
+    )
 
 decorateOpChain
     :: forall a b.
@@ -214,18 +278,32 @@ decorateOpChain tagIn = case _ of
                  (decorateOpChain tagOut xs)
     )
 
-stateParser :: P.Parser State
-stateParser = do
-    proj  <- Marshal.parse1
-    scale <- Marshal.parse
-    pure
-      { projection: proj
-      , numScale: scale
-      }
+outParser :: P.Parser Out
+outParser = do
+  proj  <- Marshal.parse1
+  withDSum proj (\t pr ->
+    case t of
+      SDay r -> Marshal.parse <#> \sc -> t :=> Product (Tuple pr (equivFromF r sc))
+      SDays r -> Marshal.parse <#> \sc -> t :=> Product (Tuple pr (equivFromF r sc))
+      SInt r -> Marshal.parse <#> \sc -> t :=> Product (Tuple pr (equivFromF r sc))
+      SNumber r -> Marshal.parse <#> \sc -> t :=> Product (Tuple pr (equivFromF r sc))
+      SPercent r -> Marshal.parse <#> \sc -> t :=> Product (Tuple pr (equivFromF r sc))
+  )
 
-stateSerialize :: State -> String
-stateSerialize p = Marshal.serialize p.projection
-                <> Marshal.serialize p.numScale
+outSerialize :: Out -> String
+outSerialize p = withDSum p (\t (Product (Tuple proj sc)) ->
+        Marshal.serialize1 proj
+     <> case t of
+          SDay r -> Marshal.serialize $ equivToF r sc
+          SDays r -> Marshal.serialize $ equivToF r sc
+          SInt r -> Marshal.serialize $ equivToF r sc
+          SNumber r -> Marshal.serialize $ equivToF r sc
+          SPercent r -> Marshal.serialize $ equivToF r sc
+
+    ) 
+
+outLabel :: Out -> String
+outLabel p = withDSum p (\_ (Product (Tuple proj _)) -> projectionLabel proj)
 
 
 _opselect :: SProxy "opselect"

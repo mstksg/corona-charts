@@ -268,36 +268,36 @@ type SeriesData a b c d =
 infixr 1 type Either as ||
 
 data Scale a = Date   (a ~ Day)
-             | Linear (a ~ Days || NType a) -- Boolean         -- ^ to zero or not
+             | Linear (a ~ Days || NType a) Boolean         -- ^ to zero or not
              | Log    (NType a)
 
 instance gshowScale :: GShow Scale where
     gshow = case _ of
       Date _ -> "Date"
-      Linear _ -> "Linear"
+      Linear _ b -> "Linear " <> show b
       Log _    -> "Log"
 instance showScale :: Show (Scale a) where
     show = gshow
 
-validScales :: forall a. SType a -> Array (Scale a)
-validScales = case _ of
+initialValidScales :: forall a. SType a -> Array (Scale a)
+initialValidScales = case _ of
     SDay r -> [Date r]
-    SDays r -> [Linear (Left r)]
-    SInt r -> [Linear (Right (NInt r)), Log (NInt r)]
-    SNumber r -> [Linear (Right (NNumber r)), Log (NNumber r)]
-    SPercent r -> [Linear (Right (NPercent r)), Log (NPercent r)]
+    SDays r -> [Linear (Left r) false]
+    SInt r -> [Linear (Right (NInt r)) false, Log (NInt r)]
+    SNumber r -> [Linear (Right (NNumber r)) false, Log (NNumber r)]
+    SPercent r -> [Linear (Right (NPercent r)) false, Log (NPercent r)]
 
 defaultScale :: forall a. SType a -> Scale a
 defaultScale = case _ of
     SDay  r    -> Date r
-    SDays r    -> Linear (Left r)
+    SDays r    -> Linear (Left r) false
     SInt  r    -> Log (NInt  r)  -- maybe log?
     SNumber r  -> Log (NNumber r)
-    SPercent r -> Linear (Right (NPercent r))
+    SPercent r -> Linear (Right (NPercent r)) false
 
 sDate :: Scale Day
 sDate = Date refl
-sLinear :: forall a. NTypeable a => Scale a
+sLinear :: forall a. NTypeable a => Boolean -> Scale a
 sLinear = Linear (Right nType)
 sLog :: forall a. NTypeable a => Scale a
 sLog = Log nType
@@ -312,9 +312,9 @@ instance showNScale :: Show NScale where
 toNScale :: forall a. Scale a -> Either (a ~ Day || a ~ Days) NScale
 toNScale = case _ of
     Date   r  -> Left  (Left r)
-    Linear dn -> case dn of
+    Linear dn b -> case dn of
       Left  d -> Left (Right d)
-      Right n -> Right (NScale (DProd (Linear <<< Right)))
+      Right n -> Right (NScale (DProd (flip Linear b <<< Right)))
     Log    n  -> Right (NScale (DProd Log))
 
 runNScale :: forall a. NScale -> NType a -> Scale a
@@ -344,7 +344,7 @@ type SomeScatterPlot =
 newtype OnScale a = OnScale
     (forall r.
         { date   :: a ~ Day -> r
-        , linear :: (a ~ Days || NType a) -> r
+        , linear :: (a ~ Days || NType a) -> Boolean -> r
         , log    :: NType a -> r
         } -> r
     )
@@ -355,7 +355,7 @@ instance handleScale :: Handle (Scale a) (OnScale a) where
 instance handle1Scale :: Handle1 Scale OnScale where
     handle1 = case _ of
       Date   refl -> OnScale (\h -> h.date   refl)
-      Linear nt   -> OnScale (\h -> h.linear nt  )
+      Linear nt b -> OnScale (\h -> h.linear nt b)
       Log    nt   -> OnScale (\h -> h.log    nt  )
     unHandle1 (OnScale f) = f { date: Date, linear: Linear, log: Log }
 

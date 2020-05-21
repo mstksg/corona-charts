@@ -10,8 +10,8 @@ import Control.Monad.Writer
 import Control.MonadZero as MZ
 import Corona.Chart
 import Corona.Chart.UI.Projection as Projection
-import Corona.Data.Type
 import Corona.Data as Corona
+import Corona.Data.Type
 import Corona.Marshal as Marshal
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
@@ -24,6 +24,7 @@ import Data.Exists
 import Data.Foldable
 import Data.Function.Uncurried
 import Data.Functor.Compose
+import Data.Functor.Product
 import Data.FunctorWithIndex
 import Data.Identity as Identity
 import Data.Int
@@ -97,10 +98,10 @@ type RegionState =
 
 type State =
     { datasetSpec  :: Corona.Dataset
-    , xAxis        :: Projection.State
-    , yAxis        :: Projection.State
-    , zAxis        :: Projection.State
-    , tAxis        :: Projection.State
+    , xAxis        :: Projection.Out
+    , yAxis        :: Projection.Out
+    , zAxis        :: Projection.Out
+    , tAxis        :: Projection.Out
     , regionState  :: Either (Set Region) RegionState   -- ^ queued up
     , dataset      :: Maybe CoronaData
     , permalink    :: Maybe String
@@ -118,7 +119,7 @@ instance showAxis :: Show Axis where
       ZAxis -> "ZAxis"
       TAxis -> "TAxis"
 
-axisLens :: Axis -> Lens' (Record _) Projection.State
+axisLens :: Axis -> Lens' (Record _) Projection.Out
 axisLens = case _ of
     XAxis -> LR.prop (SProxy :: SProxy "xAxis")
     YAxis -> LR.prop (SProxy :: SProxy "yAxis")
@@ -144,15 +145,15 @@ instance showAspect :: Show Aspect where
       ARegions -> "ARegions"
 
 
-lookupScale
-    :: forall a.
-       SType a
-    -> NScale
-    -> D3.Scale a
-lookupScale st ns = case D3.toNType st of
-    Left (Left  r) -> D3.Date r
-    Left (Right r) -> D3.Linear (Left r)
-    Right nt       -> D3.runNScale ns nt
+-- lookupScale
+--     :: forall a.
+--        SType a
+--     -> NScale
+--     -> D3.Scale a
+-- lookupScale st ns = case D3.toNType st of
+--     Left (Left  r) -> D3.Date r
+--     Left (Right r) -> D3.Linear (Left r)
+--     Right nt       -> D3.runNScale ns nt
 
 data Action =
         SetRegions (Set Region)
@@ -160,8 +161,8 @@ data Action =
       | RemoveRegion String
       | ClearRegions
       | DumpRegions
-      | SetProjection Axis Projection.State
-      | LoadProjection Axis Projection.State
+      | SetProjection Axis Projection.Out
+      | LoadProjection Axis Projection.Out
       | LoadDataset Corona.Dataset
       | Highlight Region
       | Unhighlight
@@ -222,43 +223,42 @@ component =
     }
 
 defaultProjections ::
-    { xAxis     :: Projection.State
-    , yAxis     :: Projection.State
-    , zAxis     :: Projection.State
-    , tAxis     :: Projection.State
+    { xAxis     :: Projection.Out
+    , yAxis     :: Projection.Out
+    , zAxis     :: Projection.Out
+    , tAxis     :: Projection.Out
     }
 defaultProjections = {
-      xAxis: {
-        projection: D3.sDay :=> projection {
-            base: Time refl
-          , operations: C.nil
-          }
-      , numScale: NScale (DProd D3.Log)
-      }
-    , yAxis: {
-        projection: D3.sInt :=> projection {
-            base: Confirmed refl
-          , operations: C.Nil refl
-          }
-      , numScale: NScale (DProd D3.Log)
-      }
-    , zAxis: {
-        projection: D3.sDays :=> projection {
-            base: Confirmed refl
-          , operations: Restrict D3.sInt refl After (AtLeast 50)
-                   C.:> DayNumber refl After
-                   C.:> C.nil
-          }
-      , numScale: NScale (DProd D3.Log)
-      }
-    , tAxis: {
-        projection: D3.sDay :=> projection {
-            base: Time refl
-          , operations: C.nil
-          }
-      , numScale: NScale (DProd D3.Log)
-      }
-
+    xAxis: D3.sDay :=> Product (Tuple
+      ( projection
+        { base: Time refl
+        , operations: C.nil
+        }
+      ) (D3.Date refl)
+    )
+  , yAxis: D3.sInt :=> Product (Tuple
+      ( projection
+        { base: Confirmed refl
+        , operations: C.nil
+        }
+      ) (D3.Log D3.nInt)
+    )
+  , zAxis: D3.sDays :=> Product (Tuple
+      ( projection
+        { base: Confirmed refl
+        , operations: Restrict D3.sInt refl After (AtLeast 50)
+                 C.:> DayNumber refl After
+                 C.:> C.nil
+        }
+      ) (D3.Linear (Left refl) false)
+    )
+  , tAxis: D3.sDay :=> Product (Tuple
+      ( projection
+        { base: Time refl
+        , operations: C.nil
+        }
+      ) (D3.Date refl)
+    )
   }
 
 render :: forall m. MonadAff m => State -> H.ComponentHTML Action ChildSlots m
@@ -380,8 +380,7 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
     , HH.slot _postRender unit postRender unit (\_ -> Just Linkify)
     ]
   where
-    projLabel dp = withDSum dp (\_ -> projectionLabel)
-    title = projLabel (st.yAxis.projection) <> " vs. " <> projLabel (st.xAxis.projection)
+    title = Projection.outLabel st.yAxis <> " vs. " <> Projection.outLabel st.xAxis
     hw = { height: 666.6, width: 1000.0 }
     allDatasets = [ Corona.WorldData, Corona.USData ]
     datasetLabel = case _ of
@@ -529,12 +528,12 @@ uriSpecs = axisSpec <> [datasetSpec, regionSpec]
     axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a ->
       let def = defaultProjections ^. axisLens a
       in  { waiter: AAxis a
-          , default: Projection.stateSerialize def
-          , write: \st -> Projection.stateSerialize $ st ^. axisLens a
+          , default: Projection.outSerialize def
+          , write: \st -> Projection.outSerialize $ st ^. axisLens a
           , param: axisParam a
           , include: true
           , loader: \usp -> bimap (const (loadProj a def)) (loadProj a)
-                <$> liftEffect (parseAtKey usp (axisParam a) Projection.stateParser)
+                <$> liftEffect (parseAtKey usp (axisParam a) Projection.outParser)
           }
     regionSpec =
         { waiter: ARegions
@@ -556,7 +555,7 @@ uriSpecs = axisSpec <> [datasetSpec, regionSpec]
         }
 
 
-loadProj :: forall o m. MonadEffect m => Axis -> Projection.State -> M o m Unit
+loadProj :: forall o m. MonadEffect m => Axis -> Projection.Out -> M o m Unit
 loadProj a p = do
   res <- H.query _projection a $
     HQ.tell (Projection.QueryPut p)
@@ -651,22 +650,22 @@ reRender initter = do
           _ <- H.query _autocomplete unit $ HQ.tell $ Autocomplete.SetOptions $
               A.fromFoldable regionState.unselected
           -- traceM (show st)
-          withDSum st.xAxis.projection (\tX pX ->
-            withDSum st.yAxis.projection (\tY pY ->
-              withDSum st.zAxis.projection (\tZ pZ ->
-                withDSum st.tAxis.projection (\tT pT -> void $
+          withDSum st.xAxis (\tX (Product (Tuple pX sX)) ->
+            withDSum st.yAxis (\tY (Product (Tuple pY sY)) ->
+              withDSum st.zAxis (\tZ (Product (Tuple pZ sZ)) ->
+                withDSum st.tAxis (\tT (Product (Tuple pT sT)) -> void $
                   H.query _scatter unit $ HQ.tell $ Scatter.Update
                     (\f -> f tX tY tZ tT (
                           toScatterPlot
                             dat
                             pX
-                            (lookupScale tX (st.xAxis.numScale))
+                            sX
                             pY
-                            (lookupScale tY (st.yAxis.numScale))
+                            sY
                             pZ
-                            (lookupScale tZ (st.zAxis.numScale))
+                            sZ
                             pT
-                            (lookupScale tT (st.tAxis.numScale))
+                            sT
                             regionState.selected
                         )
                     )

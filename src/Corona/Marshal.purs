@@ -50,6 +50,17 @@ instance marInt :: Marshal Int where
       neg <- P.option identity (negate <$ P.char '-')
       neg <$> digits
 
+instance marBool :: Marshal Boolean where
+    serialize b
+      | b         = "t"
+      | otherwise = "f"
+    parse = do
+      c <- P.anyChar
+      case c of
+        't' -> pure true
+        'f' -> pure false
+        _   -> P.fail $ "invalid boolean type: " <> show c
+
 instance marDay :: Marshal MJD.Day where
     serialize (MJD.Day x) = serialize x
     parse = MJD.Day <$> parse
@@ -244,7 +255,6 @@ instance mar1ChainOp :: STypeable a => Marshal1 (C.Chain Operation a) where
                SInt r -> equivFromFF r <$> parse1
                SNumber r -> equivFromFF r <$> parse1
                SPercent r -> equivFromFF r <$> parse1
-               _ -> undefined
              withDSum dxs (\tOut xs ->
                pure $ tOut :=> C.cons x xs
              )
@@ -281,7 +291,7 @@ instance mar1Projection :: Marshal1 Projection where
 instance marScale :: STypeable a => Marshal (Scale a) where
     serialize = case _ of
       Date   _ -> "d"
-      Linear _ -> "i"
+      Linear _ b -> "i" <> serialize b
       Log    _ -> "o"
     parse = do
         c <- P.anyChar
@@ -289,10 +299,12 @@ instance marScale :: STypeable a => Marshal (Scale a) where
           'd' -> case t of
             SDay r -> pure $ Date r
             _      -> P.fail $ "invalid type for date scale: " <> gshow t
-          'i' -> case toNType t of
-            Left (Left  _) -> P.fail "cannot use SDay for linear scale"
-            Left (Right r) -> pure $ Linear (Left r)
-            Right nt       -> pure $ Linear (Right nt)
+          'i' -> do
+            b <- parse
+            case toNType t of
+              Left (Left  _) -> P.fail "cannot use SDay for linear scale"
+              Left (Right r) -> pure $ Linear (Left r) b
+              Right nt       -> pure $ Linear (Right nt) b
           'o' -> case toNType t of
             Right nt       -> pure $ Log nt
             _      -> P.fail $ "invalid type for log scale: " <> gshow t
@@ -303,13 +315,15 @@ instance marScale :: STypeable a => Marshal (Scale a) where
 
 instance marNScale :: Marshal NScale where
     serialize ns = case runNScale ns nInt of
-      Date   _ -> "?"   -- umm...wish we could eliminate this (Int ~ Day) somehow
-      Linear _ -> "i"
-      Log    _ -> "o"
+      Date   _   -> "?"   -- umm...wish we could eliminate this (Int ~ Day) somehow
+      Linear _ b -> "i" <> serialize b
+      Log    _  -> "o"
     parse = do
       c <- P.anyChar
       case c of
-        'i' -> pure $ NScale (DProd (Linear <<< Right))
+        'i' -> do
+           b <- parse
+           pure $ NScale (DProd (flip Linear b <<< Right))
         'o' -> pure $ NScale (DProd Log)
         _   -> P.fail $ "invalid nscale: " <> show c
 

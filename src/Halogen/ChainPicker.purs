@@ -281,7 +281,7 @@ render pMap st = HH.div_ [
             Just dsc -> withDSum dsc (\tOut (Picker c) ->
               let pIx = { tagIn: mkWrEx tl.tagIn, chainIx: i, optionIx: tl.option }
               in  case decide tl.tagOut tOut of
-                    Nothing -> undefined
+                    Nothing -> trace "chainpicker undefined" $ const undefined  -- what
                     Just r  -> HH.li [HU.classProp "picker-slot"] [
                       HH.div [HU.classProp "picker-slot-title"] [
                          HH.span [HU.classProp "picker-slot-name"] [HH.text c.label]

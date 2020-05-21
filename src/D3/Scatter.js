@@ -67,7 +67,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const scaleFunc = scale =>
         handleScale(scale)(
             { date:   (() => d3.scaleUtc())
-            , linear: (() => d3.scaleLinear())
+            , linear: (() => () => d3.scaleLinear())
             , log:    (() => d3.scaleLog())
             }
         );
@@ -103,7 +103,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const validVal = scale => val =>
         !isNaN(val) && handleScale(scale)(
           { date: (() => true)
-          , linear: (() => true)
+          , linear: (() => () => true)
           , log: (() => val > 0)
           }
         );
@@ -111,6 +111,13 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const validY = validVal(scatter.yAxis.scale);
     const validZ = validVal(scatter.zAxis.scale);
     const validT = validVal(scatter.tAxis.scale);
+    const zeroScale = scale =>
+        handleScale(scale)(
+          { date: (() => [])
+          , linear: (() => zer => zer ? [0] : [])
+          , log: (() => [])
+          }
+        )
     const validPair = function(p) {
         return validX(p.x) && validY(p.y) && validZ(p.z) && validT(p.t);
     }
@@ -161,10 +168,10 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         const ally = series.flatMap(s => s.values.map(p => p.y) );
         const allz = series.flatMap(s => s.values.map(p => p.z) );
         const allt = series.flatMap(s => s.values.map(p => p.t) );
-        const extentx = d3.extent(allx);
-        const extenty = d3.extent(ally);
-        const extentz = d3.extent(allz);
-        const extentt = d3.extent(allt);
+        const extentx = d3.extent(allx.concat(zeroScale(scatter.xAxis.scale)));
+        const extenty = d3.extent(ally.concat(zeroScale(scatter.yAxis.scale)));
+        const extentz = d3.extent(allz.concat(zeroScale(scatter.zAxis.scale)));
+        const extentt = d3.extent(allt.concat(zeroScale(scatter.tAxis.scale)));
 
         if (allx.length == 0) {
           svg.append("text")
