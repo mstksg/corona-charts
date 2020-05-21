@@ -30,6 +30,9 @@ instance showDay :: Show Day where
 fromModifiedJulianDay :: Int -> Day
 fromModifiedJulianDay = Day
 
+toModifiedJulianDay :: Day -> Int
+toModifiedJulianDay (Day d) = d
+
 addDays :: Int -> Day -> Day
 addDays x (Day y) = Day (x + y)
 

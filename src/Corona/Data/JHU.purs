@@ -1,5 +1,5 @@
 
-module Corona.JHU where
+module Corona.Data.JHU where
 
 import Prelude
 
@@ -8,13 +8,14 @@ import Affjax.ResponseFormat as ResponseFormat
 import Control.Alternative
 import Control.Monad.Except
 import Control.Monad.Maybe.Trans
+import Corona.Data.Type
 import Data.Array as A
 import Data.Date
 import Data.Either
 import Data.Functor
 import Data.HTTP.Method (Method(..))
-import Data.Int.Parse
 import Data.Int
+import Data.Int.Parse
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
 import Data.Map as M
@@ -31,17 +32,6 @@ import Foreign.Object as O
 import Foreign.Papa
 
 type Country = String
-
-type CoronaData =
-    { start  :: Day
-    , counts :: O.Object (Array (Counts Int))
-    }
-
-type Counts a =
-    { confirmed :: a
-    , deaths    :: a
-    , recovered :: a
-    }
 
 confirmedUrl :: String
 confirmedUrl = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
@@ -63,13 +53,17 @@ fetchCoronaData = runExceptT do
     let newCounts = forWithIndex confirmed.counts $ \k c -> do
           d <- O.lookup k deaths.counts
           r <- O.lookup k recovered.counts
-          pure $
-            A.zipWith ($) (A.zipWith (\c' d' r' ->
-                    { confirmed : c'
-                    , deaths: d'
-                    , recovered: r'
-                    }
-                ) c d) r
+          pure
+            { confirmed: c
+            , deaths: d
+            , recovered: r
+            }
+            -- A.zipWith ($) (A.zipWith (\c' d' r' ->
+            --         { confirmed : c'
+            --         , deaths: d'
+            --         , recovered: r'
+            --         }
+            --     ) c d) r
     case newCounts of
       Nothing -> throwError "missing data"
       Just c  -> pure

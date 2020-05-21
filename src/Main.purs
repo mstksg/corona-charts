@@ -4,7 +4,7 @@ import Prelude
 
 import Corona.Chart.UI as UI
 import Web.DOM.ParentNode as DOM
-import Corona.JHU (fetchCoronaData)
+import Corona.Data.JHU (fetchCoronaData)
 import Data.Either (Either(..))
 import Effect (Effect)
 import Effect.Class (liftEffect)

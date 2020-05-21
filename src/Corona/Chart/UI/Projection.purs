@@ -6,7 +6,7 @@ import Prelude
 import Control.Monad.State.Class as State
 import Corona.Chart
 import Corona.Chart.UI.Op as Op
-import Corona.JHU
+import Corona.Data
 import Corona.Marshal as Marshal
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
@@ -103,15 +103,6 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
       ]
     , HH.div [HU.classProp "axis-op-chain"] [
         HH.span_ [HH.text "Transformations"] 
-      -- , HH.div [HU.classProp "possible-op-chain"] $ D3.allSType <#> \t ->
-      --     HH.slot _opSelect
-      --       {tagIn: mkWrEx tBase}
-      --       (chainPicker tBase)
-      --       unit
-      --       $ \_ -> Just SetOps
-          
-
-
       , withDSum aState.projection (\_ spr ->
           withProjection spr (\pr ->
             let tBase = baseType pr.base
@@ -123,21 +114,18 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
           )
         )
       ]
-    , HH.div [HU.classProp "axis-scale"] [
-        HH.span_ [HH.text "Scale"]
-      , withDSum aState.projection (\t _ ->
+    , HH.div [HU.classProp "axis-scale"] $
+        withDSum aState.projection (\t _ ->
           case D3.toNType t of
-            Left (Left _) ->
-              HH.select_ [ HH.option [HP.selected true] [HH.text "Date"] ]
-            Left (Right _) ->
-              HH.select_ [ HH.option [HP.selected true] [HH.text "Days"] ]
-            Right _ ->
-              HH.select [HE.onSelectedIndexChange (map SetNumScale <<< indexToNScale)]
-              [ HH.option_ [HH.text "Linear"]
-              , HH.option  [HP.selected true] [HH.text "Log"]
-              ]
+            Left  _ -> []
+            Right _ -> [
+              HH.span_ [HH.text "Scale"]
+            , HH.select [HE.onSelectedIndexChange (map SetNumScale <<< indexToNScale)]
+                [ HH.option_ [HH.text "Linear"]
+                , HH.option  [HP.selected true] [HH.text "Log"]
+                ]
+            ]
         )
-      ]
     ]
   where
     indexToBase :: Int -> Maybe (Exists BaseProjection)

@@ -48,6 +48,21 @@ datedValues (Dated d) = d.values
 datedStart :: forall a. Dated a -> Day
 datedStart (Dated d) = d.start
 
+datedEnd :: forall a. Dated a -> Day
+datedEnd (Dated d) = addDays (A.length (d.values) - 1) d.start
+
+generate
+    :: forall a.
+       Day      -- ^ start
+    -> Int      -- ^ timespan (length - 1)
+    -> (Day -> a)   -- ^ generator
+    -> Dated a
+generate start tspan f = Dated { start, values }
+  where
+    Day i  = start
+    values = map (f <<< Day) (A.range i (i + tspan))
+                
+
 zipDated
     :: forall a b c.
        (a -> b -> c)

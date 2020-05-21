@@ -4,19 +4,19 @@ import Prelude
 
 import Control.Monad.Except
 import Control.Monad.Maybe.Trans
-import Data.Const
 import Control.Monad.State
 import Control.Monad.State.Class as State
 import Control.Monad.Writer
 import Control.MonadZero as MZ
 import Corona.Chart
 import Corona.Chart.UI.Projection as Projection
-import Corona.JHU
+import Corona.Data.Type
 import Corona.Marshal as Marshal
 import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Bifunctor
+import Data.Const
 import Data.Date as Date
 import Data.Either
 import Data.Exists
@@ -92,9 +92,9 @@ type State =
     , yAxis        :: Projection.State
     , zAxis        :: Projection.State
     , tAxis        :: Projection.State
-    , countries    :: Set Country
-    , unselected   :: Set Country
-    , allCountries :: Set Country
+    , countries    :: Set Region
+    , unselected   :: Set Region
+    , allRegions :: Set Region
     , permalink    :: Maybe String
     , waiting      :: Set (Maybe Axis)     -- ^ only render when empty. nothing: countries
     , welcomeText  :: Maybe String
@@ -136,14 +136,14 @@ lookupScale st ns = case D3.toNType st of
     Right nt       -> D3.runNScale ns nt
 
 data Action =
-        SetCountries (Set Country)
-      | AddCountry String
-      | RemoveCountry String
-      | ClearCountries
-      | DumpCountries
+        SetRegions (Set Region)
+      | AddRegion String
+      | RemoveRegion String
+      | ClearRegions
+      | DumpRegions
       | SetProjection Axis Projection.State
       | LoadProjection Axis Projection.State
-      | Highlight Country
+      | Highlight Region
       | Unhighlight
       | SaveFile
       | Redraw
@@ -155,7 +155,7 @@ data Action =
 
 type ChildSlots =
         ( scatter     :: H.Slot Scatter.Query    Void              Unit
-        -- , multiselect :: H.Slot (MultiSelect.Query Country) (MultiSelect.Output Country) Unit
+        -- , multiselect :: H.Slot (MultiSelect.Query Region) (MultiSelect.Output Region) Unit
         , autocomplete :: H.Slot Autocomplete.Query Autocomplete.Output Unit
         , projection  :: H.Slot Projection.Query Projection.Output Axis
         , postRender  :: H.Slot (Const Void) Unit Unit     -- hm we could integrate this
@@ -163,8 +163,8 @@ type ChildSlots =
         )
 
 
-initialCountries :: Set Country
-initialCountries = S.fromFoldable [
+initialRegions :: Set Region
+initialRegions = S.fromFoldable [
     "United States"
   , "Egypt"
   , "Italy"
@@ -180,9 +180,9 @@ component dat =
         , yAxis: defaultProjections.yAxis
         , zAxis: defaultProjections.zAxis
         , tAxis: defaultProjections.tAxis
-        , countries: initialCountries
-        , unselected: allCountries `S.difference` initialCountries
-        , allCountries
+        , countries: initialRegions
+        , unselected: allRegions `S.difference` initialRegions
+        , allRegions
         , permalink: Nothing
         , waiting: S.empty
         , welcomeText: Nothing
@@ -194,7 +194,7 @@ component dat =
         }
     }
   where
-    allCountries = S.fromFoldable (O.keys dat.counts)
+    allRegions = S.fromFoldable (O.keys dat.counts)
 
 defaultProjections ::
     { xAxis     :: Projection.State
@@ -288,7 +288,7 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
               HH.slot _autocomplete unit
                 (Autocomplete.component "country-select" "Search for a country...")
                 (A.fromFoldable st.unselected)
-                (case _ of Autocomplete.Selected str -> Just (AddCountry str))
+                (case _ of Autocomplete.Selected str -> Just (AddRegion str))
             ]
           , HH.div [HU.classProp "grid__col grid__col--4-of-8 country-picker-select"]
               [ HH.ul [HU.classProp "picked-countries"] $
@@ -296,7 +296,7 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
                     HH.li [
                       HE.onClick $ \e ->
                         if ME.buttons e == 0
-                          then Just (RemoveCountry c)
+                          then Just (RemoveRegion c)
                           else Nothing
                     , HE.onMouseOver $ \_ -> Just (Highlight c)
                     , HE.onMouseOut  $ \_ -> Just Unhighlight
@@ -307,13 +307,13 @@ render dat st = HH.div [HU.classProp "ui-wrapper"] [
           , HH.div [HU.classProp "grid__col grid__col--2-of-8 country-picker-buttons"] [
               HH.button [
                   HP.type_ HP.ButtonButton
-                , HE.onClick (\_ -> Just DumpCountries)
+                , HE.onClick (\_ -> Just DumpRegions)
                 , HU.classProp "add-all-button"
                 ]
                 [ HH.text "Add All" ]
             , HH.button [
                   HP.type_ HP.ButtonButton
-                , HE.onClick (\_ -> Just ClearCountries)
+                , HE.onClick (\_ -> Just ClearRegions)
                 , HU.classProp "remove-all-button"
                 ]
                 [ HH.text "Remove All" ]
@@ -360,29 +360,29 @@ handleAction
      -> Action
      -> M o m Unit
 handleAction dat = case _ of
-    SetCountries cs -> loadCountries dat cs
-    AddCountry c -> do
+    SetRegions cs -> loadRegions dat cs
+    AddRegion c -> do
       H.modify_ $ \st -> st
         { countries  = S.insert c st.countries
         , unselected = S.delete c st.unselected
         }
       reRender dat Nothing
-    RemoveCountry c -> do
+    RemoveRegion c -> do
       H.modify_ $ \st -> st
         { countries  = S.delete c st.countries
         , unselected = S.insert c st.unselected
         }
       reRender dat Nothing
-    ClearCountries -> do
+    ClearRegions -> do
       H.modify_ $ \st -> st
-        { countries = S.empty :: Set Country
-        , unselected = st.allCountries
+        { countries = S.empty :: Set Region
+        , unselected = st.allRegions
         }
       reRender dat Nothing
-    DumpCountries -> do
+    DumpRegions -> do
       H.modify_ $ \st -> st
-        { countries = st.allCountries
-        , unselected = S.empty :: Set Country
+        { countries = st.allRegions
+        , unselected = S.empty :: Set Region
         }
       reRender dat Nothing
     SetProjection a p -> do
@@ -460,7 +460,7 @@ type URISpec m =
         }
 
 uriSpecs :: forall o m. MonadEffect m => CoronaData -> Array (URISpec (M o m))
-uriSpecs dat = A.snoc axisSpec (countrySpec dat)
+uriSpecs dat = A.snoc axisSpec (regionSpec dat)
   where
     axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a ->
       let def = defaultProjections ^. axisLens a
@@ -480,23 +480,23 @@ loadProj a p = do
   when (isNothing res) $
     warn "warning: projection load did not return response"
 
-loadCountries :: forall o m. MonadEffect m => CoronaData -> Set String -> M o m Unit
-loadCountries dat ctys = do
+loadRegions :: forall o m. MonadEffect m => CoronaData -> Set String -> M o m Unit
+loadRegions dat ctys = do
    H.modify_ (_ { countries = ctys })
    reRender dat (Just Nothing)
 
-countrySpec :: forall o m. MonadEffect m => CoronaData -> URISpec (M o m)
-countrySpec dat =
+regionSpec :: forall o m. MonadEffect m => CoronaData -> URISpec (M o m)
+regionSpec dat =
     { waiter: Nothing
-    , default: serializeSet initialCountries
+    , default: serializeSet initialRegions
     , write: \st -> serializeSet $ st.countries
     , param
     , include: false
-    , loader: \usp -> bimap (const (load initialCountries)) load
+    , loader: \usp -> bimap (const (load initialRegions)) load
             <$> liftEffect (parseAtKey usp param parseSet)
     }
   where
-    load = loadCountries dat
+    load = loadRegions dat
     param = "r"
 
 generateUri

@@ -132,6 +132,10 @@ button {
 .plot {
   h3 {
     padding-right: 15rem;
+
+    &:after {
+      margin-right: -16.1rem;
+    }
   }
 }
 
@@ -207,8 +211,8 @@ button {
 
 .welcome {
 
-  font-size: 105%;
-  line-height: 125%;
+  font-size: 100%;
+  line-height: 120%;
 
   p {
     margin-bottom: 0.75rem;

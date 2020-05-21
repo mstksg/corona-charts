@@ -5,8 +5,7 @@ import Prelude
 
 import Control.Apply
 import Control.Monad.ST as ST
-import Corona.JHU (Counts, Country, CoronaData)
-import Corona.JHU as JHU
+import Corona.Data.Type
 import D3.Scatter.Type
 import Data.Array as A
 import Data.Array.ST as MA
@@ -366,22 +365,43 @@ applyCondition t = case _ of
     AtLeast n -> \x -> sTypeCompare t x n == GT
     AtMost n  -> \x -> sTypeCompare t x n == LT
 
+type TimeCounts a =
+    { start     :: Day
+    , timespan  :: Int          -- ^ length - 1
+    , counts    :: Counts (Array a)
+    }
+
+mkTimeCounts
+    :: Day                  -- ^ start
+    -> Counts (Array Int)   -- ^ data
+    -> TimeCounts Int
+mkTimeCounts start dat =
+    { start
+    , timespan: maxLen - 1
+    , counts: dat
+    }
+  where
+    maxLen = A.length dat.confirmed
+       `max` A.length dat.deaths
+       `max` A.length dat.recovered
+
+
 applyBaseProjection
     :: forall a.
        BaseProjection a
-    -> Dated (Counts Int)
+    -> TimeCounts Int
     -> Dated a
 applyBaseProjection = case _ of
-    Time      refl -> mapWithIndex (\i _ -> equivFrom refl i)
-    Confirmed refl -> map (\c -> equivFrom refl c.confirmed)
-    Deaths    refl -> map (\c -> equivFrom refl c.deaths   )
-    Recovered refl -> map (\c -> equivFrom refl c.recovered)
+    Time      r -> \tc -> D.generate tc.start tc.timespan (equivFrom r)
+    Confirmed r -> \tc -> equivFromF r $ Dated { start: tc.start, values: tc.counts.confirmed }
+    Deaths    r -> \tc -> equivFromF r $ Dated { start: tc.start, values: tc.counts.deaths }
+    Recovered r -> \tc -> equivFromF r $ Dated { start: tc.start, values: tc.counts.recovered }
 
 
 applyProjection
     :: forall a.
        Projection a
-    -> Dated (Counts Int)
+    -> TimeCounts Int
     -> Dated a
 applyProjection spr allDat = withProjection spr (\pr ->
           C.runChain applyOperation pr.operations <<< applyBaseProjection pr.base
@@ -454,7 +474,7 @@ toSeries
     -> Projection b
     -> Projection c
     -> Projection d
-    -> Dated (Counts Int)
+    -> TimeCounts Int
     -> Array (Point a b c d)
 toSeries pX pY pZ pT ps = D.datedValues $
     lift4 (\x y z t -> {x, y, z, t})
@@ -474,7 +494,7 @@ toScatterPlot
     -> Scale c
     -> Projection d
     -> Scale d
-    -> Set Country
+    -> Set Region
     -> ScatterPlot a b c d
 toScatterPlot dat pX sX pY sY pZ sZ pT sT ctrys =
         { xAxis  : toAxisConf pX sX
@@ -485,7 +505,7 @@ toScatterPlot dat pX sX pY sY pZ sZ pT sT ctrys =
             cdat <- O.lookup ctry dat.counts
             pure
               { name : ctry
-              , values : toSeries pX pY pZ pT (Dated { start: dat.start, values: cdat })
+              , values : toSeries pX pY pZ pT (mkTimeCounts dat.start cdat)
               }
         }
 
