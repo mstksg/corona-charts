@@ -336,7 +336,7 @@ applyOperation = case _ of
           ys = nTypeNumber nt <$> xs
           maxAbs :: Number
           maxAbs = maybe 1.0 unwrap <<< flip foldMap ys $ \y ->
-                     if y == zero
+                     if y == zero || isNaN y
                        then Nothing
                        else Just (Max (abs y))
       in  equivFromF rbp $ Percent <<< (_ / maxAbs) <$> ys

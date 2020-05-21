@@ -7,9 +7,6 @@
 *   exponential/logistic fits and projections
 *   textwrap labels
 
-*   data for different regions
-    *   url loading
-    *   disable recovered
 
 *   add cacheing
     *   changing scales should be fast
@@ -23,7 +20,7 @@
 *   fast-forward to end button
 *   apparent bug: restrict-before for dates
 *   feedback for parse errors in form elements
-*   graceful handling of 0 countries
+*   graceful handling of 0 countries, 0 data
 
 # Someday
 
@@ -44,3 +41,4 @@
 *   window should have final day as the label, not the center
 *   toggle sidebar on and off
 *   path segments fall from the sky
+*   disable recovered selector for US data
