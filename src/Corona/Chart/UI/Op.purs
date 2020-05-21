@@ -169,12 +169,12 @@ pgrowthPickOp nt = mkPickOp
     , defaultState: unit
     }
 
--- | Window    (ToFractional a b) Int -- ^ moving average of x over t, window n+1
+-- | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
 windowPickOp :: forall m a b. ToFractional a b -> PickOp m a b
 windowPickOp tf = mkPickOp
     { label: "Moving Average"
     , render: \st -> HH.div [HU.classProp "moving-average"] [
-        HH.span_ [HH.text "Window size"]
+        HH.span_ [HH.text "Window (before/after)"]
       , HH.input [
           HP.type_ HP.InputNumber
         , HP.value (show st)
@@ -186,10 +186,10 @@ windowPickOp tf = mkPickOp
         _          -> Nothing
     , modify: const
     , fromState: Window tf
-    , defaultState: 2
+    , defaultState: 1
     }
   where
-    parseWindow = map (max 1 <<< abs <<< round) <<< N.fromString
+    parseWindow = map (abs <<< round) <<< N.fromString
 
 -- | PMax      (NType a) (b ~ Percent)   -- ^ rescale to make max = 1 or -1
 pmaxPickOp :: forall m a. D3.NType a -> PickOp m a D3.Percent

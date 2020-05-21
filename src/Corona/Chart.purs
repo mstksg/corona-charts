@@ -211,7 +211,7 @@ instance showCutoffType :: Show CutoffType where
 data Operation a b =
         Delta     (NType a) (a ~ b)       -- ^ dx/dt
       | PGrowth   (NType a) (b ~ Percent)   -- ^ (dx/dt)/x        -- how to handle percentage
-      | Window    (ToFractional a b) Int -- ^ moving average of x over t, window n
+      | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
       | PMax      (NType a) (b ~ Percent)   -- ^ rescale to make max = 1 or -1
       | Restrict  (SType a) (a ~ b) CutoffType (Condition a)    -- ^ restrict before/after condition
             -- maybe this should take all types?
@@ -279,7 +279,7 @@ withConsec f xs = L.toUnfoldable $
 
 withWindow
     :: forall a b.
-       Int  -- ^ n+1
+       Int  -- ^ 2*n+1
     -> (NESeq.Seq a -> b)
     -> Array a
     -> Array b
@@ -288,16 +288,15 @@ withWindow n f = L.toUnfoldable
              <<< windows n
              <<< L.fromFoldable
 
--- | TODO: this can be moved to javascript if it is too slow.
 windows
     :: forall a.
-       Int  -- ^ n+1
+       Int  -- ^ 2*n+1
     -> L.List a
     -> L.List (NESeq.Seq a)
 windows n = case _ of
     L.Cons y xs ->
-      let ys = NESeq.fromFoldable1 (NE.NonEmpty y (L.take n xs))
-          zs = L.drop n xs
+      let ys = NESeq.fromFoldable1 (NE.NonEmpty y (L.take (2*n) xs))
+          zs = L.drop (2*n) xs
       in  L.Cons ys (L.scanl go ys zs)
     L.Nil -> L.Nil
   where
@@ -327,7 +326,7 @@ applyOperation = case _ of
         }
     Window tf n -> \(Dated x) -> Dated
         { start: MJD.addDays n x.start
-        , values: flip (withWindow (max 0 (n - 1))) x.values $ \ys ->
+        , values: flip (withWindow n) x.values $ \ys ->
                     numberNType (toFractionalOut tf) $
                       sum (map (nTypeNumber (toFractionalIn tf)) ys)
                         / toNumber (n * 2 + 1)

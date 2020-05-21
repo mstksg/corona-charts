@@ -1,13 +1,9 @@
 
 # Features
 
-*   symlog?
-*   linear scale should admit zero axis choice
 *   proper tooltip, text wrapping
 *   exponential/logistic fits and projections
 *   textwrap labels
-
-
 *   add cacheing
     *   changing scales should be fast
 
@@ -40,7 +36,8 @@
 # Meh
 
 *   configure playback speed?
-*   window should have final day as the label, not the center
 *   toggle sidebar on and off
 *   path segments fall from the sky
 *   disable recovered selector for US data
+*   support adjusting symmetric log parameter
+*   window should have final day as the label, not the center
