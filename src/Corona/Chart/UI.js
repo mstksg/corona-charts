@@ -10,14 +10,14 @@ exports.execCopy = function () {
 }
 
 
-const linkifier = function (selector, callback) {
+const linkifier = function (selector, addTitle, callback) {
     const links = document.querySelectorAll("a" + selector);
     for (const a of links) {
         const targ = a.getAttribute('href');
         if (targ) {
             const aNew = a.cloneNode(true);
             a.parentNode.replaceChild(aNew, a);
-            // aNew.setAttribute('href','#');
+            aNew.setAttribute('title',addTitle);
             aNew.addEventListener('click', function (e) {
                 e.preventDefault();
                 callback(targ);
@@ -29,9 +29,9 @@ const linkifier = function (selector, callback) {
 
 exports.linkify = function (dataview, copylink, saveimage) {
     return function () {
-        linkifier(".dataview",  s => dataview(s.slice(1))());
-        linkifier(".copylink",  () => copyLink());
-        linkifier(".saveimage", () => saveimage());
+        linkifier(".dataview", "Load me!", s => dataview(s.slice(1))());
+        linkifier(".copylink", "Copy Permalink to Chart", () => copyLink());
+        linkifier(".saveimage", "Save as Image", () => saveimage());
     }
 }
 
