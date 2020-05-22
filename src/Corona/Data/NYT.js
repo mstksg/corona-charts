@@ -29,7 +29,7 @@ exports.buildCorona = function (rows) {
 
         if (!start) {
             const datesegs = r[0].split('-');
-            start = new Date(datesegs[0],datesegs[1],datesegs[2]);
+            start = new Date(datesegs[0],parseInt(datesegs[1])-1,datesegs[2]);
         }
 
         if (counts[state]) {

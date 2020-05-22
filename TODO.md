@@ -4,10 +4,14 @@
 *   exponential/logistic fits and projections
 *   responsive layout
 *   fullscreen mode?
-
+*   other datasets: australia, china, etc.
+*   favicon
+*   "helo" info hovers
+*   reset region
 
 # Fixes
 
+*   loading a linear url for confirmed case count seems to display as logarithmic on 'scale' ui when 
 *   the onLeave handler seems to be called too late when leaving the area
     * edit: what?
 *   toggle switch for log/linear

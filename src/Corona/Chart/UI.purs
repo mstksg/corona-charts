@@ -248,7 +248,7 @@ defaultProjections = {
   , zAxis: D3.sDays :=> Product (Tuple
       ( projection
         { base: Confirmed refl
-        , operations: Restrict D3.sInt refl After (AtLeast 50)
+        , operations: Restrict D3.sInt refl After (AtLeast 10)
                  C.:> DayNumber refl After
                  C.:> C.nil
         }
