@@ -161,6 +161,7 @@ data Action =
       | RemoveRegion String
       | ClearRegions
       | DumpRegions
+      | ResetRegions
       | SetProjection Axis Projection.Out
       | LoadProjection Axis Projection.Out
       | LoadDataset Corona.Dataset
@@ -351,6 +352,12 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
                 , HU.classProp "remove-all-button"
                 ]
                 [ HH.text "Remove All" ]
+            , HH.button [
+                  HP.type_ HP.ButtonButton
+                , HE.onClick (\_ -> Just ResetRegions)
+                , HU.classProp "reset-regions-button"
+                ]
+                [ HH.text "Reset" ]
             ]
           ]
         ]
@@ -434,6 +441,16 @@ handleAction = case _ of
             Right rs -> Right $ rs
               { selected   = rs.allRegions
               , unselected = S.empty :: Set Region
+              }
+        }
+      reRender Nothing
+    ResetRegions -> do
+      H.modify_ $ \st -> st
+        { regionState = case st.regionState of
+            Left cs  -> Left initialRegions
+            Right rs -> Right $ rs
+              { selected   = initialRegions `S.intersection` rs.allRegions
+              , unselected = rs.allRegions `S.difference` initialRegions
               }
         }
       reRender Nothing

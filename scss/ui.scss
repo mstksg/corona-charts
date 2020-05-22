@@ -176,14 +176,16 @@ button {
 
       &:hover {
         font-weight: bold;
+        font-size: 110%;
       }
     }
 
     &:hover {
       height: auto;
-      padding: 0.5rem;
+      padding-bottom: 0.5rem;
       position: relative;
       border: 1px solid #ddd;
+      border-top: 0;
     }
   }
 }

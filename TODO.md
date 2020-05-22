@@ -7,7 +7,6 @@
 *   other datasets: australia, china, etc.
 *   favicon
 *   "helo" info hovers
-*   reset region
 
 # Fixes
 
