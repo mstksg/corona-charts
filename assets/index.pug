@@ -57,27 +57,23 @@ title Coronavirus Data Plotter
           | counter-clockwise; when they get back "home", they are out clear.
           | Set-backs will visually appear as
           | backtracking or getting lost, whereas effective control measures
-          | appear as very fast motion.  It's somewhat inspired by Danny Dorling's infamous
+          | appear as very fast motion.  Inspired by Danny Dorling's infamous
           a(href='https://twitter.com/emmawage/status/1255172980788785152')  tornado plots
-          | .  Being able to uncover interesting perspectives like this one
-          | was one of the reasons I wanted to build this in the first place!
+          | .
         li
           a.dataview(href='/?x=tnd&y=ccgcw3no&z=cno&t=tct60bnd') Percent growth plot
-          | , an example of a basic projection you can explore.  Also an
+          | limited to the past 60 days, an example of a basic projection you can explore.
           | example of limiting to only the past 60 days.  Percent growth is
-          | pretty useful to me because perfectly exponential growth will show
-          | up as horizontal lines, so you can observe when countries move in
-          | and out of it by how horizontal their line is.  Color is the
-          | actual absolute case count, so you can get a scale of the
-          | underlying numbers as well in one glance.
+          | useful because periods of perfectly exponential growth will show
+          | up as horizontal lines. Colors reflect absolute counts, to show
+          | more info at a glance.
         li
           a.dataview(href='/?x=ccral50cnanif&y=cno&z=ccccmnif&t=tnd') Time-shifted plot
           | , a basic transformation on dates.  This
           | tweaks the X axis to display "days since 50 cases confirmed", so
           | that you can visually compare the relative progression based on
-          | the "arrival" of COVID-19 to a given region.  There's also an
-          | interesting color scale that highlights (in blue) the time periods
-          | where growth was the largest in each region.
+          | the "arrival" of COVID-19 to a given region.  Colors reflect
+          | periods of relative high growth (blue) per region.
 
     footer.grid__col.grid__col--6-of-6
       // .footer-contents
