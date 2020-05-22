@@ -3,6 +3,7 @@
 
 *   exponential/logistic fits and projections
 *   responsive layout
+*   fullscreen mode?
 
 
 # Fixes

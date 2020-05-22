@@ -62,8 +62,17 @@ title Coronavirus Data Plotter
           | .  Being able to uncover interesting perspectives like this one
           | was one of the reasons I wanted to build this in the first place!
         li
+          a.dataview(href='/?x=tnd&y=ccgcw3no&z=cno&t=tct60bnd') Percent growth plot
+          | , an example of a basic projection you can explore.  Also an
+          | example of limiting to only the past 60 days.  Percent growth is
+          | pretty useful to me because perfectly exponential growth will show
+          | up as horizontal lines, so you can observe when countries move in
+          | and out of it by how horizontal their line is.  Color is the
+          | actual absolute case count, so you can get a scale of the
+          | underlying numbers as well in one glance.
+        li
           a.dataview(href='/?x=ccral50cnanif&y=cno&z=ccccmnif&t=tnd') Time-shifted plot
-          | , an example of a basic transformation you can explore.  This
+          | , a basic transformation on dates.  This
           | tweaks the X axis to display "days since 50 cases confirmed", so
           | that you can visually compare the relative progression based on
           | the "arrival" of COVID-19 to a given region.  There's also an
