@@ -525,7 +525,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
         // yo this is it
         //
-        // we can use line instead of path but it intereferes with selectors
+        // i tried using lines here instead of a path but it was slower for
+        // some reason, who knew
         const datalines = subplot.append("g");
         datalines
              .selectAll("g")

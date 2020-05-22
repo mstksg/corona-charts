@@ -161,10 +161,12 @@ button {
   ul.picked-regions {
     text-align: center;
     list-style-type: none;
-    padding: 0;
+    padding: 0 0.5rem;
     margin: 0;
     overflow-y: auto;
     height: 2.25rem;
+    background: #fff;
+
     // text-align: center;
     li {
       display: inline-block;
@@ -175,7 +177,13 @@ button {
       &:hover {
         font-weight: bold;
       }
+    }
 
+    &:hover {
+      height: auto;
+      padding: 0.5rem;
+      position: relative;
+      border: 1px solid #ddd;
     }
   }
 }
