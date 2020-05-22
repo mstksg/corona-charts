@@ -1,11 +1,8 @@
 
 # Features
 
-*   proper tooltip, text wrapping
 *   exponential/logistic fits and projections
-*   textwrap labels
-*   add cacheing
-    *   changing scales should be fast
+*   responsive layout
 
 
 # Fixes
@@ -13,11 +10,19 @@
 *   the onLeave handler seems to be called too late when leaving the area
     * edit: what?
 *   toggle switch for log/linear
+*   touch on mobile
 *   Better labeling system
     *   maybe just a white background
 *   fast-forward to end button
+*   missing data
 *   apparent bug: restrict-before for dates
     * edit: what?
+
+*   performance when loading:
+    *   changing scales should be fast
+    *   i tried cacheing but actually generating the data does none of the
+        work.  what is the work?  the type checking/dependent types?  the url
+        generation?  or the d3 plot itself?
 
 # Someday
 
@@ -41,3 +46,4 @@
 *   disable recovered selector for US data
 *   support adjusting symmetric log parameter
 *   window should have final day as the label, not the center
+*   text wrapping? is this feasible?

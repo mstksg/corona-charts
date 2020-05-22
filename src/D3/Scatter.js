@@ -302,13 +302,13 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             return sliderino;
         }
 
-        const highlight = subplot => function(name) {
-          subplot.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 1)
+        const highlight = datalines => function(name) {
+          datalines.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 1)
                 .filter(d => d.name === name)
                 .raise();
         }
-        const unhighlight = subplot => function() {
-            subplot.selectAll("path").attr("stroke-width",2);
+        const unhighlight = datalines => function() {
+            datalines.selectAll("path").attr("stroke-width",2);
         }
 
         const mkQuadPoints = ss => ss.flatMap(s =>
@@ -347,17 +347,25 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     .attr("stroke","steelblue")
                     .attr("stroke-width",2);
 
-          const mkLabel = (g,anchor,x,y) => g.append("text")
+          const mkLabel = (g,anchor,fsize,x,y) => g.append("text")
               .attr("font-family", "sans-serif")
-              .attr("font-size", 12)
+              .attr("font-size", fsize)
               .attr("text-anchor",anchor)
               .attr("x",x)
               .attr("y",y);
 
-          const toplabel    = mkLabel(crosshair,"middle",0,-12);
-          const bottomlabel = mkLabel(crosshair,"middle",0, 24)
+          crosshair.append("path")
+                    .attr("d","M0 0L100 0L100 50L0 50L0 0Z")
+                    .attr("transform","translate(-110,-60)")
+                    .style("fill","#fff")
+                    .style("stroke","#666")
+                    .style("stroke-width","1px")
+                    .style("opacity",0.85);
+
+          const bottomlabel = mkLabel(crosshair,"middle",12,-60, -44)
                                     .attr("font-weight","bold");
-          const footlabel   = mkLabel(crosshair,"middle",0, 40);
+          const toplabel    = mkLabel(crosshair,"middle",10,-60, -28);
+          const footlabel   = mkLabel(crosshair,"middle",10,-60, -16);
 
           const vertline = crosshair.append("line")
                 .style("stroke-width",0.5)
@@ -422,6 +430,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
               ch_center.append("title").text("Jump to time " + fmtT(closest.t));
               highlight(closest.name);
               bottomlabel.text(closest.name);
+              toplabel
+                  .attr("font-size",10)
+                  .attr("y",-28);
               footlabel.text(
                     [fmtZ(closest.z),fmtT(closest.t)]
                                     .filter(st => st !== showx && st !== showy)
@@ -459,6 +470,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                     .style('pointer-events','none')
               }
             } else {
+              toplabel
+                .attr("font-size",12)
+                .attr("y",-31);
               colorline.attr("display", "none");
               colorcenter.attr("display", "none");
               ch_center.attr("r",4.0)
@@ -512,7 +526,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         // yo this is it
         //
         // we can use line instead of path but it intereferes with selectors
-        subplot.append("g")
+        const datalines = subplot.append("g");
+        datalines
              .selectAll("g")
              .data(flatSegments(series))
              .join("g")
@@ -526,7 +541,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
         const endDots = mainplot.append("g");
 
-        subplot.call(hover, highlight(subplot),unhighlight(subplot));
+        subplot.call(hover, highlight(datalines),unhighlight(datalines));
 
 
         const setTime = function(subplot, t_) {
@@ -604,7 +619,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         const subslider = svg.append("g");
         const sliderino = tAxis(subslider.append("g"))
                 // .on('onchange', v => setTime(subplot,v))
-                .on('onchange', _.throttle(v => setTime(subplot,v), 50))
+                .on('onchange', _.throttle(v => setTime(datalines,v), 50))
                 // .on('end',v => requad(v));
 
         const button = svg.append("g")
@@ -654,7 +669,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
         const moveSetSlider = function(t) {
             sliderino.value(t);
-            setTime(subplot,t);
+            setTime(datalines,t);
             resting = t == extentt[1];
         }
 
@@ -730,8 +745,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
 
         window.subplot = subplot;
         return {
-            highlight: highlight(subplot),
-            unhighlight: unhighlight(subplot),
+            highlight: highlight(datalines),
+            unhighlight: unhighlight(datalines),
             // settime: (v => setTime(subPlot, v)),
             saveFile: saveFile
         };
