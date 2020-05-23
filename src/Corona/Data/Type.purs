@@ -43,3 +43,9 @@ type Counts a =
     , recovered :: a
     }
 
+mapCounts :: forall a b. (a -> b) -> Counts a -> Counts b
+mapCounts f c =
+    { confirmed: f c.confirmed
+    , deaths: f c.deaths
+    , recovered: f c.recovered
+    }

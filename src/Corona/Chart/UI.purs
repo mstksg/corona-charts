@@ -9,6 +9,7 @@ import Control.Monad.State.Class as State
 import Control.Monad.Writer
 import Control.MonadZero as MZ
 import Corona.Chart
+import Corona.Chart.Assemble
 import Corona.Chart.UI.Projection as Projection
 import Corona.Data as Corona
 import Corona.Data.Type
@@ -677,14 +678,11 @@ reRender initter = do
                     (\f -> f tX tY tZ tT (
                           toScatterPlot
                             dat
-                            pX
-                            sX
-                            pY
-                            sY
-                            pZ
-                            sZ
-                            pT
-                            sT
+                            ({ x : PS { projection: pX, scale: sX }
+                             , y : PS { projection: pY, scale: sY }
+                             , z : PS { projection: pZ, scale: sZ }
+                             , t : PS { projection: pT, scale: sT }
+                            })
                             regionState.selected
                         )
                     )

@@ -51,10 +51,7 @@ const timedSeries = series => function(t,keeplast) {
     }).filter(s => s.values.length > 0);
 }
 
-// { xAxis : { scale : Scale, label : String}
-// , yAxis : { scale : Scale, label : String}
-// , zAxis : { scale : Scale, label : String}
-// , tAxis : { scale : Scale, label : String}
+// { axis: {x,y,z,t : { scale : Scale, label : String} }
 // , series : [{ name : String, values: [{x, y, z, t}]}]
 // }
 exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT, svgdat, scatter) {
@@ -109,10 +106,10 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           , symlog: (() => true)
           }
         );
-    const validX = validVal(scatter.xAxis.scale);
-    const validY = validVal(scatter.yAxis.scale);
-    const validZ = validVal(scatter.zAxis.scale);
-    const validT = validVal(scatter.tAxis.scale);
+    const validX = validVal(scatter.axis.x.scale);
+    const validY = validVal(scatter.axis.y.scale);
+    const validZ = validVal(scatter.axis.z.scale);
+    const validT = validVal(scatter.axis.t.scale);
     const zeroScale = scale =>
         handleScale(scale)(
           { date: (() => [])
@@ -171,10 +168,10 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         const ally = series.flatMap(s => s.values.map(p => p.y) );
         const allz = series.flatMap(s => s.values.map(p => p.z) );
         const allt = series.flatMap(s => s.values.map(p => p.t) );
-        const extentx = d3.extent(allx.concat(zeroScale(scatter.xAxis.scale)));
-        const extenty = d3.extent(ally.concat(zeroScale(scatter.yAxis.scale)));
-        const extentz = d3.extent(allz.concat(zeroScale(scatter.zAxis.scale)));
-        const extentt = d3.extent(allt.concat(zeroScale(scatter.tAxis.scale)));
+        const extentx = d3.extent(allx.concat(zeroScale(scatter.axis.x.scale)));
+        const extenty = d3.extent(ally.concat(zeroScale(scatter.axis.y.scale)));
+        const extentz = d3.extent(allz.concat(zeroScale(scatter.axis.z.scale)));
+        const extentt = d3.extent(allt.concat(zeroScale(scatter.axis.t.scale)));
 
         if (allx.length == 0) {
           svg.append("text")
@@ -192,23 +189,23 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         }
 
         // this converts to and form the different coordinate systems
-        const x = scaleFunc(scatter.xAxis.scale)
+        const x = scaleFunc(scatter.axis.x.scale)
                         .domain(extentx).nice()
                         .range([margin.left, width - margin.right]);
-        const y = scaleFunc(scatter.yAxis.scale)
+        const y = scaleFunc(scatter.axis.y.scale)
                         .domain(extenty).nice()
                         .range([height - margin.bottom, margin.top]);
         // color
-        const z = scaleFunc(scatter.zAxis.scale)
+        const z = scaleFunc(scatter.axis.z.scale)
                         .domain(extentz)        // not nice
                         .range([d3.interpolateOranges(0.75),d3.interpolateBlues(0.75)])
                         .interpolate(d3.interpolateCubehelix.gamma(3));
         // legend
         const legdim = { left: 12, top: 55, width: 200 };
-        const z_ = scaleFunc(scatter.zAxis.scale)
+        const z_ = scaleFunc(scatter.axis.z.scale)
                         .domain(extentz)
                         .range([0, legdim.width]);
-        const t = scaleFunc(scatter.tAxis.scale)
+        const t = scaleFunc(scatter.axis.t.scale)
                         .domain(extentt)        // not nice
                         .range([margin.left, width - margin.right]);
 
@@ -230,7 +227,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                             .attr("text-anchor", "end")
                             // .attr("font-weight", "bold")
                             .attr("font-size", 20)
-                            .text(scatter.xAxis.label)
+                            .text(scatter.axis.x.label)
                      )
                 .call(g => g.selectAll(".tick line").clone()
                             .attr("stroke-opacity", 0.1)
@@ -250,7 +247,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                         .attr("text-anchor", "start")
                         .attr("font-size", 20)
                         .attr("fill", "#666")
-                        .text(scatter.yAxis.label)
+                        .text(scatter.axis.y.label)
                     );
         };
         const zLegend = function(g) {
@@ -283,7 +280,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                         .attr("font-weight", "bold")
                         .attr("font-size", 12)
                         .attr("fill","currentColor")
-                        .text(scatter.zAxis.label)
+                        .text(scatter.axis.z.label)
                     );
         }
         const tAxis = function(g) {
@@ -298,7 +295,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                 .attr("fill", "currentColor")
                 .attr("font-weight", "bold")
                 .attr("font-size", 12)
-                .text(scatter.tAxis.label);
+                .text(scatter.axis.t.label);
             return sliderino;
         }
 

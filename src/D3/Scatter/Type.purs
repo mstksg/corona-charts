@@ -7,6 +7,7 @@ import Data.Either
 import Data.Enum
 import Data.Exists
 import Data.Function.Uncurried
+import Data.Identity
 import Data.Int
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
@@ -260,9 +261,35 @@ instance ntPercent :: NTypeable Percent where
 
 type Point a b c d = { x :: a, y :: b, z :: c, t :: d }
 
+type PointF f a b c d = { x :: f a, y :: f b, z :: f c, t :: f d }
+
+hoistPointF
+    :: forall f g a b c d.
+       (forall x. f x -> g x)
+    -> PointF f a b c d
+    -> PointF g a b c d
+hoistPointF f { x, y, z, t } =
+    { x: f x
+    , y: f y
+    , z: f z
+    , t: f t
+    }
+
+
+type Point2D a b = { x :: a, y :: b }
+-- type NoZ a b d = { x :: a, y :: b, t :: d }
+
+type SomeValue = DSum SType Identity
+
+someValue :: forall a. STypeable a => a -> SomeValue
+someValue x = sType :=> Identity x
+
+type Param = { name :: String, value :: SomeValue }
+
 type SeriesData a b c d =
-    { name   :: String
-    , values :: Array (Point a b c d)
+    { name      :: String
+    , values    :: Array (Point a b c d)
+    , modelfits :: O.Object (Array (Point2D a b))
     }
 
 infixr 1 type Either as ||
@@ -325,13 +352,10 @@ toNScale = case _ of
 runNScale :: forall a. NScale -> NType a -> Scale a
 runNScale (NScale x) = runDProd x
 
-type AxisConf a = { scale :: Scale a, label :: String }
+newtype AxisConf a = AC { scale :: Scale a, label :: String }
 
 type ScatterPlot a b c d =
-        { xAxis  :: AxisConf a
-        , yAxis  :: AxisConf b
-        , zAxis  :: AxisConf c
-        , tAxis  :: AxisConf d
+        { axis   :: PointF AxisConf a b c d
         , series :: Array (SeriesData a b c d)
         }
 

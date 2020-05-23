@@ -360,6 +360,13 @@ applyOperation = case _ of
                   mapWithIndex (\i _ -> Days $ MJD.diffDays i dF) (Dated x)
     PointDate rbd -> equivFromF rbd <<< mapWithIndex const
 
+applyOperations
+    :: forall a b.
+       C.Chain Operation a b
+    -> Dated a
+    -> Dated b
+applyOperations = C.runChain applyOperation
+
 applyCondition :: forall a. SType a -> Condition a -> a -> Boolean
 applyCondition t = case _ of
     AtLeast n -> \x -> sTypeCompare t x n == GT
@@ -404,7 +411,7 @@ applyProjection
     -> TimeCounts Int
     -> Dated a
 applyProjection spr allDat = withProjection spr (\pr ->
-          C.runChain applyOperation pr.operations <<< applyBaseProjection pr.base
+          applyOperations pr.operations <<< applyBaseProjection pr.base
         ) allDat
 
 baseProjection :: forall a. Projection a -> Exists BaseProjection
@@ -462,52 +469,28 @@ projectionLabel spr = withProjection spr (\pr ->
         operationsLabel pr.operations <> baseProjectionLabel pr.base
     )
 
-toAxisConf :: forall a. Projection a -> Scale a -> AxisConf a
-toAxisConf spr scl =
-      { scale: scl
-      , label: projectionLabel spr
+newtype ProjScale a = PS
+    { projection :: Projection a
+    , scale :: Scale a
+    }
+
+toAxisConf :: forall a. ProjScale a -> AxisConf a
+toAxisConf (PS { projection, scale }) = AC
+      { scale: scale
+      , label: projectionLabel projection
       }
 
 toSeries
     :: forall a b c d.
-       Projection a
-    -> Projection b
-    -> Projection c
-    -> Projection d
+       PointF Projection a b c d
     -> TimeCounts Int
     -> Array (Point a b c d)
-toSeries pX pY pZ pT ps = D.datedValues $
+toSeries {x, y, z, t} ps = D.datedValues $
     lift4 (\x y z t -> {x, y, z, t})
-          (applyProjection pX ps)
-          (applyProjection pY ps)
-          (applyProjection pZ ps)
-          (applyProjection pT ps)
-
-toScatterPlot
-    :: forall a b c d.
-       CoronaData
-    -> Projection a
-    -> Scale a
-    -> Projection b
-    -> Scale b
-    -> Projection c
-    -> Scale c
-    -> Projection d
-    -> Scale d
-    -> Set Region
-    -> ScatterPlot a b c d
-toScatterPlot dat pX sX pY sY pZ sZ pT sT ctrys =
-        { xAxis  : toAxisConf pX sX
-        , yAxis  : toAxisConf pY sY
-        , zAxis  : toAxisConf pZ sZ
-        , tAxis  : toAxisConf pT sT
-        , series : flip A.mapMaybe (A.fromFoldable ctrys) $ \ctry -> do
-            cdat <- O.lookup ctry dat.counts
-            pure
-              { name : ctry
-              , values : toSeries pX pY pZ pT (mkTimeCounts dat.start cdat)
-              }
-        }
+        (applyProjection x ps)
+        (applyProjection y ps)
+        (applyProjection z ps)
+        (applyProjection t ps)
 
 setBase :: forall a. BaseProjection a -> DSum SType Projection -> DSum SType Projection
 setBase base dp = withDSum dp (\tB spr ->
