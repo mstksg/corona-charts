@@ -11,10 +11,13 @@ import Data.Identity
 import Data.Int
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
+import Data.Lens
+import Data.Lens.Record as LR
 import Data.Maybe
 import Data.ModifiedJulianDay (Day)
 import Data.Newtype
 import Data.Semiring
+import Data.Symbol (SProxy(..))
 import Data.Tuple
 import Effect
 import Foreign.Object as O
@@ -258,6 +261,23 @@ instance ntPercent :: NTypeable Percent where
 --     NInt     refl -> \x -> withEquiv refl x
 --     NNumber  refl -> \x -> withEquiv refl x
 --     NPercent refl -> \x -> withEquiv refl x
+
+data Axis = XAxis | YAxis | ZAxis | TAxis
+derive instance eqAxis :: Eq Axis
+derive instance ordAxis :: Ord Axis
+instance showAxis :: Show Axis where
+    show = case _ of
+      XAxis -> "XAxis"
+      YAxis -> "YAxis"
+      ZAxis -> "ZAxis"
+      TAxis -> "TAxis"
+
+axisLens :: forall a. Axis -> Lens' (Record _) a
+axisLens = case _ of
+    XAxis -> LR.prop (SProxy :: SProxy "x")
+    YAxis -> LR.prop (SProxy :: SProxy "y")
+    ZAxis -> LR.prop (SProxy :: SProxy "z")
+    TAxis -> LR.prop (SProxy :: SProxy "t")
 
 type Point a b c d = { x :: a, y :: b, z :: c, t :: d }
 

@@ -30,16 +30,16 @@ import Undefined
 data ModelFit = LinFit
               | ExpFit
               | LogFit
-              | DecFit
+              -- | DecFit
 
 allModelFit :: Array ModelFit
-allModelFit = [LinFit, ExpFit, LogFit, DecFit]
+allModelFit = [LinFit, ExpFit, LogFit]
 
 modelFitLabel :: ModelFit -> String
 modelFitLabel = case _ of
     LinFit -> "Linear"
     ExpFit -> "Exponential"
-    DecFit -> "Exponential Decay"
+    -- DecFit -> "Exponential Decay"
     LogFit -> "Logistic"
 
 type ModelSpec = { fit :: ModelFit, tail :: Int, forecast :: Int }
@@ -150,7 +150,7 @@ modelFitParams = case _ of
         , value: D3.someValue (D3.Days (round (M.log 2.0 / lr.beta)))
         }
       ]
-    DecFit -> \_ -> []
+    -- DecFit -> \_ -> []
     LogFit -> \lr -> [
         { name: "Peak Date"
         , value: D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta)))
@@ -167,7 +167,7 @@ modelFitTrans
 modelFitTrans n dat = case _ of
     LinFit -> { params: [], trans: idTrans }
     ExpFit -> { params: [], trans: expTrans }
-    DecFit -> finder idTrans decayTrans
+    -- DecFit -> finder idTrans decayTrans
     LogFit -> finder expTrans logisticTrans
   where
     finder def mkT = case findCap mkT (D.takeEnd n dat) of

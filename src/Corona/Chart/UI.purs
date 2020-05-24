@@ -15,7 +15,7 @@ import Corona.Chart.UI.Projection as Projection
 import Corona.Data as Corona
 import Corona.Data.Type
 import Corona.Marshal as Marshal
-import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..))
+import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..), Axis(..), axisLens, Point)
 import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Bifunctor
@@ -88,6 +88,7 @@ import Web.HTML.Window as Window
 import Web.UIEvent.MouseEvent as ME
 import Web.URLSearchParams as USP
 
+type V4 a = { x :: a, y :: a, z :: a, t :: a }
 
 type AxisState =
     { projection :: DSum SType Projection
@@ -112,16 +113,13 @@ type Models =
     { linFit :: ModelState
     , expFit :: ModelState
     , logFit :: ModelState
-    , decFit :: ModelState
+    -- , decFit :: ModelState
     }
 
 -- todo: refactor this to use Point instead of four axes
 type State =
     { datasetSpec  :: Corona.Dataset
-    , xAxis        :: Projection.Out
-    , yAxis        :: Projection.Out
-    , zAxis        :: Projection.Out
-    , tAxis        :: Projection.Out
+    , axis         :: V4 Projection.Out
     , modelStates  :: Models
     , regionState  :: Either (Set Region) RegionState   -- ^ queued up
     , dataset      :: Maybe CoronaData
@@ -130,22 +128,12 @@ type State =
     , welcomeText  :: Maybe String
     }
 
-data Axis = XAxis | YAxis | ZAxis | TAxis
-derive instance eqAxis :: Eq Axis
-derive instance ordAxis :: Ord Axis
-instance showAxis :: Show Axis where
-    show = case _ of
-      XAxis -> "XAxis"
-      YAxis -> "YAxis"
-      ZAxis -> "ZAxis"
-      TAxis -> "TAxis"
-
-axisLens :: Axis -> Lens' (Record _) Projection.Out
-axisLens = case _ of
-    XAxis -> LR.prop (SProxy :: SProxy "xAxis")
-    YAxis -> LR.prop (SProxy :: SProxy "yAxis")
-    ZAxis -> LR.prop (SProxy :: SProxy "zAxis")
-    TAxis -> LR.prop (SProxy :: SProxy "tAxis")
+v4Lens :: forall a. Axis -> Lens' (V4 a) a
+v4Lens = case _ of
+    XAxis -> LR.prop (SProxy :: SProxy "x")
+    YAxis -> LR.prop (SProxy :: SProxy "y")
+    ZAxis -> LR.prop (SProxy :: SProxy "z")
+    TAxis -> LR.prop (SProxy :: SProxy "t")
 
 axisParam :: Axis -> String
 axisParam = case _ of
@@ -159,7 +147,7 @@ modelFitLens = case _ of
     LinFit -> LR.prop (SProxy :: SProxy "linFit")
     ExpFit -> LR.prop (SProxy :: SProxy "expFit")
     LogFit -> LR.prop (SProxy :: SProxy "logFit")
-    DecFit -> LR.prop (SProxy :: SProxy "decFit")
+    -- DecFit -> LR.prop (SProxy :: SProxy "decFit")
 
 
 data Aspect = ADataset
@@ -229,16 +217,13 @@ component :: forall f i o m. MonadAff m => H.Component HH.HTML f i o m
 component = H.mkComponent
     { initialState: \_ ->
         { datasetSpec: Corona.WorldData
-        , xAxis: defaultProjections.xAxis
-        , yAxis: defaultProjections.yAxis
-        , zAxis: defaultProjections.zAxis
-        , tAxis: defaultProjections.tAxis
+        , axis: defaultProjections
         , regionState: Left S.empty
         , modelStates:
             { linFit: initialModelState
             , expFit: initialModelState
             , logFit: initialModelState
-            , decFit: initialModelState
+            -- , decFit: initialModelState
             }
         , dataset: Nothing
         , permalink: Nothing
@@ -258,28 +243,23 @@ component = H.mkComponent
       , forecast: 14
       }
 
-defaultProjections ::
-    { xAxis     :: Projection.Out
-    , yAxis     :: Projection.Out
-    , zAxis     :: Projection.Out
-    , tAxis     :: Projection.Out
-    }
+defaultProjections :: V4 Projection.Out
 defaultProjections = {
-    xAxis: D3.sDay :=> Product (Tuple
+    x: D3.sDay :=> Product (Tuple
       ( projection
         { base: Time refl
         , operations: C.nil
         }
       ) (D3.Date refl)
     )
-  , yAxis: D3.sInt :=> Product (Tuple
+  , y: D3.sInt :=> Product (Tuple
       ( projection
         { base: Confirmed refl
         , operations: C.nil
         }
       ) (D3.Log D3.nInt)
     )
-  , zAxis: D3.sDays :=> Product (Tuple
+  , z: D3.sDays :=> Product (Tuple
       ( projection
         { base: Confirmed refl
         , operations: Restrict D3.sInt refl After (AtLeast 10)
@@ -288,7 +268,7 @@ defaultProjections = {
         }
       ) (D3.Linear (Left refl) false)
     )
-  , tAxis: D3.sDay :=> Product (Tuple
+  , t: D3.sDay :=> Product (Tuple
       ( projection
         { base: Time refl
         , operations: C.nil
@@ -311,7 +291,7 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
               in  HH.option [HP.selected isSelected] [HH.text (datasetLabel ds)]
         ]
       , HH.slot _projection YAxis (Projection.component "Y Axis")
-          st.yAxis
+          st.axis.y
           (\(Projection.Update s) -> Just (SetProjection YAxis s))
       , HH.div [HU.classProp "model-picker dialog"] modelPicker
       ]
@@ -405,23 +385,23 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
             ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
         HH.slot _projection ZAxis (Projection.component "Color Axis")
-          st.zAxis
+          st.axis.z
           (\(Projection.Update s) -> Just (SetProjection ZAxis s))
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t"] [
         HH.slot _projection TAxis (Projection.component "Time Axis")
-          st.tAxis
+          st.axis.t
           (\(Projection.Update s) -> Just (SetProjection TAxis s))
       ]
     , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
         HH.slot _projection XAxis (Projection.component "X Axis")
-          st.xAxis
+          st.axis.x
           (\(Projection.Update s) -> Just (SetProjection XAxis s))
       ]
     , HH.slot _postRender unit postRender unit (\_ -> Just Linkify)
     ]
   where
-    title = Projection.outLabel st.yAxis <> " vs. " <> Projection.outLabel st.xAxis
+    title = Projection.outLabel st.axis.y <> " vs. " <> Projection.outLabel st.axis.x
     hw = { height: 666.6, width: 1000.0 }
     allDatasets = [ Corona.WorldData, Corona.USData ]
     datasetLabel = case _ of
@@ -518,8 +498,9 @@ handleAction = case _ of
         }
       reRender Nothing
     SetProjection a p -> do
-       axisLens a .= p
-       reRender (Just (AAxis a))
+      H.modify_ $ \st -> st
+        { axis = set (v4Lens a) p st.axis }
+      reRender (Just (AAxis a))
     LoadProjection a p -> loadProj a p
     LoadDataset ds -> loadDataset ds
     SetModel mfit b -> do
@@ -548,7 +529,7 @@ handleAction = case _ of
         st { waiting = S.fromFoldable (AAxis <$> [XAxis, YAxis, ZAxis, TAxis]) <> st.waiting }
         -- (_ { waiting = S.singleton Nothing :: Set (Maybe Axis) })
       for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
-        loadProj a (defaultProjections ^. axisLens a)
+        loadProj a (defaultProjections ^. v4Lens a)
     CopyURI -> void <<< runMaybeT $ do
       e  <- MaybeT $ H.getHTMLElementRef loaduriRef
       ie <- maybe MZ.empty pure $ HTMLInputElement.fromHTMLElement e
@@ -620,10 +601,10 @@ uriSpecs = axisSpec <> [datasetSpec, regionSpec]
     regionParam = "r"
     datasetParam = "d"
     axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a ->
-      let def = defaultProjections ^. axisLens a
+      let def = defaultProjections ^. v4Lens a
       in  { waiter: AAxis a
           , default: Projection.outSerialize def
-          , write: \st -> Projection.outSerialize $ st ^. axisLens a
+          , write: \st -> Projection.outSerialize $ st.axis ^. v4Lens a
           , param: axisParam a
           , include: true
           , loader: \usp -> bimap (const (loadProj a def)) (loadProj a)
@@ -744,22 +725,15 @@ reRender initter = do
           _ <- H.query _autocomplete unit $ HQ.tell $ Autocomplete.SetOptions $
               A.fromFoldable regionState.unselected
           -- traceM (show st)
-          withDSum st.xAxis (\tX (Product (Tuple pX sX)) ->
-            withDSum st.yAxis (\tY (Product (Tuple pY sY)) ->
-              withDSum st.zAxis (\tZ (Product (Tuple pZ sZ)) ->
-                withDSum st.tAxis (\tT (Product (Tuple pT sT)) -> void $
+          withDSum st.axis.x (\tX (Product (Tuple pX sX)) ->
+            withDSum st.axis.y (\tY (Product (Tuple pY sY)) ->
+              withDSum st.axis.z (\tZ (Product (Tuple pZ sZ)) ->
+                withDSum st.axis.t (\tT (Product (Tuple pT sT)) -> void $
                   H.query _scatter unit $ HQ.tell $ Scatter.Update
                     (\f -> f tX tY tZ tT (
                           toScatterPlot
                             dat
                             (mkScatterModels st.modelStates)
-                            -- [{fit: ExpFit, tail: 14, extent: 28}]
-                            -- [{fit: DecFit, tail: 21, extent: 28}]
-                            -- []
-                            -- [{fit: LinFit, tail: 7, extent: 14}
-                            -- ,{fit: ExpFit, tail: 14, extent: 14}
-                            -- ,{fit: LogFit, tail: 21, extent: 14}
-                            -- ]
                             ({ x : PS { projection: pX, scale: sX }
                              , y : PS { projection: pY, scale: sY }
                              , z : PS { projection: pZ, scale: sZ }
