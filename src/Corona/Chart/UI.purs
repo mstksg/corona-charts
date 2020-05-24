@@ -10,6 +10,7 @@ import Control.Monad.Writer
 import Control.MonadZero as MZ
 import Corona.Chart
 import Corona.Chart.Assemble
+import Corona.Chart.Model
 import Corona.Chart.UI.Projection as Projection
 import Corona.Data as Corona
 import Corona.Data.Type
@@ -29,14 +30,16 @@ import Data.Functor.Product
 import Data.FunctorWithIndex
 import Data.Identity as Identity
 import Data.Int
+import Data.Function
 import Data.Lens
 import Data.Lens.Record as LR
 import Data.Map as Map
 import Data.Maybe
 import Data.ModifiedJulianDay as MJD
+import Data.Number as N
+import Data.Ord
 import Data.Set (Set)
 import Data.Set as S
-import Corona.Chart.Model
 import Data.String as String
 import Data.String.Pattern as Pattern
 import Data.Symbol (SProxy(..))
@@ -98,12 +101,28 @@ type RegionState =
   , sourceSpec :: Corona.Dataset
   }
 
+type ModelState =
+  { enabled  :: Boolean
+  , tail     :: Int
+  , forecast :: Int
+  }
+
+-- TODO: the range should be set the same for all fits
+type Models =
+    { linFit :: ModelState
+    , expFit :: ModelState
+    , logFit :: ModelState
+    , decFit :: ModelState
+    }
+
+-- todo: refactor this to use Point instead of four axes
 type State =
     { datasetSpec  :: Corona.Dataset
     , xAxis        :: Projection.Out
     , yAxis        :: Projection.Out
     , zAxis        :: Projection.Out
     , tAxis        :: Projection.Out
+    , modelStates  :: Models
     , regionState  :: Either (Set Region) RegionState   -- ^ queued up
     , dataset      :: Maybe CoronaData
     , permalink    :: Maybe String
@@ -135,6 +154,14 @@ axisParam = case _ of
     ZAxis -> "z"
     TAxis -> "t"
 
+modelFitLens :: ModelFit -> Lens' Models ModelState
+modelFitLens = case _ of
+    LinFit -> LR.prop (SProxy :: SProxy "linFit")
+    ExpFit -> LR.prop (SProxy :: SProxy "expFit")
+    LogFit -> LR.prop (SProxy :: SProxy "logFit")
+    DecFit -> LR.prop (SProxy :: SProxy "decFit")
+
+
 data Aspect = ADataset
             | AAxis Axis
             | ARegions
@@ -147,16 +174,6 @@ instance showAspect :: Show Aspect where
       ARegions -> "ARegions"
 
 
--- lookupScale
---     :: forall a.
---        SType a
---     -> NScale
---     -> D3.Scale a
--- lookupScale st ns = case D3.toNType st of
---     Left (Left  r) -> D3.Date r
---     Left (Right r) -> D3.Linear (Left r)
---     Right nt       -> D3.runNScale ns nt
-
 data Action =
         SetRegions (Set Region)
       | AddRegion String
@@ -166,6 +183,9 @@ data Action =
       | ResetRegions
       | SetProjection Axis Projection.Out
       | LoadProjection Axis Projection.Out
+      | SetModel ModelFit Boolean
+      | SetModelTail ModelFit Int
+      | SetModelForecast ModelFit Int
       | LoadDataset Corona.Dataset
       | Highlight Region
       | Unhighlight
@@ -206,8 +226,7 @@ initialRegions = S.fromFoldable [
 
 
 component :: forall f i o m. MonadAff m => H.Component HH.HTML f i o m
-component =
-  H.mkComponent
+component = H.mkComponent
     { initialState: \_ ->
         { datasetSpec: Corona.WorldData
         , xAxis: defaultProjections.xAxis
@@ -215,6 +234,12 @@ component =
         , zAxis: defaultProjections.zAxis
         , tAxis: defaultProjections.tAxis
         , regionState: Left S.empty
+        , modelStates:
+            { linFit: initialModelState
+            , expFit: initialModelState
+            , logFit: initialModelState
+            , decFit: initialModelState
+            }
         , dataset: Nothing
         , permalink: Nothing
         , waiting: S.empty
@@ -226,6 +251,12 @@ component =
         , initialize   = Just Initialize
         }
     }
+  where
+    initialModelState = {
+        enabled: false
+      , tail: 14
+      , forecast: 14
+      }
 
 defaultProjections ::
     { xAxis     :: Projection.Out
@@ -278,14 +309,13 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
             allDatasets <#> \ds ->
               let isSelected = ds == st.datasetSpec
               in  HH.option [HP.selected isSelected] [HH.text (datasetLabel ds)]
-      ]
+        ]
       , HH.slot _projection YAxis (Projection.component "Y Axis")
           st.yAxis
           (\(Projection.Update s) -> Just (SetProjection YAxis s))
+      , HH.div [HU.classProp "model-picker dialog"] modelPicker
       ]
     , HH.div [HU.classProp "grid__col grid__col--4-of-5 plot"] [
-        -- HH.div [HU.classProp "plot-title"] [
-        -- ]
         HH.div [HU.classProp "dialog"] [
           HH.h3_ [HH.text title]
         , HH.div [HU.classProp "plot-buttons"] [
@@ -397,6 +427,37 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
     datasetLabel = case _ of
       Corona.WorldData -> "World"
       Corona.USData -> "United States"
+    modelPicker = [
+        HH.h3_ [HH.text "Analysis"]
+      , HH.ul [HU.classProp "model-picker-list"] $ allModelFit <#> \mfit ->
+          HH.li [HU.classProp "model-picker-fit"] [
+            HH.div [HU.classProp "model-pick-enable"] [
+              HH.input [
+                HP.type_ HP.InputCheckbox
+              , HP.checked (st.modelStates ^. modelFitLens mfit).enabled
+              , HE.onChecked (Just <<< SetModel mfit)
+              ]
+            , HH.label_ [HH.text (modelFitLabel mfit)]
+            ]
+          , HH.div [HU.classProp "model-pick-tail"] [
+              HH.input [
+                HP.type_ HP.InputNumber
+              , HP.value $ show (st.modelStates ^. modelFitLens mfit).tail
+              , HE.onValueChange (map (SetModelTail mfit) <<< parsePosInt)
+              ]
+            , HH.label_ [HH.text "Fit Length"]
+            ]
+          , HH.div [HU.classProp "model-pick-forecast"] [
+              HH.input [
+                HP.type_ HP.InputNumber
+              , HP.value $ show (st.modelStates ^. modelFitLens mfit).forecast
+              , HE.onValueChange (map (SetModelForecast mfit) <<< parsePosInt)
+              ]
+            , HH.label_ [HH.text "Forecast"]
+            ]
+          ]
+      ]
+    parsePosInt = map (max 1 <<< abs <<< round) <<< N.fromString
 
 type M = H.HalogenM State Action ChildSlots
 
@@ -461,6 +522,18 @@ handleAction = case _ of
        reRender (Just (AAxis a))
     LoadProjection a p -> loadProj a p
     LoadDataset ds -> loadDataset ds
+    SetModel mfit b -> do
+      H.modify_ $ \st -> st
+        { modelStates = over (modelFitLens mfit) (_ { enabled = b }) st.modelStates }
+      reRender Nothing
+    SetModelTail mfit n -> do
+      H.modify_ $ \st -> st
+        { modelStates = over (modelFitLens mfit) (_ { tail = n }) st.modelStates }
+      reRender Nothing
+    SetModelForecast mfit n -> do
+      H.modify_ $ \st -> st
+        { modelStates = over (modelFitLens mfit) (_ { forecast = n }) st.modelStates }
+      reRender Nothing
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
     SaveFile -> do
@@ -679,7 +752,9 @@ reRender initter = do
                     (\f -> f tX tY tZ tT (
                           toScatterPlot
                             dat
-                            [{fit: ExpFit, tail: 14, extent: 14}]
+                            (mkScatterModels st.modelStates)
+                            -- [{fit: ExpFit, tail: 14, extent: 28}]
+                            -- [{fit: DecFit, tail: 21, extent: 28}]
                             -- []
                             -- [{fit: LinFit, tail: 7, extent: 14}
                             -- ,{fit: ExpFit, tail: 14, extent: 14}
@@ -706,6 +781,13 @@ reRender initter = do
               (History.DocumentTitle "Coronavirus Data Plotter")
               (History.URL uri.historyPush)
               hist
+
+mkScatterModels :: Models -> Array ModelSpec
+mkScatterModels md = flip A.mapMaybe allModelFit $ \mfit ->
+    let ms = md ^. modelFitLens mfit
+    in  if ms.enabled
+          then Just { fit: mfit, tail: ms.tail, forecast: ms.forecast }
+          else Nothing
 
 -- really hacky way to have post-render hooks
 postRender

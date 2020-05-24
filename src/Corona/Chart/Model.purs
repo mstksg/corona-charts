@@ -15,6 +15,7 @@ import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Dated (Dated(..))
 import Data.Dated as D
+import Undefined
 import Data.FunctorWithIndex
 import Data.Int
 import Data.Lazy
@@ -29,14 +30,19 @@ import Undefined
 data ModelFit = LinFit
               | ExpFit
               | LogFit
+              | DecFit
+
+allModelFit :: Array ModelFit
+allModelFit = [LinFit, ExpFit, LogFit, DecFit]
 
 modelFitLabel :: ModelFit -> String
 modelFitLabel = case _ of
     LinFit -> "Linear"
     ExpFit -> "Exponential"
+    DecFit -> "Exponential Decay"
     LogFit -> "Logistic"
 
-type ModelSpec = { fit :: ModelFit, tail :: Int, extent :: Int }
+type ModelSpec = { fit :: ModelFit, tail :: Int, forecast :: Int }
 
 toSeries2
     :: forall a b.
@@ -104,7 +110,7 @@ fitTimeCounts info tc =
         { counts: mapCounts
                 (map (map round <<< D.datedValues <<< (_.results)))
                 fittedCounts
-        , timespan: info.tail + info.extent
+        , timespan: info.tail + info.forecast
         , start: MJD.addDays (tc.timespan - info.tail) tc.start
         }
     }
@@ -117,7 +123,7 @@ modelBase
     :: ModelSpec
     -> Dated Number
     -> { modelInfo :: D3.ModelRes, results :: Dated Number }
-modelBase { fit, tail, extent } baseData = out
+modelBase { fit, tail, forecast } baseData = out
     { modelInfo = out.modelInfo
         { params = out.modelInfo.params <> paramTrans.params }
     }
@@ -127,7 +133,7 @@ modelBase { fit, tail, extent } baseData = out
             paramTrans.trans
             (modelFitParams fit)
             tail
-            extent
+            forecast
             baseData
 
 modelFitParams
@@ -144,6 +150,7 @@ modelFitParams = case _ of
         , value: D3.someValue (D3.Days (round (M.log 2.0 / lr.beta)))
         }
       ]
+    DecFit -> \_ -> []
     LogFit -> \lr -> [
         { name: "Peak Date"
         , value: D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta)))
@@ -151,7 +158,7 @@ modelFitParams = case _ of
       ]
 
 modelFitTrans
-    :: Int          -- ^ number of days to take from end
+    :: Int                  -- ^ number of days to take from end
     -> Dated Number
     -> ModelFit
     -> { params :: Array D3.Param
@@ -160,13 +167,18 @@ modelFitTrans
 modelFitTrans n dat = case _ of
     LinFit -> { params: [], trans: idTrans }
     ExpFit -> { params: [], trans: expTrans }
-    LogFit -> case findLogisticCap (D.takeEnd n dat) of
-      Nothing -> { params: [{ name: "Cap", value: D3.someValue G.infinity }]
-                 , trans: expTrans
-                 }
-      Just c  -> { params: [{ name: "Cap", value: D3.someValue c }]
-                 , trans: logisticTrans c
-                 }
+    DecFit -> finder idTrans decayTrans
+    LogFit -> finder expTrans logisticTrans
+  where
+    finder def mkT = case findCap mkT (D.takeEnd n dat) of
+      Nothing -> {
+          params: [{ name: "Cap", value: D3.someValue G.infinity }]
+        , trans: def
+        }
+      Just c  -> {
+          params: [{ name: "Cap", value: D3.someValue c }]
+        , trans: mkT c
+        }
 
 -- | generate the model based on base data
 modelBaseData
@@ -197,10 +209,11 @@ preparePoint i v = {
     , y: v
     }
 
-findLogisticCap
-    :: Dated Number               -- ^ take the points from the end already
-    -> Maybe Number               -- ^ logistic cap
-findLogisticCap xs = do
+findCap
+    :: (Number -> Transform Number)     -- ^ make a cap
+    -> Dated Number               -- ^ just give the points you want to fit
+    -> Maybe Number               -- ^ cap
+findCap capper xs = do
     capMin <- (_ + 1.0) <$> A.last (D.datedValues xs)
     MZ.guard (capMin > 0.0)
     bisectionExtreme
@@ -212,7 +225,27 @@ findLogisticCap xs = do
                         -- then floating point precision errors
   where
     vals = D.datedValues $ flip mapWithIndex xs $ \i v ->
-                { x: toNumber (MJD.toModifiedJulianDay i)
-                , y: v
-                }
-    getR2 cap = (linRegTrans (logisticTrans cap) vals).r2
+      { x: toNumber (MJD.toModifiedJulianDay i)
+      , y: v
+      }
+    getR2 cap = (linRegTrans (capper cap) vals).r2
+
+-- findLogisticCap
+--     :: Dated Number               -- ^ take the points from the end already
+--     -> Maybe Number               -- ^ logistic cap
+-- findLogisticCap xs = do
+--     capMin <- (_ + 1.0) <$> A.last (D.datedValues xs)
+--     MZ.guard (capMin > 0.0)
+--     bisectionExtreme
+--         1e-7    -- epsilon for precision
+--         0.5
+--         (M.log <<< (1.0 - _) <<< getR2)
+--         capMin
+--         (capMin * 50.0) -- probably a reasonable upper bound. if too high
+--                         -- then floating point precision errors
+--   where
+--     vals = D.datedValues $ flip mapWithIndex xs $ \i v ->
+--                 { x: toNumber (MJD.toModifiedJulianDay i)
+--                 , y: v
+--                 }
+--     getR2 cap = (linRegTrans (logisticTrans cap) vals).r2

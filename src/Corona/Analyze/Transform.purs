@@ -70,11 +70,22 @@ addTrans a = Tr
     }
 
 -- | parameterized by the maximum cap
+--
+-- f(x) = C / (1 + e^x)
 logisticTrans :: Number -> Transform Number
 logisticTrans m = mulTrans m
                .% recipTrans
                .% addTrans one
                .% expTrans
+
+-- | parameterized by the maximum cap
+--
+-- f(x) = C - exp(x)
+decayTrans :: Number -> Transform Number
+decayTrans m = addTrans m
+            .% mulTrans (-1.0)
+            .% expTrans
+
 
 untransSeries :: forall f a. Traversable f => Transform a -> Array (f a) -> Array (f a)
 untransSeries = A.mapMaybe <<< traverse <<< unTrans
