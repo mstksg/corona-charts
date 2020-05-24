@@ -2,6 +2,8 @@
 # Features
 
 *   exponential/logistic fits and projections
+    * maybe can fit on the deltas too but meh
+        * exponential decay: fit against cap-x
 *   responsive layout
 *   fullscreen mode?
 *   other datasets: australia, china, etc.
@@ -11,6 +13,11 @@
 # Fixes
 
 *   loading a linear url for confirmed case count seems to display as logarithmic on 'scale' ui when 
+    * loading log url for percent growth displays linear on UI but is
+      logartihmic
+    * also removing ops seems to reset the scale
+*   some weird behavior when first adding 'moving average'?  it starts as 1 and
+    you chagnge to 2 but it sitll stays same.
 *   the onLeave handler seems to be called too late when leaving the area
     * edit: what?
 *   toggle switch for log/linear
@@ -21,12 +28,15 @@
 *   missing data
 *   apparent bug: restrict-before for dates
     * edit: what?
+*   need a good way to show  missing data in log plots where number is less
+    than 0
 
 *   performance when loading:
     *   changing scales should be fast
     *   i tried cacheing but actually generating the data does none of the
         work.  what is the work?  the type checking/dependent types?  the url
         generation?  or the d3 plot itself?
+    *   it is probably the d3 plot itself
 
 # Someday
 

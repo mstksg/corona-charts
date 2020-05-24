@@ -36,6 +36,7 @@ import Data.Maybe
 import Data.ModifiedJulianDay as MJD
 import Data.Set (Set)
 import Data.Set as S
+import Corona.Chart.Model
 import Data.String as String
 import Data.String.Pattern as Pattern
 import Data.Symbol (SProxy(..))
@@ -678,6 +679,10 @@ reRender initter = do
                     (\f -> f tX tY tZ tT (
                           toScatterPlot
                             dat
+                            []
+                            -- [{fit: ExpFit, tail: 14, extent: 14}
+                            -- ,{fit: LogFit, tail: 30, extent: 14}
+                            -- ]
                             ({ x : PS { projection: pX, scale: sX }
                              , y : PS { projection: pY, scale: sY }
                              , z : PS { projection: pZ, scale: sZ }

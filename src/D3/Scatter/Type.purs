@@ -286,10 +286,16 @@ someValue x = sType :=> Identity x
 
 type Param = { name :: String, value :: SomeValue }
 
+type ModelRes =
+    { params :: Array Param
+    , r2     :: Number
+    }
+
 type SeriesData a b c d =
     { name      :: String
     , values    :: Array (Point a b c d)
-    , modelfits :: O.Object (Array (Point2D a b))
+    , modelfits :: O.Object { info   :: O.Object ModelRes
+                            , values :: Array (Point2D a b)}
     }
 
 infixr 1 type Either as ||

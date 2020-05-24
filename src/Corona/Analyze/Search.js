@@ -22,12 +22,6 @@ exports._bisectionSearch = function(mkMaybe, eps, f, mn, mx) {
     }
 }
 
-// bisectionSearch
-//     :: (Int -> Number)
-//     -> Int
-//     -> Int
-//     -> Maybe Int
-    
 // -- if f(a)*f(b)>0 
 // --     p = 0/0;
 // -- else

@@ -93,6 +93,7 @@ filterCountry :: Country -> Country
 filterCountry = case _ of
     "US" -> "United States"
     "Korea, South" -> "South Korea"
+    "Taiwan*" -> "Taiwan"
     c    -> c
 
 fetchData :: String -> Aff (Either String CSVData)

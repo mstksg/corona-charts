@@ -3,10 +3,12 @@ module Corona.Chart.Model where
 
 import Prelude
 
+import Control.Apply
 import Control.MonadZero as MZ
 import Corona.Analyze.LinReg
 import Corona.Analyze.Search
 import Corona.Analyze.Transform
+import Debug.Trace
 import Corona.Chart
 import Corona.Data.Type
 import D3.Scatter.Type as D3
@@ -15,6 +17,7 @@ import Data.Dated (Dated(..))
 import Data.Dated as D
 import Data.FunctorWithIndex
 import Data.Int
+import Data.Lazy
 import Data.Maybe
 import Data.ModifiedJulianDay as MJD
 import Global as G
@@ -23,84 +26,80 @@ import Type.Chain as C
 import Type.Equiv
 import Undefined
 
-type Param = { name :: String, value :: D3.SomeValue }
-
-type ModelRes = 
-    { params :: Array Param
-    , r2     :: Number
-    }
-
 data ModelFit = LinFit
               | ExpFit
               | LogFit
 
+modelFitLabel :: ModelFit -> String
+modelFitLabel = case _ of
+    LinFit -> "Linear"
+    ExpFit -> "Exponential"
+    LogFit -> "Logistic"
+
 type ModelSpec = { fit :: ModelFit, tail :: Int, extent :: Int }
 
--- toModelFits
---     :: forall a b c d.
---        CoronaData
---     -> Projection a
---     -> Scale a
---     -> Projection b
---     -> Scale b
---     -> Projection c
---     -> Scale c
---     -> Projection d
---     -> Scale d
---     -> Set Region
---     -> ScatterPlot a b c d
--- -- toScatterPlot dat pX sX pY sY pZ sZ pT sT ctrys =
--- --         { xAxis  : toAxisConf pX sX
--- --         , yAxis  : toAxisConf pY sY
--- --         , zAxis  : toAxisConf pZ sZ
--- --         , tAxis  : toAxisConf pT sT
--- --         , series : flip A.mapMaybe (A.fromFoldable ctrys) $ \ctry -> do
--- --             cdat <- O.lookup ctry dat.counts
--- --             pure
--- --               { name : ctry
--- --               , values : toSeries pX pY pZ pT (mkTimeCounts dat.start cdat)
--- --               , modelfits : O.empty
--- --               }
--- --         }
+toSeries2
+    :: forall a b c d.
+       Projection a
+    -> Projection b
+    -> LazyTimeCounts Int
+    -> Array (D3.Point2D a b)
+toSeries2 pX pY ps = D.datedValues $
+    lift2 (\x y -> {x, y})
+        (applyLazyProjection pX ps)
+        (applyLazyProjection pY ps)
 
+applyLazyBaseProjection
+    :: forall a.
+       BaseProjection a
+    -> LazyTimeCounts Int
+    -> Dated a
+applyLazyBaseProjection = case _ of
+    Time      r -> \tc -> D.generate tc.start tc.timespan (equivFrom r)
+    Confirmed r -> \tc -> equivFromF r $
+        Dated { start: tc.start, values: force $ tc.counts.confirmed }
+    Deaths    r -> \tc -> equivFromF r $
+        Dated { start: tc.start, values: force $ tc.counts.deaths }
+    Recovered r -> \tc -> equivFromF r $
+        Dated { start: tc.start, values: force $ tc.counts.recovered }
 
--- type SeriesData a b c d =
---     { name      :: String
---     , values    :: Array (Point a b c d)
---     , modelfits :: O.Object (Array (Point2D a b))
---     }
+applyLazyProjection
+    :: forall a.
+       Projection a
+    -> LazyTimeCounts Int
+    -> Dated a
+applyLazyProjection spr allDat = withProjection spr (\pr ->
+          applyOperations pr.operations <<< applyLazyBaseProjection pr.base
+        ) allDat
 
--- -- | This is good but then we need a way to get rid of the extraneous
--- -- projection stuff
--- modelProjection
---     :: forall a.
---        ModelSpec
---     -> Projection a
---     -> TimeCounts Int
---     -> { modelInfo :: Counts ModelRes, results :: Dated a }
--- modelProjection info pr tc =
---     { modelInfo
---     , results: applyProjection pr timeCounts
---     }
---   where
---     { modelInfo, timeCounts } = fitTimeCounts info tc
+type LazyTimeCounts a =
+    { start     :: MJD.Day
+    , timespan  :: Int          -- ^ length - 1
+    , counts    :: Counts (Lazy (Array a))
+    }
 
+-- | this fits all the counts, even the ones we never use.  
 fitTimeCounts
     :: ModelSpec
     -> TimeCounts Int
-    -> { modelInfo :: Counts ModelRes, timeCounts :: TimeCounts Int }
+    -> { modelInfo :: Counts (Lazy D3.ModelRes), timeCounts :: LazyTimeCounts Int }
 fitTimeCounts info tc =
-    { modelInfo: mapCounts (_.modelInfo) fittedCounts
-    , timeCounts: tc { counts = mapCounts (map round <<< D.datedValues <<< (_.results)) fittedCounts }
+    { modelInfo: mapCounts (map (_.modelInfo)) fittedCounts
+    , timeCounts: tc
+        { counts = mapCounts
+                (map (map round <<< D.datedValues <<< (_.results)))
+                fittedCounts
+        }
     }
   where
+    fittedCounts :: Counts (Lazy { modelInfo :: D3.ModelRes, results :: Dated Number })
     fittedCounts = flip mapCounts tc.counts $ \xs ->
-        modelBase info (Dated { start: tc.start, values: map toNumber xs })
+        defer $ const $ modelBase info (Dated { start: tc.start, values: map toNumber xs })
 
 modelBase
     :: ModelSpec
     -> Dated Number
-    -> { modelInfo :: ModelRes, results :: Dated Number }
+    -> { modelInfo :: D3.ModelRes, results :: Dated Number }
 modelBase { fit, tail, extent } baseData = out
     { modelInfo = out.modelInfo
         { params = out.modelInfo.params <> paramTrans.params }
@@ -113,13 +112,6 @@ modelBase { fit, tail, extent } baseData = out
             tail
             extent
             baseData
-
-overResults
-    :: forall a b.
-       (Dated a -> Dated b)
-    -> { modelInfo :: ModelRes, results :: Dated a }
-    -> { modelInfo :: ModelRes, results :: Dated b }
-overResults f mi = mi { results = f mi.results }
 
 modelFitParams
     :: ModelFit
@@ -166,7 +158,7 @@ modelBaseData
     -> Int                  -- ^ points to take from end
     -> Int                  -- ^ points to extend into future
     -> Dated Number
-    -> { modelInfo :: ModelRes, results :: Dated Number }
+    -> { modelInfo :: D3.ModelRes, results :: Dated Number }
 modelBaseData tr mkP n m xs =
     { modelInfo: { params: mkP linReg, r2 }
     , results: D.generate
@@ -198,15 +190,15 @@ findLogisticCap
     :: Dated Number               -- ^ take the points from the end already
     -> Maybe Number               -- ^ logistic cap
 findLogisticCap xs = do
-    capMin <- A.last (D.datedValues xs)
+    capMin <- (_ + 1.0) <$> A.last (D.datedValues xs)
     MZ.guard (capMin > 0.0)
-    let capMax = capMin * 10000.0
     bisectionExtreme
         1e-7    -- epsilon for precision
-        1.0     -- one count before and after
-        getR2
+        0.5
+        (M.log <<< (1.0 - _) <<< getR2)
         capMin
-        (capMin * 10000.0)      -- probably a reasonable upper bound
+        (capMin * 50.0) -- probably a reasonable upper bound. if too high
+                        -- then floating point precision errors
   where
     vals = D.datedValues $ flip mapWithIndex xs $ \i v ->
                 { x: toNumber (MJD.toModifiedJulianDay i)

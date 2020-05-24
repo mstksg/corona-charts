@@ -10,7 +10,7 @@ exports._linReg = function(getPair, pts) {
     var y2 = 0;
     var xy = 0;
     for (const pt of pts) {
-        getPair(pt)(function(xx,yy) {
+        getPair(pt)(xx => function(yy) {
             n += 1;
             x += xx;
             y += yy;
