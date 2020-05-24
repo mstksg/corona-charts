@@ -43,7 +43,7 @@ applyLinRegTrans
     -> LinReg a
     -> a
     -> a
-applyLinRegTrans tr lr = applyLinReg lr <<< runTrans tr
+applyLinRegTrans tr lr = runTrans tr <<< applyLinReg lr
 
 foreign import _linReg
     :: forall a.

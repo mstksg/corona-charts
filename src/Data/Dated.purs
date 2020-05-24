@@ -51,6 +51,10 @@ datedStart (Dated d) = d.start
 datedEnd :: forall a. Dated a -> Day
 datedEnd (Dated d) = addDays (A.length (d.values) - 1) d.start
 
+datedLength :: forall a. Dated a -> Int
+datedLength = A.length <<< datedValues
+
+
 generate
     :: forall a.
        Day      -- ^ start

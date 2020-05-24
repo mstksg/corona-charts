@@ -39,15 +39,30 @@ modelFitLabel = case _ of
 type ModelSpec = { fit :: ModelFit, tail :: Int, extent :: Int }
 
 toSeries2
-    :: forall a b c d.
+    :: forall a b.
        Projection a
     -> Projection b
     -> LazyTimeCounts Int
     -> Array (D3.Point2D a b)
-toSeries2 pX pY ps = D.datedValues $
-    lift2 (\x y -> {x, y})
-        (applyLazyProjection pX ps)
-        (applyLazyProjection pY ps)
+toSeries2 pX pY tc =
+            D.datedValues
+        -- <<< D.take len
+        -- <<< D.dropBefore start
+          $ pts
+  where
+    pts = lift2 (\x y -> {x, y})
+    -- TODO: this should be a seperate one that ignores stuff like
+    -- take/restrict
+    -- percentmax also needs to not take into account future dates
+    -- day-count must as well
+    -- maybe some of these we just...kll.  for example trnasforming to Date
+    -- doesn't make sense  so drop the projections entirely
+    -- yeah, dayCount would make sense to keep but it's not that simple...
+    --
+    -- maybe what needs ot happen is we have to transform the whole bundle
+    -- alongside each other
+        (applyLazyProjection pX tc)
+        (applyLazyProjection pY tc)
 
 applyLazyBaseProjection
     :: forall a.
@@ -78,17 +93,19 @@ type LazyTimeCounts a =
     , counts    :: Counts (Lazy (Array a))
     }
 
--- | this fits all the counts, even the ones we never use.  
+-- hm this isn't lazy
 fitTimeCounts
     :: ModelSpec
     -> TimeCounts Int
     -> { modelInfo :: Counts (Lazy D3.ModelRes), timeCounts :: LazyTimeCounts Int }
 fitTimeCounts info tc =
     { modelInfo: mapCounts (map (_.modelInfo)) fittedCounts
-    , timeCounts: tc
-        { counts = mapCounts
+    , timeCounts:
+        { counts: mapCounts
                 (map (map round <<< D.datedValues <<< (_.results)))
                 fittedCounts
+        , timespan: info.tail + info.extent
+        , start: MJD.addDays (tc.timespan - info.tail) tc.start
         }
     }
   where
@@ -151,7 +168,7 @@ modelFitTrans n dat = case _ of
                  , trans: logisticTrans c
                  }
 
--- | this only works for linear and exponential models.
+-- | generate the model based on base data
 modelBaseData
     :: Transform Number     -- ^ transformation
     -> (LinReg Number -> Array D3.Param)     -- ^ params
@@ -162,29 +179,23 @@ modelBaseData
 modelBaseData tr mkP n m xs =
     { modelInfo: { params: mkP linReg, r2 }
     , results: D.generate
-          (MJD.addDays (-n) (D.datedStart xs))
+          (D.datedStart ys)
           (n + m)
           (applyLinRegTrans tr linReg <<< toNumber <<< MJD.toModifiedJulianDay)
     }
   where
-    {linReg, r2} = linRegData tr n xs
+    ys = D.takeEnd n xs
+    {linReg, r2} = linRegTrans tr
+               <<< D.datedValues
+               <<< mapWithIndex preparePoint
+                 $ ys
 
--- | this only works for linear and exponential models.
-linRegData
-    :: Transform Number     -- ^ transformation
-    -> Int                  -- ^ points to take from end
-    -> Dated Number
-    -> { linReg :: LinReg Number, r2 :: Number }
-linRegData tr n =
-            linRegTrans tr
-        <<< D.datedValues
-        <<< mapWithIndex prepare
-        <<< D.takeEnd n
-  where
-    prepare i v = {
-        x: toNumber (MJD.toModifiedJulianDay i)
-      , y: v
-      }
+
+preparePoint :: forall a. MJD.Day -> a -> { x :: Number, y :: a }
+preparePoint i v = {
+      x: toNumber (MJD.toModifiedJulianDay i)
+    , y: v
+    }
 
 findLogisticCap
     :: Dated Number               -- ^ take the points from the end already

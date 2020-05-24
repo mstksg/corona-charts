@@ -18,12 +18,6 @@ import Foreign.Object as O
 import Prelude
 
 -- | this throws away the model data
---
--- okay we ened to figure out how to display model data because the r2,
--- parameters, etc. are different for every country
---
--- but also we ned to only show 'relevant' base projection parameters
--- maybe show on box to the side
 toScatterPlot
     :: forall a b c d.
        CoronaData
@@ -39,12 +33,12 @@ toScatterPlot dat mspecs pss ctrys =
         pure
           { name : ctry
           , values : toSeries projections tcounts
-          , modelfits : O.fromFoldable $ mspecs <#> \mspec ->
+          , modelfits : mspecs <#> \mspec ->
               let ftc = fitTimeCounts mspec tcounts
-                  bX = baseProjection projections.x
-                  bY = baseProjection projections.y
-              in  Tuple (modelFitLabel mspec.fit) $
-                    { info: map force <<< O.fromFoldable $ flip A.mapMaybe [bX, bY] $
+                  bX  = baseProjection projections.x
+                  bY  = baseProjection projections.y
+              in  { fit: modelFitLabel mspec.fit
+                  , info: map force <<< O.fromFoldable $ flip A.mapMaybe [bX, bY] $
                         runExists (\bp ->
                           Tuple (baseProjectionLabel bp) <$> case bp of
                             Time      _ -> Nothing
@@ -52,36 +46,11 @@ toScatterPlot dat mspecs pss ctrys =
                             Deaths    _ -> Just ftc.modelInfo.deaths
                             Recovered _ -> Just ftc.modelInfo.recovered
                         )
-                    , values: toSeries2 projections.x projections.y ftc.timeCounts
-                    }
+                  , values: toSeries2 projections.x projections.y ftc.timeCounts
+                  -- , values: toSeries2 projections ftc.timeCounts
+                  }
           }
     }
   where
     projections = hoistPointF (\(PS ps) -> ps.projection) pss
-
--- toSeries
---     :: forall a b c d.
---        PointF Projection a b c d
---     -> TimeCounts Int
---     -> Array (Point a b c d)
--- toSeries {x, y, z, t} ps = D.datedValues $
---     lift4 (\x y z t -> {x, y, z, t})
---         (applyProjection x ps)
---         (applyProjection y ps)
---         (applyProjection z ps)
---         (applyProjection t ps)
-
-
--- fitTimeCounts
---     :: ModelSpec
---     -> TimeCounts Int
---     -> { modelInfo :: Counts ModelRes, timeCounts :: TimeCounts Int }
--- fitTimeCounts info tc =
---     { modelInfo: mapCounts (_.modelInfo) fittedCounts
---     , timeCounts: tc { counts = mapCounts (map round <<< D.datedValues <<< (_.results)) fittedCounts }
---     }
---   where
---     fittedCounts = flip mapCounts tc.counts $ \xs ->
---         modelBase info (Dated { start: tc.start, values: map toNumber xs })
-
 

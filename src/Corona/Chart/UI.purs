@@ -679,9 +679,11 @@ reRender initter = do
                     (\f -> f tX tY tZ tT (
                           toScatterPlot
                             dat
-                            []
-                            -- [{fit: ExpFit, tail: 14, extent: 14}
-                            -- ,{fit: LogFit, tail: 30, extent: 14}
+                            [{fit: ExpFit, tail: 14, extent: 14}]
+                            -- []
+                            -- [{fit: LinFit, tail: 7, extent: 14}
+                            -- ,{fit: ExpFit, tail: 14, extent: 14}
+                            -- ,{fit: LogFit, tail: 21, extent: 14}
                             -- ]
                             ({ x : PS { projection: pX, scale: sX }
                              , y : PS { projection: pY, scale: sY }

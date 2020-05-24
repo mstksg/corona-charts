@@ -7,22 +7,6 @@ const fromMJD = mjd => new Date((mjd - mjdShift) * msPerDay);
 
 const last = xs => xs[xs.length - 1];
 
-
-
-// const segmentize = function(xs) {
-//     var out = [];
-//     for (let i = 1; i < xs.length; i++) {
-//         out.push( [xs[i-1], xs[i]] );
-//     }
-//     return out;
-// }
-
-
-
-
-
-
-
 exports._mkSvg = function(elem, dim) {
     return function () {
         const svg = d3.select(elem)
@@ -52,8 +36,23 @@ const timedSeries = series => function(t,keeplast) {
 }
 
 // { axis: {x,y,z,t : { scale : Scale, label : String} }
-// , series : [{ name : String, values: [{x, y, z, t}]}]
+// , series : [{ name : String, values: [SeriesData]}]
 // }
+// type SeriesData a b c d =
+//     { name      :: String
+//     , values    :: Array (Point a b c d)
+//     , modelfits :: Array (FitData a b)
+//     }
+// type Param = { name :: String, value :: SomeValue }
+// type ModelRes =
+//     { params :: Array Param
+//     , r2     :: Number
+//     }
+// type FitData a b =
+//     { fit :: String
+//     , info :: O.Object ModelRes
+//     , values :: Array (Point2D a b)
+//     }
 exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT, svgdat, scatter) {
     const svg = svgdat.svg;
     const width = svgdat.dimensions.width;
@@ -121,6 +120,9 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const validPair = function(p) {
         return validX(p.x) && validY(p.y) && validZ(p.z) && validT(p.t);
     }
+    const validPair2 = function(p) {
+        return validX(p.x) && validY(p.y);
+    }
     const convert = tp => val =>
         handleType(tp)(
             { day:     (() => fromMJD(val))
@@ -161,11 +163,26 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
                        , segments: d3.pairs(vals)
                        };
             });
+        const fits = scatter.series.flatMap(s =>
+            s.modelfits.map(ft =>
+                ({ name: s.name
+                 , fit: ft.fit
+                 , values: ft.values.filter(validPair2).map( p =>
+                     ({ x: convertX(p.x)
+                      , y: convertY(p.y)
+                     })
+                   )
+                })
+            )
+        );
+        console.log(fits);
         const sliceSeries = timedSeries(series);
         // console.log(series);
 
-        const allx = series.flatMap(s => s.values.map(p => p.x) );
-        const ally = series.flatMap(s => s.values.map(p => p.y) );
+        const allx = series.flatMap(s => s.values.map(p => p.x) )
+                        .concat(fits.flatMap(s => s.values.map(p => p.x)));   // include model fits
+        const ally = series.flatMap(s => s.values.map(p => p.y) )
+                        .concat(fits.flatMap(s => s.values.map(p => p.y)));   // include model fits
         const allz = series.flatMap(s => s.values.map(p => p.z) );
         const allt = series.flatMap(s => s.values.map(p => p.t) );
         const extentx = d3.extent(allx.concat(zeroScale(scatter.axis.x.scale)));
@@ -536,6 +553,16 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
              .attr("stroke-linecap", "round")
              .attr("stroke", d => z(d.pair[1].z))
              .attr("d", d => line(d.pair));
+
+        subplot.append("g")
+            .selectAll("path")
+            .data(fits)
+            .join("path")
+            .attr("fill","none")
+            .attr("stroke-width",1)
+            .attr("stroke-dasharray",[10, 10])
+            .attr("stroke","#595")
+            .attr("d", d => line(d.values));
 
         const endDots = mainplot.append("g");
 

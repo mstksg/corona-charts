@@ -30,7 +30,7 @@
     * edit: what?
 *   need a good way to show  missing data in log plots where number is less
     than 0
-
+*   country spec should be left in url if given originally
 *   performance when loading:
     *   changing scales should be fast
     *   i tried cacheing but actually generating the data does none of the
