@@ -324,9 +324,9 @@ allModelFit = [LinFit, ExpFit, LogFit, DecFit]
 modelFitLabel :: ModelFit -> String
 modelFitLabel = case _ of
     LinFit -> "Linear"
-    ExpFit -> "Exponential"
-    DecFit -> "Exp. Decay"
+    ExpFit -> "Exp. Growth"
     LogFit -> "Logistic"
+    DecFit -> "Exp. Decay"
     -- QuadFit -> "Quadratic"
 
 type FitData a b =

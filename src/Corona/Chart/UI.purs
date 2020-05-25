@@ -24,13 +24,13 @@ import Data.Date as Date
 import Data.Either
 import Data.Exists
 import Data.Foldable
+import Data.Function
 import Data.Function.Uncurried
 import Data.Functor.Compose
 import Data.Functor.Product
 import Data.FunctorWithIndex
 import Data.Identity as Identity
 import Data.Int
-import Data.Function
 import Data.Lens
 import Data.Lens.Record as LR
 import Data.Map as Map
@@ -69,6 +69,7 @@ import Halogen.Query.EventSource as ES
 import Halogen.Scatter as Scatter
 import Halogen.Util as HU
 import Text.Parsing.StringParser as P
+import Text.Parsing.StringParser.CodeUnits as P
 import Type.Ap
 import Type.Chain as C
 import Type.DProd
@@ -102,12 +103,6 @@ type RegionState =
   , sourceSpec :: Corona.Dataset
   }
 
--- type ModelState =
---   { enabled  :: Boolean
---   , tail     :: Int
---   }
-
--- TODO: the range should be set the same for all fits
 type Models =
     { linFit :: Boolean
     , expFit :: Boolean
@@ -115,11 +110,8 @@ type Models =
     , decFit :: Boolean
     , tail :: Int
     , forecast :: Int
-    -- , decFit :: ModelState
-    -- , quadFit :: ModelState
     }
 
--- todo: refactor this to use Point instead of four axes
 type State =
     { datasetSpec  :: Corona.Dataset
     , axis         :: V4 Projection.Out
@@ -157,6 +149,7 @@ modelFitLens = case _ of
 data Aspect = ADataset
             | AAxis Axis
             | ARegions
+            | AModels
 derive instance eqAspect :: Eq Aspect
 derive instance ordAspect :: Ord Aspect
 instance showAspect :: Show Aspect where
@@ -164,6 +157,7 @@ instance showAspect :: Show Aspect where
       ADataset -> "ADataset"
       AAxis a  -> "AAxis " <> show a
       ARegions -> "ARegions"
+      AModels  -> "AModels"
 
 
 data Action =
@@ -174,7 +168,7 @@ data Action =
       | DumpRegions
       | ResetRegions
       | SetProjection Axis Projection.Out
-      | LoadProjection Axis Projection.Out
+      -- | LoadProjection Axis Projection.Out
       | SetModel ModelFit Boolean
       | SetModelTail Int
       | SetModelForecast Int
@@ -223,14 +217,7 @@ component = H.mkComponent
         { datasetSpec: Corona.WorldData
         , axis: defaultProjections
         , regionState: Left S.empty
-        , modelStates:
-            { linFit: false
-            , expFit: false
-            , logFit: false
-            , decFit: false
-            , forecast: 14
-            , tail: 35
-            }
+        , modelStates: defaultModels
         , dataset: Nothing
         , permalink: Nothing
         , waiting: S.empty
@@ -281,6 +268,16 @@ defaultProjections = {
       ) (D3.Date refl)
     )
   }
+
+defaultModels :: Models
+defaultModels = {
+      linFit: false
+    , expFit: false
+    , logFit: false
+    , decFit: false
+    , forecast: 14
+    , tail: 35
+    }
 
 render :: forall m. MonadAff m => State -> H.ComponentHTML Action ChildSlots m
 render st = HH.div [HU.classProp "ui-wrapper"] [
@@ -519,7 +516,7 @@ handleAction = case _ of
       H.modify_ $ \st -> st
         { axis = set (v4Lens a) p st.axis }
       reRender (Just (AAxis a))
-    LoadProjection a p -> loadProj a p
+    -- LoadProjection a p -> loadProj a p
     LoadDataset ds -> loadDataset ds
     SetModel mfit b -> do
       H.modify_ $ \st -> st
@@ -614,10 +611,11 @@ type URISpec m =
         }
 
 uriSpecs :: forall o m. MonadAff m => Array (URISpec (M o m))
-uriSpecs = axisSpec <> [datasetSpec, regionSpec]
+uriSpecs = axisSpec <> [datasetSpec, regionSpec, modelSpec]
   where
     regionParam = "r"
     datasetParam = "d"
+    modelsParam = "m"
     axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a ->
       let def = defaultProjections ^. v4Lens a
       in  { waiter: AAxis a
@@ -642,9 +640,18 @@ uriSpecs = axisSpec <> [datasetSpec, regionSpec]
         , default: Marshal.serialize Corona.WorldData
         , write: Marshal.serialize <<< _.datasetSpec
         , param: datasetParam
-        , include: false
+        , include: true
         , loader: \usp -> bimap (const (loadDataset Corona.WorldData)) loadDataset
                 <$> liftEffect (parseAtKey usp datasetParam Marshal.parse)
+        }
+    modelSpec =
+        { waiter: AModels
+        , default: serializeModels defaultModels
+        , write: serializeModels <<< _.modelStates
+        , param: modelsParam
+        , include: true
+        , loader: \usp -> bimap (const (loadModels defaultModels)) loadModels
+                <$> liftEffect (parseAtKey usp modelsParam parseModels)
         }
 
 
@@ -698,6 +705,13 @@ loadDataset dspec = do
                , regionState = Right newRegionState
                }
     reRender (Just ADataset)
+
+-- hm maybe make sure source spec matches?
+loadModels :: forall o m. MonadAff m => Models -> M o m Unit
+loadModels models = do
+   H.modify_ $ \st -> st { modelStates = models }
+   reRender (Just AModels)
+
 
 
 generateUri
@@ -803,14 +817,41 @@ parseAtKey u k p = runExceptT $ do
                 =<< lift (USP.get u k)
     either (throwError <<< show) pure $ P.runParser p val
 
-serializeSet
-    :: Set String
-    -> String
+serializeSet :: Set String -> String
 serializeSet = String.joinWith "|" <<< A.fromFoldable
 
 parseSet :: P.Parser (Set String)
 parseSet = S.fromFoldable <<< String.split (Pattern.Pattern "|")
        <$> Marshal.parse
+
+serializeModels :: Models -> String
+serializeModels { linFit, expFit, logFit, decFit, tail, forecast } =
+       foldMap Marshal.serialize enableds
+    <> if or enableds
+         then Marshal.serialize tail <> "." <> Marshal.serialize forecast
+         else ""
+  where
+    enableds = [linFit, expFit, logFit, decFit]
+
+parseModels :: P.Parser Models
+parseModels = do
+    linFit   <- Marshal.parse
+    expFit   <- Marshal.parse
+    logFit   <- Marshal.parse
+    decFit   <- Marshal.parse
+    if or [logFit, expFit, logFit, decFit]
+      then do
+        tail     <- Marshal.parse
+        _        <- P.char '|'
+        forecast <- Marshal.parse
+        pure { linFit, expFit, logFit, decFit, tail, forecast }
+      else
+        pure { linFit, expFit, logFit, decFit
+             , tail: defaultModels.tail
+             , forecast: defaultModels.forecast
+             }
+
+
 
 _scatter :: SProxy "scatter"
 _scatter = SProxy

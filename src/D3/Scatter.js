@@ -170,7 +170,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
 
     const modelFitLabel = fit => handleModelFit(fit)(
             { linFit: (() => "Linear")
-            , expFit: (() => "Exponential")
+            , expFit: (() => "Exp. Growth")
             , logFit: (() => "Logistic")
             , decFit: (() => "Exp. Decay")
             }
