@@ -53,14 +53,18 @@ const r2format = d3.format(".3f");
 //     , values    :: Array (Point a b c d)
 //     , modelfits :: Array (FitData a b)
 //     }
-// type Param = { name :: String, value :: SomeValue }
 // type ModelRes =
-//     { params :: Array Param
+//     { params :: O.Object SomeValue
 //     , r2     :: Number
 //     }
 // type FitData a b =
 //     { fit :: ModelFit
-//     , info :: { name :: String, result :: ModelRes }
+//     , info :: O.Object ModelRes
+//     , values :: Array (Point2D a b)
+//     }
+// type FitData a b =
+//     { fit :: ModelFit
+//     , info :: O.Object ModelRes
 //     , values :: Array (Point2D a b)
 //     }
 exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typeY, typeZ, typeT, svgdat, scatter) {
@@ -85,7 +89,10 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             { day:     (() => d3.timeFormat("%b %d"))
             , days:    (() => d3.format(".3~s"))
             , "int":   (() => d3.format(".3~s"))
-            , number:  (() => d3.format(".3~s"))
+            , number:  (() => n => isNaN(n) ? "NaN"
+                                 : !isFinite(n) ? "Infinity"
+                                 : d3.format(".3~s")(n)
+                       )
             , percent: (() => d3.format("+.3~p"))
             }
         )
@@ -558,8 +565,9 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
                 colorcenter.attr("display", "none");
                 var r2sum   = 0;
                 var r2count = 0;
-                for (const info of closest.info) {
-                    r2sum   += info.result.r2 * info.result.r2;
+                for (const infoname in closest.info) {
+                    const infor2 = closest.info[infoname].r2;
+                    r2sum   += infor2 * infor2;
                     r2count += 1;
                 }
                 const r2str = r2format(Math.sqrt(r2sum/r2count));
@@ -581,26 +589,26 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
                     .attr("x",modellinex)
                     .attr("y",modelliney+13);
                 var curry = modelliney + 30;
-                for (const info of closest.info) {
-                    // const starty  = modelliney + 16 + i * 50;
+                for (const infoname in closest.info) {
+                    const info = closest.info[infoname];
                     modeltip.append("text")
-                        .text(info.name)
+                        .text(infoname)
                         .attr("font-size",10)
                         .attr("font-weight","bold")
                         .attr("x",modellinex)
                         .attr("y",curry);
                     curry += 12;
                     modeltip.append("text")
-                        .text("r² = " + r2format(info.result.r2))
+                        .text("r² = " + r2format(info.r2))
                         .attr("font-size",10)
                         .attr("font-style","italic")
                         .attr("x",modellinex)
                         .attr("y",curry);
                     curry += 12;
-                        // .text(prop + " (r² = " + r2format(info.r2) + ")")
-                    for (const param of info.result.params) {
+                    for (const paramname in info.params) {
+                        const param = info.params[paramname];
                         modeltip.append("text")
-                            .text(param.name + ": " + fmtSomeVal(param.value))
+                            .text(paramname + ": " + fmtSomeVal(param))
                             .attr("font-size",10)
                             .attr("x",modellinex)
                             .attr("y",curry);

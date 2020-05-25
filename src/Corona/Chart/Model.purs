@@ -20,12 +20,13 @@ import Data.Int
 import Data.Lazy
 import Data.Maybe
 import Data.ModifiedJulianDay as MJD
+import Data.Tuple
 import Debug.Trace
+import Foreign.Object as O
 import Global as G
 import Math as M
 import Type.Chain as C
 import Type.Equiv
-import Undefined
 import Undefined
 
 
@@ -112,10 +113,22 @@ modelBase
     -> { modelInfo :: D3.ModelRes, results :: Dated Number }
 modelBase { fit, tail, forecast } baseData = out
     { modelInfo = out.modelInfo
-        { params = out.modelInfo.params <> paramTrans.params }
+        { params = touchup out.modelInfo.params `O.union` paramTrans.params }
     }
   where
     paramTrans = modelFitTrans tail baseData fit
+    touchup = case fit of
+      LogFit
+        | capInfinity -> O.insert "Date of Peak" (D3.someValue G.nan)
+        | otherwise   -> identity
+      DecFit        -- TODO: infinityk
+        | capInfinity -> O.insert "Halving Time" (D3.someValue G.infinity)
+        | otherwise   -> identity
+      _      -> identity
+    inf = D3.someValue G.infinity
+    capInfinity = case O.lookup "Final Total" paramTrans.params of
+      Nothing -> false
+      Just c  -> D3.eqSomeValue c inf
     out = modelBaseData
             paramTrans.trans
             (modelFitParams fit)
@@ -126,27 +139,21 @@ modelBase { fit, tail, forecast } baseData = out
 modelFitParams
     :: ModelFit
     -> LinReg Number
-    -> Array D3.Param
+    -> O.Object D3.SomeValue
 modelFitParams = case _ of
-    LinFit -> \lr -> [{ name: "Daily Change", value: D3.someValue lr.beta }]
-    ExpFit -> \lr -> [
-        { name: "Daily % Growth"
-        , value: D3.someValue (D3.Percent (M.exp lr.beta - 1.0))
-        }
-      , { name: "Doubling Time (Days)"
-        , value: D3.someValue (D3.Days (round (M.log 2.0 / lr.beta)))
-        }
+    LinFit -> \lr -> O.singleton "Daily Change" (D3.someValue lr.beta)
+    ExpFit -> \lr -> O.fromFoldable [
+        Tuple "Daily % Growth"
+              (D3.someValue (D3.Percent (M.exp lr.beta - 1.0)))
+      , Tuple "Doubling Time (Days)"
+              (D3.someValue (D3.Days (round (M.log 2.0 / lr.beta))))
       ]
-    DecFit -> \lr -> [
-        { name: "Growth Halving Time"
-        , value: D3.someValue (D3.Days (round $ M.abs (M.log 2.0 / lr.beta)))
-        }
-      ]
-    LogFit -> \lr -> [
-        { name: "Peak Date"
-        , value: D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta)))
-        }
-      ]
+    DecFit -> \lr -> O.singleton 
+        "Halving Time"
+        (D3.someValue (D3.Days (round $ M.abs (M.log 2.0 / lr.beta))))
+    LogFit -> \lr -> O.singleton
+        "Date of Peak"
+        (D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta))))
     -- QuadFit -> \lr -> [
     --     { name: "Daily Change in Change"
     --     , value: D3.someValue (2.0 * lr.beta * lr.beta)
@@ -157,30 +164,30 @@ modelFitTrans
     :: Int                  -- ^ number of days to take from end
     -> Dated Number
     -> ModelFit
-    -> { params :: Array D3.Param
+    -> { params :: O.Object D3.SomeValue
        , trans :: Transform Number
        }
 modelFitTrans n dat = case _ of
-    LinFit -> { params: [], trans: idTrans }
-    ExpFit -> { params: [], trans: expTrans }
+    LinFit -> { params: O.empty, trans: idTrans }
+    ExpFit -> { params: O.empty, trans: expTrans }
     DecFit -> finder idTrans decayTrans
     LogFit -> finder expTrans logisticTrans
     -- QuadFit -> { params: [], trans: quadTrans }
   where
     finder def mkT = case findCap mkT (D.takeEnd n dat) of
       Nothing -> {
-          params: [{ name: "Cap", value: D3.someValue G.infinity }]
+          params: O.singleton "Final Total" (D3.someValue G.infinity)
         , trans: def
         }
       Just c  -> {
-          params: [{ name: "Cap", value: D3.someValue c }]
+          params: O.singleton "Final Total" (D3.someValue c)
         , trans: mkT c
         }
 
 -- | generate the model based on base data
 modelBaseData
     :: Transform Number     -- ^ transformation
-    -> (LinReg Number -> Array D3.Param)     -- ^ params
+    -> (LinReg Number -> O.Object D3.SomeValue)     -- ^ params
     -> Int                  -- ^ points to take from end
     -> Int                  -- ^ points to extend into future
     -> Dated Number

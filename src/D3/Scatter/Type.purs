@@ -304,11 +304,18 @@ type SomeValue = DSum SType Identity
 someValue :: forall a. STypeable a => a -> SomeValue
 someValue x = sType :=> Identity x
 
+eqSomeValue :: SomeValue -> SomeValue -> Boolean
+eqSomeValue dx dy = withDSum dx (\tx (Identity x) ->
+      withDSum dy (\ty (Identity y) ->
+        case decide tx ty of
+          Nothing -> false
+          Just r  -> sTypeCompare tx x (equivFrom r y) == EQ
+      )
+    )
 
-type Param = { name :: String, value :: SomeValue }
 
 type ModelRes =
-    { params :: Array Param
+    { params :: O.Object SomeValue
     , r2     :: Number
     }
 
@@ -331,7 +338,7 @@ modelFitLabel = case _ of
 
 type FitData a b =
     { fit :: ModelFit
-    , info :: Array { name :: String, result :: ModelRes }
+    , info :: O.Object ModelRes
     , values :: Array (Point2D a b)
     }
 

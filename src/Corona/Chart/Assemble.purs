@@ -38,7 +38,7 @@ toScatterPlot dat mspecs pss ctrys =
                   bX  = baseProjection projections.x
                   bY  = baseProjection projections.y
               in  { fit: mspec.fit
-                  , info: O.toArrayWithKey assemble <<< map force <<< O.fromFoldable $ flip A.mapMaybe [bX, bY] $
+                  , info: map force <<< O.fromFoldable $ flip A.mapMaybe [bX, bY] $
                         runExists (\bp ->
                           Tuple (baseProjectionLabel bp) <$> case bp of
                             Time      _ -> Nothing
@@ -53,5 +53,4 @@ toScatterPlot dat mspecs pss ctrys =
     }
   where
     projections = hoistPointF (\(PS ps) -> ps.projection) pss
-    assemble name result = { name, result }
 
