@@ -473,6 +473,12 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
           function moved() {
             d3.event.preventDefault();
             const mouse0 = d3.mouse(this);
+            if (mouse0[1] > height-margin.bottom) {
+                left();
+                return;
+            } else {
+                entered();
+            }
             const mouse = [Math.max(margin.left,Math.min(width-margin.right,mouse0[0])),
                            Math.max(margin.top,Math.min(height-margin.bottom,mouse0[1]))
                           ];
@@ -667,15 +673,15 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
         const subplot = mainplot.append("g")
 
 
-        // click capture
-        subplot.append("g")
-          .append('rect')
-          .style('visibility','hidden')
-          .style('pointer-events','all')
-          .attr('x',margin.left)
-          .attr('y',margin.top)
-          .attr('width',width - margin.right - margin.left)
-          .attr('height',height - margin.top - margin.bottom);
+        // // click capture
+        // subplot.append("g")
+        //   .append('rect')
+        //   .style('visibility','hidden')
+        //   .style('pointer-events','all')
+        //   .attr('x',margin.left)
+        //   .attr('y',margin.top)
+        //   .attr('width',width - margin.right - margin.left)
+        //   .attr('height',height - margin.top - margin.bottom);
 
         // yo this is it
         //
@@ -706,7 +712,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             .attr("stroke", d => modelFitColor(d.fit))
             .attr("d", d => line(d.values));
 
-        subplot.call(hover, highlight(datalines),unhighlight(datalines));
+        svg.call(hover, highlight(datalines),unhighlight(datalines));
 
 
         const setTime = function(subplot, t_) {

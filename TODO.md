@@ -1,14 +1,10 @@
 
 # Features
 
-*   exponential/logistic fits and projections
-    * maybe can fit on the deltas too but meh
-        * exponential decay: fit against cap-x
 *   responsive layout
-*   fullscreen mode?
 *   other datasets: australia, china, etc.
 *   favicon
-*   "helo" info hovers
+*   "help" info hovers
 *   "flatten the curve" bell plots
 
 # Fixes
@@ -33,6 +29,7 @@
 
 # Someday
 
+*   fullscreen mode?
 *   select to get statistics (mean, median, min, max)
 *   icons
 *   Discrete data: consider dot plots or bar graphs
