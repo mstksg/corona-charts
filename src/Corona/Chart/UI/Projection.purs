@@ -64,14 +64,20 @@ nstLabel = case _ of
     NSTSymLog -> "Symmetric Log"
 
 
-nstToScale :: forall a. SType a -> NumScaleType -> Boolean -> Scale a
+nstToScale
+    :: forall a.
+       SType a
+    -> NumScaleType
+    -> Boolean    -- ^ zero num scale?
+    -> Boolean    -- ^ zero days scale?
+    -> Scale a
 nstToScale st = case D3.toNType st of
-    Left (Left r)  -> \_ _ -> Date r
-    Left (Right r) -> \_ -> D3.Linear (Left r)
+    Left (Left r)  -> \_ _ _ -> Date r
+    Left (Right r) -> \_ _ -> D3.Linear (Left r)
     Right nt       -> case _ of
-      NSTLinear -> D3.Linear (Right nt)
-      NSTLog    -> \_ -> D3.Log nt
-      NSTSymLog -> \_ -> D3.SymLog nt
+      NSTLinear -> \b _ -> D3.Linear (Right nt) b
+      NSTLog    -> \_ _ -> D3.Log nt
+      NSTSymLog -> \_ _ -> D3.SymLog nt
 
 scaleToNST
     :: forall a.
@@ -82,11 +88,12 @@ scaleToNST = case _ of
     Linear _ b -> { numScaleType: Just NSTLinear, linearZero: Just b }
     Log _      -> { numScaleType: Just NSTLog, linearZero: Nothing }
     SymLog _   -> { numScaleType: Just NSTSymLog, linearZero: Nothing }
-    
+
 type State =
     { projection   :: DSum SType Projection
     , numScaleType :: NumScaleType
-    , linearZero   :: Boolean
+    , numScaleZero :: Boolean
+    , daysZero     :: Boolean
     }
 
 type OpIx = { tagIn :: WrEx D3.SType }
@@ -101,13 +108,14 @@ data Action =
         SetBase      (Exists BaseProjection)
       | SetOps
       | SetNumScaleType  NumScaleType
-      | SetLinearZero    Boolean
+      | SetNumScaleZero  Boolean
+      | SetDaysZero      Boolean
 
 type Out = DSum SType (Product Projection Scale)
 
 data Output = Update Out
 
-data Query r = 
+data Query r =
       QueryAsk (Out -> r)
     | QueryPut Out r        -- ^ always re-raises
 
@@ -125,7 +133,12 @@ component label =
           let stout = scaleToNST sc
           in  { projection: tOut :=> proj
               , numScaleType: fromMaybe NSTLog stout.numScaleType
-              , linearZero: fromMaybe false stout.linearZero
+              , numScaleZero: case D3.toNType tOut of
+                    Left _ -> false
+                    Right _ -> fromMaybe false stout.linearZero
+              , daysZero: case D3.toNType tOut of
+                    Left  _ -> fromMaybe false stout.linearZero
+                    Right _ -> false
               }
         )
     , render: render label
@@ -153,7 +166,7 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
           ) sbp
       ]
     , HH.div [HU.classProp "axis-op-chain"] [
-        HH.span_ [HH.text "Transformations"] 
+        HH.span_ [HH.text "Transformations"]
       , withDSum aState.projection (\_ spr ->
           withProjection spr (\pr ->
             let tBase = baseType pr.base
@@ -171,7 +184,7 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
             Left  (Left _) -> []
             Left  (Right _) -> [
               HH.span_ [HH.text "Scale"]
-            , linearZeroCheck
+            , linearZeroCheck false
             ]
             Right _ -> fold [
               [ HH.span_ [HH.text "Scale"]
@@ -180,18 +193,20 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
                     HH.option [HP.selected (nst == aState.numScaleType)] [HH.text (nstLabel nst)]
               ]
             , case aState.numScaleType of
-                NSTLinear -> [linearZeroCheck]
+                NSTLinear -> [linearZeroCheck true]
                 NSTLog    -> []
                 NSTSymLog -> []
             ]
         )
     ]
   where
-    linearZeroCheck = HH.div [HU.classProp "linear-zero pretty p-default p-round"] [
+    linearZeroCheck isNum = HH.div [HU.classProp "linear-zero pretty p-default p-round"] [
       HH.input [
         HP.type_ HP.InputCheckbox
-      , HP.checked aState.linearZero
-      , HE.onChecked (Just <<< SetLinearZero)
+      , HP.checked $ if isNum then aState.numScaleZero else aState.daysZero
+      , HE.onChecked $ if isNum
+          then Just <<< SetNumScaleZero
+          else Just <<< SetDaysZero
       ]
     , HH.div [HU.classProp "state"] [
         HH.label_ [HH.text "Zero Axis"]
@@ -236,46 +251,39 @@ handleAction act = do
       )
       SetNumScaleType nst ->
         H.modify_ $ _ { numScaleType = nst }
-      SetLinearZero b ->
-        H.modify_ $ _ { linearZero = b }
+      SetNumScaleZero b ->
+        H.modify_ $ _ { numScaleZero = b }
+      SetDaysZero b ->
+        H.modify_ $ _ { daysZero = b }
     H.raise <<< Update <<< assembleScale =<< H.get
 
 assembleScale :: State -> Out
 assembleScale st = withDSum st.projection (\t proj ->
-    t :=> Product (Tuple proj (nstToScale t st.numScaleType st.linearZero))
+    t :=> Product (Tuple proj (nstToScale t st.numScaleType st.numScaleZero st.daysZero))
   )
 
 updateProjection
     :: forall m a i.
        DSum SType Projection
     -> H.HalogenM State i ChildSlots Output m Unit
-updateProjection dproj = withDSum dproj (\tNew pNew ->
-    H.modify_ $ \st0 ->
-      withDSum st0.projection (\tOld pOld ->
-        case decide tOld tNew of
-          Just _  -> st0 { projection = dproj }
-          Nothing ->
-            { projection: dproj
-            , numScaleType: fromMaybe st0.numScaleType $ defaultNST tNew
-            , linearZero: false
-            }
-      )
-  )
-
-
-
+updateProjection dproj = H.modify_ $ _ { projection = dproj }
 
 handleQuery
     :: forall a c o m r. MonadEffect m
     => Query r
     -> H.HalogenM State a ChildSlots Output m (Maybe r)
-handleQuery = case _ of 
+handleQuery = case _ of
     QueryAsk f -> Just <<< f <$> State.gets assembleScale
     QueryPut s next -> withDSum s (\tOut (Product (Tuple sp scale)) -> do
       H.modify_ $ \st0 ->
         let sout = scaleToNST scale
-        in  st0 { numScaleType = fromMaybe st0.numScaleType sout.numScaleType
-                , linearZero   = fromMaybe st0.linearZero sout.linearZero
+        in  case D3.toNType tOut of
+              Left _ -> st0
+                { daysZero = fromMaybe st0.daysZero sout.linearZero
+                }
+              Right _ -> st0
+                { numScaleType = fromMaybe st0.numScaleType sout.numScaleType
+                , numScaleZero = fromMaybe st0.numScaleZero sout.linearZero
                 }
       updateProjection (tOut :=> sp)
       withProjection sp (\p -> do
@@ -299,13 +307,13 @@ handleQuery = case _ of
 defaultLZ :: Boolean
 defaultLZ = false
 
-defaultNST :: forall a. SType a -> Maybe NumScaleType
-defaultNST = case _ of
-    SDay  _ -> Nothing
-    SDays _ -> Just NSTLinear
-    SInt  _ -> Just NSTLog
-    SNumber _ -> Just NSTLog
-    SPercent _ -> Just NSTLinear
+-- defaultNST :: forall a. SType a -> Maybe NumScaleType
+-- defaultNST = case _ of
+--     SDay  _ -> Nothing
+--     SDays _ -> Just NSTLinear
+--     SInt  _ -> Just NSTLog
+--     SNumber _ -> Just NSTLog
+--     SPercent _ -> Just NSTLinear
 
 decorateOpChain
     :: forall a b.
@@ -342,7 +350,7 @@ outSerialize p = withDSum p (\t (Product (Tuple proj sc)) ->
           SNumber r -> Marshal.serialize $ equivToF r sc
           SPercent r -> Marshal.serialize $ equivToF r sc
 
-    ) 
+    )
 
 outLabel :: Out -> String
 outLabel p = withDSum p (\_ (Product (Tuple proj _)) -> projectionLabel proj)
