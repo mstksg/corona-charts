@@ -5,11 +5,12 @@ exports._bisectionSearch = function(mkMaybe, eps, f, mn, mx) {
     if (f(mn) * f(mx) > 0) {
         return mkMaybe.nothing();
     } else {
+        var i   = 0;
         var a   = mn;
         var b   = mx;
         var p   = (mn + mx) / 2;
         var err = Math.abs(f(p));
-        while (err > eps) {
+        while (err > eps && i < 100) {
             if (f(a) * f(p) < 0) {
                 b = p;
             } else {
@@ -17,6 +18,10 @@ exports._bisectionSearch = function(mkMaybe, eps, f, mn, mx) {
             }
             p = (a + b)/2;
             err = Math.abs(f(p));
+            i += 1;
+        }
+        if (i >= 100) {
+            console.warn("search timed out after 100 steps")
         }
         return mkMaybe.just(p);
     }

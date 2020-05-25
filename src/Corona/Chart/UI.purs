@@ -102,18 +102,21 @@ type RegionState =
   , sourceSpec :: Corona.Dataset
   }
 
-type ModelState =
-  { enabled  :: Boolean
-  , tail     :: Int
-  , forecast :: Int
-  }
+-- type ModelState =
+--   { enabled  :: Boolean
+--   , tail     :: Int
+--   }
 
 -- TODO: the range should be set the same for all fits
 type Models =
-    { linFit :: ModelState
-    , expFit :: ModelState
-    , logFit :: ModelState
+    { linFit :: Boolean
+    , expFit :: Boolean
+    , logFit :: Boolean
+    , decFit :: Boolean
+    , tail :: Int
+    , forecast :: Int
     -- , decFit :: ModelState
+    -- , quadFit :: ModelState
     }
 
 -- todo: refactor this to use Point instead of four axes
@@ -142,12 +145,13 @@ axisParam = case _ of
     ZAxis -> "z"
     TAxis -> "t"
 
-modelFitLens :: ModelFit -> Lens' Models ModelState
+modelFitLens :: ModelFit -> Lens' Models Boolean
 modelFitLens = case _ of
     LinFit -> LR.prop (SProxy :: SProxy "linFit")
     ExpFit -> LR.prop (SProxy :: SProxy "expFit")
     LogFit -> LR.prop (SProxy :: SProxy "logFit")
-    -- DecFit -> LR.prop (SProxy :: SProxy "decFit")
+    DecFit -> LR.prop (SProxy :: SProxy "decFit")
+    -- QuadFit -> LR.prop (SProxy :: SProxy "quadFit")
 
 
 data Aspect = ADataset
@@ -172,8 +176,8 @@ data Action =
       | SetProjection Axis Projection.Out
       | LoadProjection Axis Projection.Out
       | SetModel ModelFit Boolean
-      | SetModelTail ModelFit Int
-      | SetModelForecast ModelFit Int
+      | SetModelTail Int
+      | SetModelForecast Int
       | LoadDataset Corona.Dataset
       | Highlight Region
       | Unhighlight
@@ -220,10 +224,12 @@ component = H.mkComponent
         , axis: defaultProjections
         , regionState: Left S.empty
         , modelStates:
-            { linFit: initialModelState
-            , expFit: initialModelState
-            , logFit: initialModelState
-            -- , decFit: initialModelState
+            { linFit: false
+            , expFit: false
+            , logFit: false
+            , decFit: false
+            , forecast: 14
+            , tail: 35
             }
         , dataset: Nothing
         , permalink: Nothing
@@ -236,12 +242,11 @@ component = H.mkComponent
         , initialize   = Just Initialize
         }
     }
-  where
-    initialModelState = {
-        enabled: false
-      , tail: 14
-      , forecast: 14
-      }
+  -- where
+  --   initialModelState = {
+  --       enabled: false
+  --     , tail: 14
+  --     }
 
 defaultProjections :: V4 Projection.Out
 defaultProjections = {
@@ -407,35 +412,43 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
     datasetLabel = case _ of
       Corona.WorldData -> "World"
       Corona.USData -> "United States"
-    modelPicker = [
-        HH.h3_ [HH.text "Analysis"]
-      , HH.ul [HU.classProp "model-picker-list"] $ allModelFit <#> \mfit ->
+    anyModelsActive = any (\mfit -> st.modelStates ^. modelFitLens mfit) allModelFit
+    modelPicker = fold [
+        [ HH.h3_ [HH.text "Analysis"]
+        , HH.ul [HU.classProp "model-picker-list"] $ allModelFit <#> \mfit ->
           HH.li [HU.classProp "model-picker-fit"] [
-            HH.div [HU.classProp "model-pick-enable"] [
-              HH.input [
-                HP.type_ HP.InputCheckbox
-              , HP.checked (st.modelStates ^. modelFitLens mfit).enabled
-              , HE.onChecked (Just <<< SetModel mfit)
+            HH.div [HU.classProp "pretty p-switch p-fill"] [
+                HH.input [
+                  HP.type_ HP.InputCheckbox
+                , HP.checked (st.modelStates ^. modelFitLens mfit)
+                , HE.onChecked (Just <<< SetModel mfit)
+                ]
+              , HH.div [HU.classProp "state"] [
+                HH.label_ [HH.text (modelFitLabel mfit)]
               ]
-            , HH.label_ [HH.text (modelFitLabel mfit)]
-            ]
-          , HH.div [HU.classProp "model-pick-tail"] [
-              HH.input [
-                HP.type_ HP.InputNumber
-              , HP.value $ show (st.modelStates ^. modelFitLens mfit).tail
-              , HE.onValueChange (map (SetModelTail mfit) <<< parsePosInt)
-              ]
-            , HH.label_ [HH.text "Fit Length"]
-            ]
-          , HH.div [HU.classProp "model-pick-forecast"] [
-              HH.input [
-                HP.type_ HP.InputNumber
-              , HP.value $ show (st.modelStates ^. modelFitLens mfit).forecast
-              , HE.onValueChange (map (SetModelForecast mfit) <<< parsePosInt)
-              ]
-            , HH.label_ [HH.text "Forecast"]
             ]
           ]
+        ]
+      , if anyModelsActive
+          then [
+            HH.div [HU.classProp "model-pick-lookback"] [
+              HH.span_ [HH.text "Lookback"]
+            , HH.input [
+                HP.type_ HP.InputNumber
+              , HP.value $ show st.modelStates.forecast
+              , HE.onValueChange (map SetModelTail <<< parsePosInt)
+              ]
+            ]
+          , HH.div [HU.classProp "model-pick-forecast"] [
+              HH.span_ [HH.text "Forecast"]
+            , HH.input [
+                HP.type_ HP.InputNumber
+              , HP.value $ show st.modelStates.tail
+              , HE.onValueChange (map SetModelForecast <<< parsePosInt)
+              ]
+            ]
+          ]
+          else []
       ]
     parsePosInt = map (max 1 <<< abs <<< round) <<< N.fromString
 
@@ -505,15 +518,17 @@ handleAction = case _ of
     LoadDataset ds -> loadDataset ds
     SetModel mfit b -> do
       H.modify_ $ \st -> st
-        { modelStates = over (modelFitLens mfit) (_ { enabled = b }) st.modelStates }
+        { modelStates = set (modelFitLens mfit) b st.modelStates  }
       reRender Nothing
-    SetModelTail mfit n -> do
+    SetModelTail n -> do
       H.modify_ $ \st -> st
-        { modelStates = over (modelFitLens mfit) (_ { tail = n }) st.modelStates }
+        { modelStates = st.modelStates
+                          { tail = n }
+        }
       reRender Nothing
-    SetModelForecast mfit n -> do
+    SetModelForecast n -> do
       H.modify_ $ \st -> st
-        { modelStates = over (modelFitLens mfit) (_ { forecast = n }) st.modelStates }
+        { modelStates = st.modelStates { forecast = n } }
       reRender Nothing
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
@@ -758,10 +773,9 @@ reRender initter = do
 
 mkScatterModels :: Models -> Array ModelSpec
 mkScatterModels md = flip A.mapMaybe allModelFit $ \mfit ->
-    let ms = md ^. modelFitLens mfit
-    in  if ms.enabled
-          then Just { fit: mfit, tail: ms.tail, forecast: ms.forecast }
-          else Nothing
+    if md ^. modelFitLens mfit
+      then Just { fit: mfit, tail: md.tail, forecast: md.forecast }
+      else Nothing
 
 -- really hacky way to have post-render hooks
 postRender

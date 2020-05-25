@@ -9,6 +9,7 @@
 *   other datasets: australia, china, etc.
 *   favicon
 *   "helo" info hovers
+*   "flatten the curve" bell plots
 
 # Fixes
 

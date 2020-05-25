@@ -69,6 +69,16 @@ addTrans a = Tr
     , from: Just <<< (_ - a)
     }
 
+quadTrans :: Transform Number
+quadTrans = Tr
+    { to: \x -> x * x
+    , from: \x ->
+        if x >= zero
+          then Just (sqrt x)
+          else Nothing
+    }
+
+
 -- | parameterized by the maximum cap
 --
 -- f(x) = C / (1 + e^x)

@@ -187,13 +187,15 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
         )
     ]
   where
-    linearZeroCheck = HH.div [HU.classProp "linear-zero"] [
+    linearZeroCheck = HH.div [HU.classProp "linear-zero pretty p-default p-round"] [
       HH.input [
         HP.type_ HP.InputCheckbox
       , HP.checked aState.linearZero
       , HE.onChecked (Just <<< SetLinearZero)
       ]
-    , HH.label_ [HH.text "Zero Axis"]
+    , HH.div [HU.classProp "state"] [
+        HH.label_ [HH.text "Zero Axis"]
+      ]
     ]
 
 

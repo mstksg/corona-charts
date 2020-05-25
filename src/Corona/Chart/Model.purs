@@ -30,17 +30,19 @@ import Undefined
 data ModelFit = LinFit
               | ExpFit
               | LogFit
-              -- | DecFit
+              -- | QuadFit
+              | DecFit
 
 allModelFit :: Array ModelFit
-allModelFit = [LinFit, ExpFit, LogFit]
+allModelFit = [LinFit, ExpFit, LogFit, DecFit]
 
 modelFitLabel :: ModelFit -> String
 modelFitLabel = case _ of
     LinFit -> "Linear"
     ExpFit -> "Exponential"
-    -- DecFit -> "Exponential Decay"
+    DecFit -> "Exp. Decay"
     LogFit -> "Logistic"
+    -- QuadFit -> "Quadratic"
 
 type ModelSpec = { fit :: ModelFit, tail :: Int, forecast :: Int }
 
@@ -150,12 +152,21 @@ modelFitParams = case _ of
         , value: D3.someValue (D3.Days (round (M.log 2.0 / lr.beta)))
         }
       ]
-    -- DecFit -> \_ -> []
+    DecFit -> \lr -> [
+        { name: "Growth Halving Time"
+        , value: D3.someValue (D3.Days (round (M.log 2.0 / lr.beta)))
+        }
+      ]
     LogFit -> \lr -> [
         { name: "Peak Date"
         , value: D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta)))
         }
       ]
+    -- QuadFit -> \lr -> [
+    --     { name: "Daily Change in Change"
+    --     , value: D3.someValue (2.0 * lr.beta * lr.beta)
+    --     }
+    --   ]
 
 modelFitTrans
     :: Int                  -- ^ number of days to take from end
@@ -167,8 +178,9 @@ modelFitTrans
 modelFitTrans n dat = case _ of
     LinFit -> { params: [], trans: idTrans }
     ExpFit -> { params: [], trans: expTrans }
-    -- DecFit -> finder idTrans decayTrans
+    DecFit -> finder idTrans decayTrans
     LogFit -> finder expTrans logisticTrans
+    -- QuadFit -> { params: [], trans: quadTrans }
   where
     finder def mkT = case findCap mkT (D.takeEnd n dat) of
       Nothing -> {
@@ -221,7 +233,7 @@ findCap capper xs = do
         0.5
         (M.log <<< (1.0 - _) <<< getR2)
         capMin
-        (capMin * 50.0) -- probably a reasonable upper bound. if too high
+        (capMin * 5.0) -- probably a reasonable upper bound. if too high
                         -- then floating point precision errors
   where
     vals = D.datedValues $ flip mapWithIndex xs $ \i v ->
@@ -229,23 +241,3 @@ findCap capper xs = do
       , y: v
       }
     getR2 cap = (linRegTrans (capper cap) vals).r2
-
--- findLogisticCap
---     :: Dated Number               -- ^ take the points from the end already
---     -> Maybe Number               -- ^ logistic cap
--- findLogisticCap xs = do
---     capMin <- (_ + 1.0) <$> A.last (D.datedValues xs)
---     MZ.guard (capMin > 0.0)
---     bisectionExtreme
---         1e-7    -- epsilon for precision
---         0.5
---         (M.log <<< (1.0 - _) <<< getR2)
---         capMin
---         (capMin * 50.0) -- probably a reasonable upper bound. if too high
---                         -- then floating point precision errors
---   where
---     vals = D.datedValues $ flip mapWithIndex xs $ \i v ->
---                 { x: toNumber (MJD.toModifiedJulianDay i)
---                 , y: v
---                 }
---     getR2 cap = (linRegTrans (logisticTrans cap) vals).r2

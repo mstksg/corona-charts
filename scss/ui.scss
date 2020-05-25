@@ -6,6 +6,7 @@
   // border-style: solid;
   margin: 1rem 0.2rem;
   padding: 18px;
+  // font-size: 97%;
   // border-width: 1px;
   border-radius: 18px;
   background-color: #ffffff;
@@ -233,6 +234,45 @@ select {
   padding-right: 2rem;
 }
 
+.model-picker {
+  span {
+    display: block;
+    width: 100%;
+    font-size: 90%;
+    margin: 0;
+    color: #666;
+  }
+
+  ul {
+    padding: 0;
+    margin: 0;
+    li {
+      padding-bottom: 0.5rem;
+      display: block;
+      font-size: 90%;
+    }
+  }
+
+  .model-pick-lookback, .model-pick-forecast{
+    margin-top: 0.3rem;
+    width: 40%;
+    display: inline-block;
+    font-size: 95%
+  }
+
+  // .model-pick-lookback {
+  //   float: left;
+  // }
+  .model-pick-forecast {
+    float: right;
+  }
+
+  input {
+    padding: 0.3rem;
+  }
+
+}
+
 
 input {
   -webkit-appearance: none;
@@ -254,79 +294,79 @@ input {
   margin-top: 0.4rem;
 }
 
-input[type='checkbox'] {
-    --active: #99f;
-    --active-inner: #f1f2f3;
-    --focus: 2px #99f;
-    --border: #ddd;
-    // --border-hover: #1ADB44;
-    --background: #f1f2f3;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    height: 23px;
-    outline: none;
-    display: inline-block;
-    vertical-align: top;
-    position: relative;
-    margin: 0;
-    cursor: pointer;
-    border: 1px solid var(--bc, var(--border));
-    background: var(--b, var(--background));
-    transition: background .3s, border-color .3s, box-shadow .2s;
-    &:after {
-      content: '';
-      display: block;
-      left: 0;
-      top: 0;
-      position: absolute;
-      transition: transform var(--d-t, .3s) var(--d-t-e, ease), opacity var(--d-o, .2s);
-    }
-    &:checked {
-      --b: var(--active);
-      --bc: var(--active);
-      --d-o: .3s;
-      --d-t: .6s;
-      --d-t-e: cubic-bezier(.2, .85, .32, 1.2);
-    }
-    &:hover {
-      &:not(:checked) {
-        --bc: var(--border-hover);
-      }
-    }
-    &:focus {
-      box-shadow: 0 0 0 var(--focus);
-    }
-    width: 23px;
-    &:after {
-      opacity: var(--o, 0);
-    }
-    &:checked {
-      --o: 1;
-    }
-    & + label {
-      font-size: 85%;
-      line-height: 23px;
-      color: #666;
-      display: inline-block;
-      vertical-align: top;
-      cursor: pointer;
-      margin-left: 0.5rem;
-    }
-    border-radius: 12px;
-    &:after {
-      width: 5px;
-      height: 9px;
-      border: 2px solid var(--active-inner);
-      border-top: 0;
-      border-left: 0;
-      left: 7px;
-      top: 4px;
-      transform: rotate(var(--r, 20deg));
-    }
-    &:checked {
-      --r: 43deg;
-    }
-}
+// input[type='checkbox'] {
+//     --active: #99f;
+//     --active-inner: #f1f2f3;
+//     --focus: 2px #99f;
+//     --border: #ddd;
+//     // --border-hover: #1ADB44;
+//     --background: #f1f2f3;
+//     -webkit-appearance: none;
+//     -moz-appearance: none;
+//     height: 23px;
+//     outline: none;
+//     display: inline-block;
+//     vertical-align: top;
+//     position: relative;
+//     margin: 0;
+//     cursor: pointer;
+//     border: 1px solid var(--bc, var(--border));
+//     background: var(--b, var(--background));
+//     transition: background .3s, border-color .3s, box-shadow .2s;
+//     &:after {
+//       content: '';
+//       display: block;
+//       left: 0;
+//       top: 0;
+//       position: absolute;
+//       transition: transform var(--d-t, .3s) var(--d-t-e, ease), opacity var(--d-o, .2s);
+//     }
+//     &:checked {
+//       --b: var(--active);
+//       --bc: var(--active);
+//       --d-o: .3s;
+//       --d-t: .6s;
+//       --d-t-e: cubic-bezier(.2, .85, .32, 1.2);
+//     }
+//     &:hover {
+//       &:not(:checked) {
+//         --bc: var(--border-hover);
+//       }
+//     }
+//     &:focus {
+//       box-shadow: 0 0 0 var(--focus);
+//     }
+//     width: 23px;
+//     &:after {
+//       opacity: var(--o, 0);
+//     }
+//     &:checked {
+//       --o: 1;
+//     }
+//     & + label {
+//       font-size: 85%;
+//       line-height: 23px;
+//       color: #666;
+//       display: inline-block;
+//       vertical-align: top;
+//       cursor: pointer;
+//       margin-left: 0.5rem;
+//     }
+//     border-radius: 12px;
+//     &:after {
+//       width: 5px;
+//       height: 9px;
+//       border: 2px solid var(--active-inner);
+//       border-top: 0;
+//       border-left: 0;
+//       left: 7px;
+//       top: 4px;
+//       transform: rotate(var(--r, 20deg));
+//     }
+//     &:checked {
+//       --r: 43deg;
+//     }
+// }
 
 .autocomplete-widget {
   ul {
