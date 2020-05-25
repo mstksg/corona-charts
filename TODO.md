@@ -38,7 +38,7 @@
         work.  what is the work?  the type checking/dependent types?  the url
         generation?  or the d3 plot itself?
     *   it is probably the d3 plot itself
-*   inifnite loop: south korea decay
+*   um R2 is wrong
 
 # Someday
 

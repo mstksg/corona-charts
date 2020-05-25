@@ -26,8 +26,9 @@ foreign import clearSvg :: D3Scatter -> Effect Unit
 
 foreign import _drawData
     :: forall a b c d.
-     Fn8 (HandleFunc1 SType OnSType)
+     Fn9 (HandleFunc1 SType OnSType)
          (HandleFunc1 Scale OnScale)
+         (HandleFunc ModelFit OnModelFit)
          (SType a)
          (SType b)
          (SType c)
@@ -56,7 +57,7 @@ drawData_
     -> D3Scatter
     -> ScatterPlot a b c d
     -> Effect Interactor
-drawData_ = runFn8 _drawData handle1 handle1
+drawData_ = runFn9 _drawData handle1 handle1 handle
 
 drawData
     :: forall a b c d. STypeable a => STypeable b => STypeable c => STypeable d

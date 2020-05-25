@@ -37,10 +37,10 @@ toScatterPlot dat mspecs pss ctrys =
               let ftc = fitTimeCounts mspec tcounts
                   bX  = baseProjection projections.x
                   bY  = baseProjection projections.y
-              in  { fit: modelFitLabel mspec.fit
-                  , info: map force <<< O.fromFoldable $ flip A.mapMaybe [bX, bY] $
+              in  { fit: mspec.fit
+                  , info: map force $ flip A.mapMaybe [bX, bY] $
                         runExists (\bp ->
-                          Tuple (baseProjectionLabel bp) <$> case bp of
+                          map (packageUp (baseProjectionLabel bp)) <$> case bp of
                             Time      _ -> Nothing
                             Confirmed _ -> Just ftc.modelInfo.confirmed
                             Deaths    _ -> Just ftc.modelInfo.deaths
@@ -53,4 +53,5 @@ toScatterPlot dat mspecs pss ctrys =
     }
   where
     projections = hoistPointF (\(PS ps) -> ps.projection) pss
+    packageUp bp info = { name: bp, result: info }
 

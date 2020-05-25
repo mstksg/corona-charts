@@ -15,7 +15,7 @@ import Corona.Chart.UI.Projection as Projection
 import Corona.Data as Corona
 import Corona.Data.Type
 import Corona.Marshal as Marshal
-import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..), Axis(..), axisLens, Point)
+import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..), Axis(..), Point, ModelFit(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Bifunctor
@@ -412,10 +412,15 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
     datasetLabel = case _ of
       Corona.WorldData -> "World"
       Corona.USData -> "United States"
-    anyModelsActive = any (\mfit -> st.modelStates ^. modelFitLens mfit) allModelFit
+    anyModelsActive = any (\mfit -> st.modelStates ^. modelFitLens mfit) D3.allModelFit
+    modelColor = case _ of
+      LinFit -> "p-primary"
+      ExpFit -> "p-success"
+      LogFit -> "p-info"
+      DecFit -> "p-danger"
     modelPicker = fold [
         [ HH.h3_ [HH.text "Analysis"]
-        , HH.ul [HU.classProp "model-picker-list"] $ allModelFit <#> \mfit ->
+        , HH.ul [HU.classProp "model-picker-list"] $ D3.allModelFit <#> \mfit ->
           HH.li [HU.classProp "model-picker-fit"] [
             HH.div [HU.classProp "pretty p-switch p-fill"] [
                 HH.input [
@@ -423,8 +428,8 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
                 , HP.checked (st.modelStates ^. modelFitLens mfit)
                 , HE.onChecked (Just <<< SetModel mfit)
                 ]
-              , HH.div [HU.classProp "state"] [
-                HH.label_ [HH.text (modelFitLabel mfit)]
+              , HH.div [HU.classProp $ "state " <> modelColor mfit] [
+                HH.label_ [HH.text (D3.modelFitLabel mfit)]
               ]
             ]
           ]
@@ -435,7 +440,7 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
               HH.span_ [HH.text "Lookback"]
             , HH.input [
                 HP.type_ HP.InputNumber
-              , HP.value $ show st.modelStates.forecast
+              , HP.value $ show st.modelStates.tail
               , HE.onValueChange (map SetModelTail <<< parsePosInt)
               ]
             ]
@@ -443,7 +448,7 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
               HH.span_ [HH.text "Forecast"]
             , HH.input [
                 HP.type_ HP.InputNumber
-              , HP.value $ show st.modelStates.tail
+              , HP.value $ show st.modelStates.forecast
               , HE.onValueChange (map SetModelForecast <<< parsePosInt)
               ]
             ]
@@ -522,9 +527,7 @@ handleAction = case _ of
       reRender Nothing
     SetModelTail n -> do
       H.modify_ $ \st -> st
-        { modelStates = st.modelStates
-                          { tail = n }
-        }
+        { modelStates = st.modelStates { tail = n } }
       reRender Nothing
     SetModelForecast n -> do
       H.modify_ $ \st -> st
@@ -772,7 +775,7 @@ reRender initter = do
               hist
 
 mkScatterModels :: Models -> Array ModelSpec
-mkScatterModels md = flip A.mapMaybe allModelFit $ \mfit ->
+mkScatterModels md = flip A.mapMaybe D3.allModelFit $ \mfit ->
     if md ^. modelFitLens mfit
       then Just { fit: mfit, tail: md.tail, forecast: md.forecast }
       else Nothing

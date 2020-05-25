@@ -312,9 +312,26 @@ type ModelRes =
     , r2     :: Number
     }
 
+data ModelFit = LinFit
+              | ExpFit
+              | LogFit
+              -- | QuadFit
+              | DecFit
+
+allModelFit :: Array ModelFit
+allModelFit = [LinFit, ExpFit, LogFit, DecFit]
+
+modelFitLabel :: ModelFit -> String
+modelFitLabel = case _ of
+    LinFit -> "Linear"
+    ExpFit -> "Exponential"
+    DecFit -> "Exp. Decay"
+    LogFit -> "Logistic"
+    -- QuadFit -> "Quadratic"
+
 type FitData a b =
-    { fit :: String
-    , info :: O.Object ModelRes
+    { fit :: ModelFit
+    , info :: Array { name :: String, result :: ModelRes }
     , values :: Array (Point2D a b)
     }
 
@@ -454,5 +471,26 @@ instance handle1SType :: Handle1 SType OnSType where
       , percent: SPercent
       }
 
+newtype OnModelFit = OnModelFit
+    (forall r.
+        { linFit :: Unit -> r
+        , expFit :: Unit -> r
+        , logFit :: Unit -> r
+        , decFit :: Unit -> r
+        } -> r
+    )
+
+instance handleModelFit :: Handle ModelFit OnModelFit where
+    handle   = case _ of
+      LinFit -> OnModelFit (\h -> h.linFit unit)
+      ExpFit -> OnModelFit (\h -> h.expFit unit)
+      LogFit -> OnModelFit (\h -> h.logFit unit)
+      DecFit -> OnModelFit (\h -> h.decFit unit)
+    unHandle (OnModelFit f) = f
+      { linFit: const LinFit
+      , expFit: const ExpFit
+      , logFit: const LogFit
+      , decFit: const DecFit
+      }
 
 foreign import _formatSType :: forall a. Fn2 (HandleFunc1 SType OnSType) (SType a) (a -> String)

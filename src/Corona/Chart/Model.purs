@@ -8,41 +8,26 @@ import Control.MonadZero as MZ
 import Corona.Analyze.LinReg
 import Corona.Analyze.Search
 import Corona.Analyze.Transform
-import Debug.Trace
 import Corona.Chart
 import Corona.Data.Type
+import D3.Scatter.Type (ModelFit(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Dated (Dated(..))
 import Data.Dated as D
-import Undefined
 import Data.FunctorWithIndex
 import Data.Int
 import Data.Lazy
 import Data.Maybe
 import Data.ModifiedJulianDay as MJD
+import Debug.Trace
 import Global as G
 import Math as M
 import Type.Chain as C
 import Type.Equiv
 import Undefined
+import Undefined
 
-data ModelFit = LinFit
-              | ExpFit
-              | LogFit
-              -- | QuadFit
-              | DecFit
-
-allModelFit :: Array ModelFit
-allModelFit = [LinFit, ExpFit, LogFit, DecFit]
-
-modelFitLabel :: ModelFit -> String
-modelFitLabel = case _ of
-    LinFit -> "Linear"
-    ExpFit -> "Exponential"
-    DecFit -> "Exp. Decay"
-    LogFit -> "Logistic"
-    -- QuadFit -> "Quadratic"
 
 type ModelSpec = { fit :: ModelFit, tail :: Int, forecast :: Int }
 
@@ -146,15 +131,15 @@ modelFitParams = case _ of
     LinFit -> \lr -> [{ name: "Daily Change", value: D3.someValue lr.beta }]
     ExpFit -> \lr -> [
         { name: "Daily % Growth"
-        , value: D3.someValue (M.exp lr.beta - 1.0)
+        , value: D3.someValue (D3.Percent (M.exp lr.beta - 1.0))
         }
-      , { name: "Doubling Time"
+      , { name: "Doubling Time (Days)"
         , value: D3.someValue (D3.Days (round (M.log 2.0 / lr.beta)))
         }
       ]
     DecFit -> \lr -> [
         { name: "Growth Halving Time"
-        , value: D3.someValue (D3.Days (round (M.log 2.0 / lr.beta)))
+        , value: D3.someValue (D3.Days (round $ M.abs (M.log 2.0 / lr.beta)))
         }
       ]
     LogFit -> \lr -> [

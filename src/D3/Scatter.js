@@ -5,6 +5,14 @@ const msPerDay      = 24*60*60*1000;
 const mjdShift      = 40586;
 const fromMJD = mjd => new Date((mjd - mjdShift) * msPerDay);
 
+const fitcolors =
+    [ "#428bca",
+      "#5cb85c",
+      "#5bc0de",
+      "#f0ad4e",
+      "#d9534f"
+    ]
+
 const last = xs => xs[xs.length - 1];
 
 exports._mkSvg = function(elem, dim) {
@@ -35,6 +43,8 @@ const timedSeries = series => function(t,keeplast) {
     }).filter(s => s.values.length > 0);
 }
 
+const r2format = d3.format(".3f");
+
 // { axis: {x,y,z,t : { scale : Scale, label : String} }
 // , series : [{ name : String, values: [SeriesData]}]
 // }
@@ -49,11 +59,11 @@ const timedSeries = series => function(t,keeplast) {
 //     , r2     :: Number
 //     }
 // type FitData a b =
-//     { fit :: String
-//     , info :: O.Object ModelRes
+//     { fit :: ModelFit
+//     , info :: { name :: String, result :: ModelRes }
 //     , values :: Array (Point2D a b)
 //     }
-exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT, svgdat, scatter) {
+exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typeY, typeZ, typeT, svgdat, scatter) {
     const svg = svgdat.svg;
     const width = svgdat.dimensions.width;
     const height = svgdat.dimensions.height;
@@ -96,6 +106,10 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
     const axisTickerY = axisTicker(typeY);
     const axisTickerZ = axisTicker(typeZ);
     const axisTickerT = axisTicker(typeT);
+    // const fmtSomeVal = sv => sv(tp => x => fmt(tp)(x));
+    const fmtSomeVal = sv => sv(tp => x => fmt(tp)(convert(tp)(x)));
+// newtype DSum tag f = DSum
+//   (forall r. (forall a. tag a -> f a -> r) -> r)
 
     const validVal = scale => val =>
         !isNaN(val) && handleScale(scale)(
@@ -146,6 +160,22 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             }
         );
 
+    const modelFitColor = fit => handleModelFit(fit)(
+            { linFit: (() => fitcolors[0])
+            , expFit: (() => fitcolors[1])
+            , logFit: (() => fitcolors[2])
+            , decFit: (() => fitcolors[4])
+            }
+        );
+
+    const modelFitLabel = fit => handleModelFit(fit)(
+            { linFit: (() => "Linear")
+            , expFit: (() => "Exponential")
+            , logFit: (() => "Logistic")
+            , decFit: (() => "Exp. Decay")
+            }
+        );
+
     return function () {
         exports.clearSvg(svg)();
         console.log(scatter);
@@ -167,6 +197,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             s.modelfits.map(ft =>
                 ({ name: s.name
                  , fit: ft.fit
+                 , info: ft.info
                  , values: ft.values.filter(validPair2).map( p =>
                      ({ x: convertX(p.x)
                       , y: convertY(p.y)
@@ -325,6 +356,12 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             datalines.selectAll("path").attr("stroke-width",2);
         }
 
+        // quadtree points for fits
+        const quadFitsPoints = fits.flatMap(s =>
+            s.values.map(p => ({ x: x(p.x), y: y(p.y), name: s.name, fit: s.fit, info: s.info }))
+        );
+
+        // make quadtree points for non-model points
         const mkQuadPoints = ss => ss.flatMap(s =>
               s.values.map(p => ({ x: x(p.x), y: y(p.y), z: p.z, t: p.t, name: s.name }))
             );
@@ -334,7 +371,8 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         const quadtree = d3.quadtree()
                 .x(d => d.x)
                 .y(d => d.y)
-                .extent([x(extentx[0]),y(extenty[0])], [x(extentx[1]),y(extenty[1])])
+                // .extent([x(extentx[0]),y(extenty[0])], [x(extentx[1]),y(extenty[1])])
+                .addAll(quadFitsPoints)
                 .addAll(currQuadPoints);
 
         const requad = function(t_) {
@@ -368,18 +406,37 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
               .attr("x",x)
               .attr("y",y);
 
-          crosshair.append("path")
-                    .attr("d","M0 0L100 0L100 50L0 50L0 0Z")
-                    .attr("transform","translate(-110,-60)")
+          const syncDots = crosshair.append("g");
+
+          const tooltip = crosshair.append("g")
+                                .style("opacity",0.85);
+
+          tooltip.append("rect")
+              .attr("width",100)
+              .attr("height",50)
+              .attr("x",-110)
+              .attr("y",-60)
+              .style("fill","#fff")
+              .style("stroke","#666")
+              .style("stroke-width","1px");
+
+          const bottomlabel = mkLabel(tooltip,"middle",12,-60, -44)
+                                    .attr("font-weight","bold");
+          const toplabel    = mkLabel(tooltip,"middle",10,-60, -28);
+          const footlabel   = mkLabel(tooltip,"middle",9,-60, -16);
+
+          const modeltip = svg.append("g")
+                                .style("opacity",0.85);
+
+          modeltip.append("rect")
+                    .attr("width",125)
+                    .attr("height",150)
+                    .attr("x",margin.left+10)
+                    .attr("y",margin.top+legdim.top+25)
                     .style("fill","#fff")
                     .style("stroke","#666")
                     .style("stroke-width","1px")
-                    .style("opacity",0.85);
-
-          const bottomlabel = mkLabel(crosshair,"middle",12,-60, -44)
-                                    .attr("font-weight","bold");
-          const toplabel    = mkLabel(crosshair,"middle",10,-60, -28);
-          const footlabel   = mkLabel(crosshair,"middle",10,-60, -16);
+          modeltip.attr("display","none");
 
           const vertline = crosshair.append("line")
                 .style("stroke-width",0.5)
@@ -406,16 +463,19 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
               .attr("y2", 7);
 
 
-          const syncDots = crosshair.append("g");
-
           function moved() {
             d3.event.preventDefault();
             const mouse0 = d3.mouse(this);
             const mouse = [Math.max(margin.left,Math.min(width-margin.right,mouse0[0])),
                            Math.max(margin.top,Math.min(height-margin.bottom,mouse0[1]))
                           ];
-            const closest = quadtree.find(mouse[0], mouse[1], 75);
+
+            const closest = quadtree.find(mouse[0], mouse[1], 67);
+
+
             const foundPoint = !(closest === undefined);
+            // i wish i had ADTs lol
+            const closestType = foundPoint ? (closest.fit ? "fit" : "point") : null;
             const xc = foundPoint ? closest.x : mouse[0];
             const yc = foundPoint ? closest.y : mouse[1];
             const xm = x.invert(xc);
@@ -431,62 +491,132 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
             toplabel.text(showx + ", " + showy);
 
             if (foundPoint) {
-              ch_center.attr("fill",z(closest.z))
-                       .on("click",null)
-                       .on("click", function() {
-                           moveSetSlider(closest.t);
-                           play_stop();
-                        })
-                       .attr("cursor","pointer")
-                       .attr("r",6.0)
 
-              ch_center.selectAll("title").remove()
-              ch_center.append("title").text("Jump to time " + fmtT(closest.t));
               highlight(closest.name);
               bottomlabel.text(closest.name);
               toplabel
                   .attr("font-size",10)
                   .attr("y",-28);
-              footlabel.text(
-                    [fmtZ(closest.z),fmtT(closest.t)]
-                                    .filter(st => st !== showx && st !== showy)
-                                    .join(", ")
-                );
+              modeltip.attr("display","none");
 
-              const zloc = z_(closest.z) + legdim.left + margin.left;
-              colorline.attr("display", null);
-              colorcenter.attr("display", null);
-              colorline
-                  .attr("transform",`translate(${-xc+zloc},${-yc+margin.top+legdim.top-4.5})`);
-              colorcenter
-                  .attr("transform",`translate(${-xc+zloc},${-yc+margin.top+legdim.top-4.5})`)
-                  .attr("stroke",z(closest.z));
+              if (closestType == "point") {
+                ch_center.attr("fill",z(closest.z))
+                         .on("click",null)
+                         .on("click", function() {
+                             moveSetSlider(closest.t);
+                             play_stop();
+                          })
+                         .attr("cursor","pointer")
+                         .attr("r",6.0)
+                ch_center.selectAll("title").remove()
+                ch_center.append("title").text("Jump to time " + fmtT(closest.t));
 
-              const syncDotData = series.flatMap(function(s) {
-                const cutoff = d3.bisector(p => p.t).right(s.values,closest.t);
-                if (cutoff == 0 || s.name == closest.name) {
-                    return [];
-                } else {
-                    return [s.values[Math.min(cutoff-1,s.values.length-1)]];
+                footlabel.text(
+                      [fmtZ(closest.z),fmtT(closest.t)]
+                                      .filter(st => st !== showx && st !== showy)
+                                      .join(", ")
+                  );
+
+                const zloc = z_(closest.z) + legdim.left + margin.left;
+                colorline.attr("display", null);
+                colorcenter.attr("display", null);
+                colorline
+                    .attr("transform",`translate(${-xc+zloc},${-yc+margin.top+legdim.top-4.5})`);
+                colorcenter
+                    .attr("transform",`translate(${-xc+zloc},${-yc+margin.top+legdim.top-4.5})`)
+                    .attr("stroke",z(closest.z));
+
+                const syncDotData = series.flatMap(function(s) {
+                  const cutoff = d3.bisector(p => p.t).right(s.values,closest.t);
+                  if (cutoff == 0 || s.name == closest.name) {
+                      return [];
+                  } else {
+                      return [s.values[Math.min(cutoff-1,s.values.length-1)]];
+                  }
+                });
+                if (validTimeScale) {
+                  syncDots.append("g")
+                      .selectAll("circle")
+                      .data(syncDotData)
+                      .join("circle")
+                      .attr("r", 3)
+                      .attr("stroke",d => z(d.z))
+                      .attr("stroke-width",2)
+                      .attr("fill",null)
+                      .attr("fill-opacity","0")
+                      .attr("transform", d => `translate(${x(d.x)-xc},${y(d.y)-yc})`)
+                      .style('pointer-events','none')
                 }
-              });
-              if (validTimeScale) {
-                syncDots.append("g")
-                    .selectAll("circle")
-                    .data(syncDotData)
-                    .join("circle")
-                    .attr("r", 3)
-                    .attr("stroke",d => z(d.z))
-                    .attr("stroke-width",2)
-                    .attr("fill",null)
-                    .attr("fill-opacity","0")
-                    .attr("transform", d => `translate(${x(d.x)-xc},${y(d.y)-yc})`)
-                    .style('pointer-events','none')
+              } else {
+                modeltip.attr("display",null);
+                ch_center.attr("fill","white")
+                         .on("click",null)
+                         .attr("cursor",null)
+                         .attr("r",5.0);
+                ch_center.selectAll("title").remove()
+                colorline.attr("display", "none");
+                colorcenter.attr("display", "none");
+                var r2sum   = 0;
+                var r2count = 0;
+                for (const info of closest.info) {
+                    r2sum   += info.result.r2 * info.result.r2;
+                    r2count += 1;
+                }
+                const r2str = r2format(Math.sqrt(r2sum/r2count));
+                footlabel.text(modelFitLabel(closest.fit) + " (r²=" + r2str + ")");
+
+                // generate modeltip
+                modeltip.selectAll("text").remove();
+                const modellinex = margin.left + 10 + 5;
+                const modelliney = margin.top + legdim.top + 35 + 5;
+                modeltip.append("text")
+                    .text(modelFitLabel(closest.fit) + " Fit")
+                    .attr("font-size",12)
+                    .attr("font-weight","bold")
+                    .attr("x",modellinex)
+                    .attr("y",modelliney);
+                modeltip.append("text")
+                    .text(closest.name)
+                    .attr("font-size",12)
+                    .attr("x",modellinex)
+                    .attr("y",modelliney+13);
+                var curry = modelliney + 30;
+                for (const info of closest.info) {
+                    // const starty  = modelliney + 16 + i * 50;
+                    modeltip.append("text")
+                        .text(info.name)
+                        .attr("font-size",10)
+                        .attr("font-weight","bold")
+                        .attr("x",modellinex)
+                        .attr("y",curry);
+                    curry += 12;
+                    modeltip.append("text")
+                        .text("r² = " + r2format(info.result.r2))
+                        .attr("font-size",10)
+                        .attr("font-style","italic")
+                        .attr("x",modellinex)
+                        .attr("y",curry);
+                    curry += 12;
+                        // .text(prop + " (r² = " + r2format(info.r2) + ")")
+                    for (const param of info.result.params) {
+                        modeltip.append("text")
+                            .text(param.name + ": " + fmtSomeVal(param.value))
+                            .attr("font-size",10)
+                            .attr("x",modellinex)
+                            .attr("y",curry);
+                        curry += 12;
+                    }
+                    curry += 4;
+                }
+                // console.log(curry);
+                modeltip.selectAll("rect")
+                    .attr("height",curry + 10 - 4 - modelliney);
               }
             } else {
               toplabel
                 .attr("font-size",12)
                 .attr("y",-31);
+              modeltip.attr("display","none");
               colorline.attr("display", "none");
               colorcenter.attr("display", "none");
               ch_center.attr("r",4.0)
@@ -507,6 +637,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
           function left() {
             unhighlight();
             crosshair.attr("display", "none");
+            modeltip.attr("display","none");
           }
 
         }
@@ -524,6 +655,7 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
         mainplot.append("g")
             .call(zLegend);
 
+        const endDots = mainplot.append("g");
         const subplot = mainplot.append("g")
 
 
@@ -554,17 +686,17 @@ exports._drawData = function(handleType, handleScale, typeX, typeY, typeZ, typeT
              .attr("stroke", d => z(d.pair[1].z))
              .attr("d", d => line(d.pair));
 
+        // model lines
         subplot.append("g")
             .selectAll("path")
             .data(fits)
             .join("path")
             .attr("fill","none")
-            .attr("stroke-width",1)
-            .attr("stroke-dasharray",[10, 10])
-            .attr("stroke","#595")
+            .attr("stroke-width",1.5)
+            .attr("stroke-dasharray",[8, 6])
+            // .attr("stroke","#595")
+            .attr("stroke", d => modelFitColor(d.fit))
             .attr("d", d => line(d.values));
-
-        const endDots = mainplot.append("g");
 
         subplot.call(hover, highlight(datalines),unhighlight(datalines));
 
