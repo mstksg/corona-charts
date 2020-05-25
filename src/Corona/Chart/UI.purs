@@ -842,7 +842,7 @@ parseModels = do
     if or [logFit, expFit, logFit, decFit]
       then do
         tail     <- Marshal.parse
-        _        <- P.char '|'
+        _        <- P.char '.'
         forecast <- Marshal.parse
         pure { linFit, expFit, logFit, decFit, tail, forecast }
       else
