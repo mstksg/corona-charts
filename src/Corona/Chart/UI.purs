@@ -33,7 +33,8 @@ import Data.Identity as Identity
 import Data.Int
 import Data.Lens
 import Data.Lens.Record as LR
-import Data.Map as Map
+import Data.Map as M
+import Data.Map (Map)
 import Data.Maybe
 import Data.ModifiedJulianDay as MJD
 import Data.Number as N
@@ -97,10 +98,10 @@ type AxisState =
     }
 
 type RegionState =
-  { selected   :: Set Region
+  { selected   :: Map Corona.Dataset (Set Region)
   , unselected :: Set Region
   , allRegions :: Set Region
-  , sourceSpec :: Corona.Dataset
+  -- , sourceSpec :: Corona.Dataset
   }
 
 type Models =
@@ -116,7 +117,8 @@ type State =
     { datasetSpec  :: Corona.Dataset
     , axis         :: V4 Projection.Out
     , modelStates  :: Models
-    , regionState  :: Either (Set Region) RegionState   -- ^ queued up
+    , regionState  :: RegionState
+    -- Either (Set Region) RegionState   -- ^ queued up
     , dataset      :: Maybe CoronaData
     , permalink    :: Maybe String
     , waiting      :: Set Aspect     -- ^ do not load unless empty
@@ -161,7 +163,7 @@ instance showAspect :: Show Aspect where
 
 
 data Action =
-        SetRegions (Set Region)
+        SetRegions Corona.Dataset (Set Region)
       | AddRegion String
       | RemoveRegion String
       | ClearRegions
@@ -193,22 +195,22 @@ type ChildSlots =
         )
 
 
--- | make sure to intersection before usage
---
--- also we can't use Georgia lol
-initialRegions :: Set Region
-initialRegions = S.fromFoldable [
-      "United States"
-    , "Egypt"
-    , "Italy"
-    , "South Korea"
-    , "Russia"
-    , "California"
-    , "New York"
-    , "Washington"
-    , "South Carolina"
-    , "Iowa"
-    ]
+initialRegions :: Corona.Dataset -> Set Region
+initialRegions = case _ of
+    Corona.WorldData -> S.fromFoldable [
+        "United States"
+      , "Egypt"
+      , "Italy"
+      , "South Korea"
+      , "Russia"
+      ]
+    Corona.USData -> S.fromFoldable [
+        "California"
+      , "New York"
+      , "Washington"
+      , "South Carolina"
+      , "Iowa"
+      ]
 
 
 component :: forall f i o m. MonadAff m => H.Component HH.HTML f i o m
@@ -216,7 +218,11 @@ component = H.mkComponent
     { initialState: \_ ->
         { datasetSpec: Corona.WorldData
         , axis: defaultProjections
-        , regionState: Left S.empty
+        , regionState: {
+            selected: M.empty
+          , unselected: S.empty
+          , allRegions: S.empty
+          }
         , modelStates: defaultModels
         , dataset: Nothing
         , permalink: Nothing
@@ -229,11 +235,6 @@ component = H.mkComponent
         , initialize   = Just Initialize
         }
     }
-  -- where
-  --   initialModelState = {
-  --       enabled: false
-  --     , tail: 14
-  --     }
 
 defaultProjections :: V4 Projection.Out
 defaultProjections = {
@@ -281,8 +282,6 @@ defaultModels = {
 
 render :: forall m. MonadAff m => State -> H.ComponentHTML Action ChildSlots m
 render st = HH.div [HU.classProp "ui-wrapper"] [
-      -- HH.div [HU.classProp "grid__col grid__col--5-of-5 plot-title"] [
-      -- ]
       HH.div [HU.classProp "grid__col grid__col--1-of-5 left-column"] [
         HH.h2_ [HH.text "Coronavirus Data Plotter"]
       , HH.div [HU.classProp "dataset-picker dialog"] [
@@ -336,12 +335,12 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
             HH.div [HU.classProp "grid__col grid__col--2-of-8 region-picker-input"] [
               HH.slot _autocomplete unit
                 (Autocomplete.component "region-select" "Search for a region...")
-                (A.fromFoldable $ foldMap _.unselected st.regionState)
+                (A.fromFoldable st.regionState.unselected)
                 (case _ of Autocomplete.Selected str -> Just (AddRegion str))
             ]
           , HH.div [HU.classProp "grid__col grid__col--4-of-8 region-picker-select"]
               [ HH.ul [HU.classProp "picked-regions"] $
-                  A.fromFoldable (either identity _.selected st.regionState) <#> \c ->
+                  A.fromFoldable (lookupRegions st.datasetSpec st.regionState.selected) <#> \c ->
                     HH.li [
                       HE.onClick $ \e ->
                         if ME.buttons e == 0
@@ -461,57 +460,44 @@ handleAction
      => Action
      -> M o m Unit
 handleAction = case _ of
-    SetRegions cs -> loadRegions cs
+    SetRegions dspec cs -> loadRegions dspec cs
     AddRegion c -> do
       H.modify_ $ \st -> st
-        { regionState = case st.regionState of
-            Left cs  -> Left (S.insert c cs)
-            Right rs -> Right $ rs
-              { selected   = S.insert c rs.selected
-              , unselected = S.delete c rs.unselected
-              }
+        { regionState = st.regionState
+          { selected   = M.insert st.datasetSpec
+              (S.insert c $ lookupRegions st.datasetSpec st.regionState.selected)
+              st.regionState.selected
+          , unselected = S.delete c st.regionState.unselected
+          }
         }
       reRender Nothing
     RemoveRegion c -> do
       H.modify_ $ \st -> st
-        { regionState = case st.regionState of
-            Left cs  -> Left (S.delete c cs)
-            Right rs -> Right $ rs
-              { selected   = S.delete c rs.selected
-              , unselected = S.insert c rs.unselected
-              }
+        { regionState = st.regionState
+          { selected   = M.insert st.datasetSpec
+              (S.delete c $ lookupRegions st.datasetSpec st.regionState.selected)
+              st.regionState.selected
+          , unselected = S.insert c st.regionState.unselected
+          }
         }
       reRender Nothing
     ClearRegions -> do
       H.modify_ $ \st -> st
-        { regionState = case st.regionState of
-            Left _ -> Left (S.empty :: Set Region)
-            Right rs       -> Right $ rs
-              { selected   = S.empty :: Set Region
-              , unselected = rs.allRegions
-              }
+        { regionState = st.regionState
+            { selected = M.insert st.datasetSpec S.empty st.regionState.selected
+            , unselected = st.regionState.allRegions
+            }
         }
       reRender Nothing
     DumpRegions -> do
       H.modify_ $ \st -> st
-        { regionState = case st.regionState of
-            Left cs  -> Left cs      -- ^ can't really dump here
-            Right rs -> Right $ rs
-              { selected   = rs.allRegions
-              , unselected = S.empty :: Set Region
-              }
+        { regionState = st.regionState
+            { selected   = M.insert st.datasetSpec st.regionState.allRegions st.regionState.selected
+            , unselected = S.empty :: Set Region
+            }
         }
       reRender Nothing
-    ResetRegions -> do
-      H.modify_ $ \st -> st
-        { regionState = case st.regionState of
-            Left cs  -> Left initialRegions
-            Right rs -> Right $ rs
-              { selected   = initialRegions `S.intersection` rs.allRegions
-              , unselected = rs.allRegions `S.difference` initialRegions
-              }
-        }
-      reRender Nothing
+    ResetRegions -> resetRegions
     SetProjection a p -> do
       H.modify_ $ \st -> st
         { axis = set (v4Lens a) p st.axis }
@@ -599,6 +585,15 @@ handleAction = case _ of
                       =<< Web.window
       loadUriString true str
 
+lookupRegions
+    :: Corona.Dataset
+    -> Map Corona.Dataset (Set Region)
+    -> Set Region
+lookupRegions ds mp = case M.lookup ds mp of
+    Just c  -> c
+    Nothing -> initialRegions ds
+    
+
 
 type URISpec m =
         { waiter  :: Aspect
@@ -611,6 +606,7 @@ type URISpec m =
         }
 
 uriSpecs :: forall o m. MonadAff m => Array (URISpec (M o m))
+-- uriSpecs = axisSpec <> [datasetSpec, modelSpec]
 uriSpecs = axisSpec <> [datasetSpec, regionSpec, modelSpec]
   where
     regionParam = "r"
@@ -628,12 +624,17 @@ uriSpecs = axisSpec <> [datasetSpec, regionSpec, modelSpec]
           }
     regionSpec =
         { waiter: ARegions
-        , default: serializeSet initialRegions
-        , write: serializeSet <<< either identity _.selected <<< _.regionState
+        , default: serializeRegions Corona.WorldData
+              (initialRegions Corona.WorldData)
+        , write: \st ->
+                  serializeRegions
+                    st.datasetSpec
+                    (lookupRegions st.datasetSpec st.regionState.selected)
         , param: regionParam
-        , include: false
-        , loader: \usp -> bimap (const (loadRegions initialRegions)) loadRegions
-                <$> liftEffect (parseAtKey usp regionParam parseSet)
+        , include: true
+        , loader: \usp -> liftEffect (parseAtKey usp regionParam parseRegions) <#> bimap
+                  (\_ -> resetRegions)
+                  (\d -> loadRegions d.datasetSpec d.regions)
         }
     datasetSpec =
         { waiter: ADataset
@@ -662,47 +663,48 @@ loadProj a p = do
   when (isNothing res) $
     warn "warning: projection load did not return response"
 
--- hm maybe make sure source spec matches?
-loadRegions :: forall o m. MonadAff m => Set String -> M o m Unit
-loadRegions ctys = do
-   H.modify_ $ \st -> st
-     { regionState = case st.regionState of
-        Left _   -> Left ctys
-        Right rs ->
-          let newSelected = ctys `S.intersection` rs.allRegions
-          in  Right $ rs
-                { selected   = newSelected
-                , unselected = rs.allRegions `S.difference` newSelected
-                }
-     }
-   reRender (Just ARegions)
+loadRegions :: forall o m. MonadAff m => Corona.Dataset -> Set String -> M o m Unit
+loadRegions dspec ctys = do
+    H.modify_ $ \st -> st
+       { regionState = st.regionState
+           { selected = M.insert st.datasetSpec ctys st.regionState.selected
+           , unselected = if st.datasetSpec == dspec
+               then st.regionState.allRegions `S.difference` ctys
+               else st.regionState.unselected
+           }
+       }
+    reRender (Just ARegions)
+
+resetRegions :: forall o m. MonadAff m => M o m Unit
+resetRegions = do
+    H.modify_ $ \st -> st
+      { regionState = st.regionState
+          { selected = M.delete st.datasetSpec st.regionState.selected
+          , unselected = st.regionState.allRegions
+            `S.difference` initialRegions st.datasetSpec
+          }
+      }
+    reRender (Just ARegions)
 
 loadDataset :: forall o m. MonadAff m => Corona.Dataset -> M o m Unit
 loadDataset dspec = do
-    st0 <- H.get
+    st0      <- H.get
     oldDspec <- H.gets _.datasetSpec
     currDset <- H.gets _.dataset
     let skip = dspec == oldDspec
             && not (null currDset)
-            && not (isLeft st0.regionState)
+            -- && not (M.member dspec st0.regionState)
     unless skip $ liftAff (Corona.fetchDataset dspec) >>= case _ of
       Left e     -> warn $ "warning: dataset failed to load -- " <> e
       Right dset -> H.modify_ $ \st ->
         let allRegs = S.fromFoldable (O.keys dset.counts)
-            freshRegs = case st.regionState of
-              Left  cs -> cs
-              Right _  -> initialRegions `S.intersection` allRegs
-            newRegionState = case st.regionState of
-              Right rs | rs.sourceSpec == dspec -> rs
-              _ ->
-                { allRegions: allRegs
-                , selected: freshRegs
-                , unselected: allRegs `S.difference` freshRegs
-                , sourceSpec: dspec
-                }
         in  st { datasetSpec = dspec
                , dataset     = Just dset
-               , regionState = Right newRegionState
+               , regionState = st.regionState
+                   { allRegions = allRegs
+                   , unselected = allRegs
+                        `S.difference` lookupRegions dspec st.regionState.selected
+                   }
                }
     reRender (Just ADataset)
 
@@ -752,41 +754,43 @@ reRender initter = do
     -- log <<< show =<< H.gets _.dataset
     when (and waiting) $ do
       st :: State <- H.get
-      for_ st.dataset $ \dat ->
-        for_ st.regionState $ \regionState -> do
-          _ <- H.query _autocomplete unit $ HQ.tell $ Autocomplete.SetOptions $
-              A.fromFoldable regionState.unselected
-          -- traceM (show st)
-          withDSum st.axis.x (\tX (Product (Tuple pX sX)) ->
-            withDSum st.axis.y (\tY (Product (Tuple pY sY)) ->
-              withDSum st.axis.z (\tZ (Product (Tuple pZ sZ)) ->
-                withDSum st.axis.t (\tT (Product (Tuple pT sT)) -> void $
-                  H.query _scatter unit $ HQ.tell $ Scatter.Update
-                    (\f -> f tX tY tZ tT (
-                          toScatterPlot
-                            dat
-                            (mkScatterModels st.modelStates)
-                            ({ x : PS { projection: pX, scale: sX }
-                             , y : PS { projection: pY, scale: sY }
-                             , z : PS { projection: pZ, scale: sZ }
-                             , t : PS { projection: pT, scale: sT }
-                            })
-                            regionState.selected
-                        )
-                    )
-                )
+      for_ st.dataset $ \dat -> do
+        _ <- H.query _autocomplete unit $ HQ.tell $ Autocomplete.SetOptions $
+            A.fromFoldable st.regionState.unselected
+        let selected = case M.lookup st.datasetSpec st.regionState.selected of
+              Nothing -> initialRegions st.datasetSpec
+              Just s  -> s
+        -- traceM (show st)
+        withDSum st.axis.x (\tX (Product (Tuple pX sX)) ->
+          withDSum st.axis.y (\tY (Product (Tuple pY sY)) ->
+            withDSum st.axis.z (\tZ (Product (Tuple pZ sZ)) ->
+              withDSum st.axis.t (\tT (Product (Tuple pT sT)) -> void $
+                H.query _scatter unit $ HQ.tell $ Scatter.Update
+                  (\f -> f tX tY tZ tT (
+                        toScatterPlot
+                          dat
+                          (mkScatterModels st.modelStates)
+                          ({ x : PS { projection: pX, scale: sX }
+                           , y : PS { projection: pY, scale: sY }
+                           , z : PS { projection: pZ, scale: sZ }
+                           , t : PS { projection: pT, scale: sT }
+                          })
+                          selected
+                      )
+                  )
               )
             )
           )
-          uri <- generateUri
-          H.modify_ (_ { permalink = Just uri.permalink })
-          liftEffect $ do
-            hist <- liftEffect $ Window.history =<< Web.window
-            History.pushState
-              (Foreign.unsafeToForeign uri.historyPush)
-              (History.DocumentTitle "Coronavirus Data Plotter")
-              (History.URL uri.historyPush)
-              hist
+        )
+        uri <- generateUri
+        H.modify_ (_ { permalink = Just uri.permalink })
+        liftEffect $ do
+          hist <- liftEffect $ Window.history =<< Web.window
+          History.pushState
+            (Foreign.unsafeToForeign uri.historyPush)
+            (History.DocumentTitle "Coronavirus Data Plotter")
+            (History.URL uri.historyPush)
+            hist
 
 mkScatterModels :: Models -> Array ModelSpec
 mkScatterModels md = flip A.mapMaybe D3.allModelFit $ \mfit ->
@@ -823,6 +827,19 @@ serializeSet = String.joinWith "|" <<< A.fromFoldable
 parseSet :: P.Parser (Set String)
 parseSet = S.fromFoldable <<< String.split (Pattern.Pattern "|")
        <$> Marshal.parse
+
+serializeRegions
+    :: Corona.Dataset
+    -> Set String
+    -> String
+serializeRegions ds reg = Marshal.serialize ds <> serializeSet reg
+
+parseRegions :: P.Parser { datasetSpec :: Corona.Dataset, regions :: Set String }
+parseRegions = do
+    datasetSpec <- Marshal.parse
+    regions     <- parseSet
+    pure { datasetSpec, regions }
+
 
 serializeModels :: Models -> String
 serializeModels { linFit, expFit, logFit, decFit, tail, forecast } =
