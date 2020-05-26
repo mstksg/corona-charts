@@ -40,6 +40,8 @@
 
 \*-----------------------------------*/
 
+@import "variables.scss";
+
 // Namespaces
 // This stops me from being overzealous with enforcing classes
 $toast-grid-namespace: "grid" !default;
@@ -56,8 +58,9 @@ $toast-gutter-width: 20px !default;
 // Breakpoints
 // @use not yet supported by hlibsass so
 // $toast-breakpoint-medium: 700px !default;
-$toast-breakpoint-medium: get-breakpoint() !default;
-$toast-breakpoint-small: 480px !default;
+// $toast-breakpoint-medium: get-breakpoint() !default;
+$toast-breakpoint-medium: $breakpoint !default;
+$toast-breakpoint-small: 0 !default;
 
 // Pushes and pulls
 $toast-pushes: true !default;

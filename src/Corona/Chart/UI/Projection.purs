@@ -125,7 +125,7 @@ data Query r =
 -- old days
 component
     :: forall m. MonadEffect m
-    => String
+    => D3.Axis
     -> H.Component HH.HTML Query Out Output m
 component label =
   H.mkComponent
@@ -150,11 +150,11 @@ component label =
 
 render
     :: forall m. MonadEffect m
-    => String     -- ^ axis label
+    => D3.Axis       -- ^ axis label
     -> State
     -> H.ComponentHTML Action ChildSlots m
 render label aState = HH.div [HU.classProp "axis-options dialog"] [
-      HH.h3_ [HH.text label]
+      HH.h3_ [HH.text (D3.axisLabel label)]
     , HH.div [HU.classProp "base-projection"] [
         HH.span_ [HH.text "Base Projection"]
       , HH.select [HE.onSelectedIndexChange (map SetBase <<< (allBaseProjections A.!! _))] $

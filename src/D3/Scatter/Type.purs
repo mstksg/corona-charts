@@ -280,6 +280,16 @@ axisLens = case _ of
     ZAxis -> LR.prop (SProxy :: SProxy "z")
     TAxis -> LR.prop (SProxy :: SProxy "t")
 
+axisLabel :: Axis -> String
+axisLabel = case _ of
+    XAxis -> "X Axis"
+    YAxis -> "Y Axis"
+    ZAxis -> "Color Axis"
+    TAxis -> "Time Axis"
+
+allAxis :: Array Axis
+allAxis = [XAxis, YAxis, ZAxis, TAxis]
+
 type SomeValue = DSum SType Identity
 
 someValue :: forall a. STypeable a => a -> SomeValue

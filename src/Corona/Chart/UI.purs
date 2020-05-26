@@ -15,7 +15,7 @@ import Corona.Chart.UI.Projection as Projection
 import Corona.Data as Corona
 import Corona.Data.Type
 import Corona.Marshal as Marshal
-import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..), Axis(..), ModelFit(..))
+import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..), Axis(..), ModelFit(..), allAxis)
 import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Bifunctor
@@ -277,7 +277,7 @@ defaultModels = {
     , expFit: false
     , logFit: false
     , decFit: false
-    , forecast: 14
+    , forecast: 21
     , tail: 35
     }
 
@@ -292,10 +292,12 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
               let isSelected = ds == st.datasetSpec
               in  HH.option [HP.selected isSelected] [HH.text (datasetLabel ds)]
         ]
-      , HH.slot _projection YAxis (Projection.component "Y Axis")
-          st.axis.y
-          (\(Projection.Update s) -> Just (SetProjection YAxis s))
-      , HH.div [HU.classProp "model-picker dialog"] modelPicker
+      , HH.div [HU.classProp "axis-y grid__col--m-1-of-2", HP.id_ "axis-y"] [
+          HH.slot _projection YAxis (Projection.component YAxis)
+            st.axis.y
+            (\(Projection.Update s) -> Just (SetProjection YAxis s))
+          ]
+      , HH.div [HU.classProp "model-picker dialog grid__col--m-1-of-2"] modelPicker
       ]
     , HH.div [HU.classProp "grid__col grid__col--4-of-5 plot"] [
         HH.div [HU.classProp "dialog"] [
@@ -333,13 +335,13 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
           ]
         , HH.slot _scatter unit (Scatter.component hw) unit absurd
         , HH.div [HU.classProp "region-picker"] [
-            HH.div [HU.classProp "grid__col grid__col--2-of-8 region-picker-input"] [
+            HH.div [HU.classProp "grid__col grid__col--1-of-4 grid__col--m-1-of-2 region-picker-input"] [
               HH.slot _autocomplete unit
                 (Autocomplete.component "region-select" "Search for a region...")
                 (A.fromFoldable st.regionState.unselected)
                 (case _ of Autocomplete.Selected str -> Just (AddRegion str))
             ]
-          , HH.div [HU.classProp "grid__col grid__col--4-of-8 region-picker-select"]
+          , HH.div [HU.classProp "grid__col grid__col--2-of-4 region-picker-select"]
               [ HH.ul [HU.classProp "picked-regions"] $
                   A.fromFoldable (lookupRegions st.datasetSpec st.regionState.selected) <#> \c ->
                     HH.li [
@@ -353,7 +355,7 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
                     ]
                     [ HH.text c ]
               ]
-          , HH.div [HU.classProp "grid__col grid__col--2-of-8 region-picker-buttons"] [
+          , HH.div [HU.classProp "grid__col grid__col--1-of-4 grid__col--m-1-of-2 region-picker-buttons"] [
               HH.button [
                   HP.type_ HP.ButtonButton
                 , HE.onClick (\_ -> Just DumpRegions)
@@ -374,6 +376,13 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
                 [ HH.text "Reset" ]
             ]
           ]
+        , HH.div [HU.classProp "axis-links"] [
+            HH.ul_ $ allAxis <#> \a ->
+              HH.li_
+                [ HH.a [HP.href $ "#axis-" <> axisParam a]
+                    [HH.text $ "Customize " <> D3.axisLabel a]
+                ]
+          ]
         ]
       ]
     , HH.div [ HU.classProp "grid__col grid__col--2-of-5 welcome dialog" ]
@@ -385,18 +394,18 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
               { html: t, elRef: "welcome-ref" }
               absurd
             ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z"] [
-        HH.slot _projection ZAxis (Projection.component "Color Axis")
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-z", HP.id_ "axis-z"] [
+        HH.slot _projection ZAxis (Projection.component ZAxis)
           st.axis.z
           (\(Projection.Update s) -> Just (SetProjection ZAxis s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t"] [
-        HH.slot _projection TAxis (Projection.component "Time Axis")
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-t", HP.id_ "axis-t"] [
+        HH.slot _projection TAxis (Projection.component TAxis)
           st.axis.t
           (\(Projection.Update s) -> Just (SetProjection TAxis s))
       ]
-    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x"] [
-        HH.slot _projection XAxis (Projection.component "X Axis")
+    , HH.div [HU.classProp "grid__col grid__col--1-of-5 axis-x", HP.id_ "axis-x"] [
+        HH.slot _projection XAxis (Projection.component XAxis)
           st.axis.x
           (\(Projection.Update s) -> Just (SetProjection XAxis s))
       ]
@@ -528,9 +537,9 @@ handleAction = case _ of
     Redraw -> reRender Nothing
     Reset  -> do
       H.modify_ $ \st ->
-        st { waiting = S.fromFoldable (AAxis <$> [XAxis, YAxis, ZAxis, TAxis]) <> st.waiting }
+        st { waiting = S.fromFoldable (AAxis <$> allAxis) <> st.waiting }
         -- (_ { waiting = S.singleton Nothing :: Set (Maybe Axis) })
-      for_ [XAxis, YAxis, ZAxis, TAxis] $ \a -> do
+      for_ allAxis $ \a -> do
         loadProj a (defaultProjections ^. v4Lens a)
     CopyURI -> void <<< runMaybeT $ do
       e  <- MaybeT $ H.getHTMLElementRef loaduriRef
@@ -593,7 +602,7 @@ lookupRegions
 lookupRegions ds mp = case M.lookup ds mp of
     Just c  -> c
     Nothing -> initialRegions ds
-    
+
 
 
 type URISpec m =
@@ -613,7 +622,7 @@ uriSpecs = axisSpec <> [datasetSpec, regionSpec, modelSpec]
     regionParam = "r"
     datasetParam = "d"
     modelsParam = "m"
-    axisSpec = [XAxis, YAxis, ZAxis, TAxis] <#> \a ->
+    axisSpec = allAxis <#> \a ->
       let def = defaultProjections ^. v4Lens a
       in  { waiter: AAxis a
           , default: Projection.outSerialize def

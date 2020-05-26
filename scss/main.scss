@@ -1,9 +1,11 @@
+@import "variables.scss";
+
 $sans: Red Hat, Helvetica Neue, Helvetica, Arial, sans-serif;
 $serif: serif;
 // $serif: Vollkorn, serif;
 $width: 1400px;
 // $width: 1024px;
-$breakpoint: get-breakpoint();
+// $breakpoint: get-breakpoint();
 
 body {
   background: #f5f6f9;
