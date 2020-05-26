@@ -4,7 +4,7 @@
 *   other datasets: australia, china, etc.
 *   favicon
 *   "help" info hovers
-*   window should have final day as the label, not the center
+*   fullscreen
 
 # Fixes
 
@@ -24,7 +24,6 @@
 
 # Someday
 
-*   fullscreen mode?
 *   select to get statistics (mean, median, min, max)
 *   icons
 *   Discrete data: consider dot plots or bar graphs
@@ -33,8 +32,6 @@
 *   zoom in
 *   fourier transform?  but this requires something on both axes...or at least
     to do them separately.
-*   some sort of loading icon when  things are loading. but this is tricky
-    because synchronous.
 *   feedback for parse errors in form elements
 
 # Meh
@@ -47,3 +44,6 @@
 *   text wrapping? is this feasible?
 *   toggle switch for log/linear
 *   fast-forward to end button
+*   window should have final day as the label, not the center
+*   some sort of loading icon when  things are loading. but this is tricky
+    because synchronous.

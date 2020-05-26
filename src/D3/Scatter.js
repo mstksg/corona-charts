@@ -702,16 +702,6 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
         const subplot = mainplot.append("g")
 
 
-        // // click capture
-        // subplot.append("g")
-        //   .append('rect')
-        //   .style('visibility','hidden')
-        //   .style('pointer-events','all')
-        //   .attr('x',margin.left)
-        //   .attr('y',margin.top)
-        //   .attr('width',width - margin.right - margin.left)
-        //   .attr('height',height - margin.top - margin.bottom);
-
         // yo this is it
         //
         // i tried using lines here instead of a path but it was slower for
@@ -727,7 +717,14 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
              .attr("stroke-linejoin", "round")
              .attr("stroke-linecap", "round")
              .attr("stroke", d => z(d.pair[1].z))
-             .attr("d", d => line(d.pair));
+             .attr("d", d => line(d.pair))
+             .attr("opacity",0)
+             .transition()
+             // .ease(d3.quadOut)
+             .delay(d => t(d.pair[0].t)*0.33)
+             .duration(333)
+             // .duration(d => t(d.pair[0].t)*2)
+             .attr("opacity",1);
         datalines
             .selectAll("circle")
             .data(flatDots(series))
