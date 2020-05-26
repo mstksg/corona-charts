@@ -246,13 +246,14 @@ defaultProjections = {
         }
       ) (D3.Date refl)
     )
-  , y: D3.sInt :=> Product (Tuple
+  , y: D3.sNumber :=> Product (Tuple
       ( projection
         { base: Confirmed refl
         , operations: Delta D3.nInt refl
+                 C.:> Window (I2N refl refl) 1
                  C.:> C.nil
         }
-      ) (D3.Log D3.nInt)
+      ) (D3.Log D3.nNumber)
     )
   , z: D3.sDays :=> Product (Tuple
       ( projection

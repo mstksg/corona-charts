@@ -37,11 +37,15 @@ div#main-container {
 
 footer {
   background-color: #fff;
-  margin-top: 1rem;
+  margin-top: 4rem;
   .footer-wrapper {
     max-width: 1024px;
     margin: 0 auto;
     padding: 1.25rem 0 10rem 0;
+    .footer-body {
+      line-height: 150%;
+
+    }
   }
 }
 
