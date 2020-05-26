@@ -16,6 +16,7 @@
     "parcel-plugin-cname": "^1.0.0"
   },
   "dependencies": {
+    "jstransformer-markdown-it": "^2.1.0",
     "marked": "^0.7.0"
   },
   "homepage": "https://coronavirus.jle.im"

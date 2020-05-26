@@ -20,123 +20,111 @@ title Coronavirus Data Plotter
     main#ui.unloaded
 
     #welcome-text.grid__col.grid__col--6-of-6.dialog.welcome.copy
+      :markdown-it(html=true)
 
-      h3 Welcome!
+        ### Welcome!
 
-      p
-        | On this data portal, explore different aspects of COVID-19 /
-        | Coronavirus time evolution. I put this together
-        | because I saw a lot of different visualizations and data views over
-        | many different sites but no nice way to explore them all within the
-        | same tool. I hope this will be as helpful for you as it was for me!
+        On this data portal, explore different aspects of COVID-19 /
+        Coronavirus time evolution. I put this together because I saw a lot of
+        different visualizations and data views over many different sites but
+        no nice way to explore them all within the same tool. I hope this will
+        be as helpful for you as it was for me!
 
-      p
-        | On this page you can set the x, y, color, and time axes to be different
-        | aspects of the underling data, and also customize what regions to
-        | display.  When you find a set of projections that you like,
-        a.copylink(href='#')  copy a link to share
-        |  or
-        a.saveimage(href='#')  save the image
-        |  to your computer!  If you find something interesting, I'd be
-        a(href='https://twitter.com/mstk')  happy to hear from you
-        | !
+        On this page you can set the x, y, color, and time axes to be
+        different aspects of the underling data, and also customize what
+        regions to display.  When you find a set of projections that you like,
+        <a class="copylink" href="#">copy a link to share</a> or <a
+        class="saveimage" href="#"> save the image</a> to your computer! If
+        you find something interesting, I'd be [happy to hear from
+        you!][twitter]
+        
+        [twitter]: https://twitter.com/mstk
 
-      p
-        | For some examples of configurations that might be useful, check these out:
+        For some examples of configurations that might be useful, check these
+        out:
 
-      ul
-        li
-          a.dataview(href='/?x=cno&y=ccccw3no&z=ccral50cnanif&t=tnd&m=fftf35|21') Bhatia-Reich plots
-          | , made famous by
-          a(href='https://www.youtube.com/watch?v=54XLXg4fYsc' target="_blank")  this MinutePhysics video
-          | .  Exponential growth shows up as a nice visual "highway" that regions
-          | travel along, and it becomes very visually explicit when they exit
-          | exponential growth.
-        li
-          a.dataview(href='/?x=ccral50cnanif&y=ccccw2nif&z=ccccw2cmnif&t=tnd&m=fftf42|21') Growth curve plots
-          | , prominently displaying the infamous curves on the news that we
-          | are supposed to be flattening.  A logistic fit is added to get
-          | satisfying bell curve projections.
-        li
-          a.dataview(href='/?x=tnd&y=ccgcw3no&z=cno&t=tcral58930nd?m=ffff') Percent growth plots
-          |  , an example of a basic projection you can explore while limiting
-          | results.  Periods of perfectly exponential growth will show
-          | up as horizontal lines. Colors reflect absolute counts, to show
-          | more info at a glance.
-        li
-          a.dataview(href='/?x=dcccw7cccw7cmnif&y=dcccw7cmnif&z=ccral50cnanif&t=tnd&m=ffff') "Baserunner" Plots
-          | , which I've found very helpful personally.  In this view, regions
-          | all must move through a circular track, from "home base" at the bottom,
-          | counter-clockwise; when they get back "home", they are out clear.
-          | Set-backs will visually appear as
-          | backtracking or getting lost. Inspired by Danny Dorling's
-          a(href='https://twitter.com/emmawage/status/1255172980788785152')  tornado plots
-          | .
+        *   <a class="dataview" href="/?x=cno&y=ccccw3no&z=ccral50cnanif&t=tnd&m=fftf35|21">Bhatia-Reich plots</a>,
+            made famous by <a href="https://www.youtube.com/watch?v=54XLXg4fYsc" target="_blank">this MinutePhysics video</a>.
+            Exponential growth shows up as a nice visual "highway" that regions
+            travel along, and it becomes very visually explicit when they exit
+            exponential growth.
+
+        *   <a class="dataview" href="/?x=ccral50cnanif&y=ccccw2nif&z=ccccw2cmnif&t=tnd&m=fftf42|21">Growth curve plots</a>,
+            prominently displaying the infamous curves on the news that we are
+            supposed to be flattening.  A logistic fit is added to get
+            satisfying bell curve projections.
+
+        *   <a class="dataview" href="/?x=tnd&y=ccgcw3no&z=cno&t=tcral58930nd?m=ffff">Percent growth plots</a>:
+            periods of perfectly exponential growth will show up as horizontal
+            lines. Colors reflect absolute counts, to show more info at a
+            glance.
+
+        *   <a class="dataview" href="/?x=dcccw7cccw7cmnif&y=dcccw7cmnif&z=ccral50cnanif&t=tnd&m=ffff">"Baserunner" Plots</a>,
+            which I've found very helpful personally.  In this view, regions
+            all must move through a circular track, from "home base" at the
+            bottom, counter-clockwise; when they get back "home", they are out
+            clear. Set-backs will visually appear as backtracking or getting
+            lost. Inspired by Danny Dorling's [tornado plots][]
+
+            [tornado plots]: https://twitter.com/emmawage/status/1255172980788785152
 
 footer.container
   .grid.footer-wrapper
     .grid__col.grid__col--6-of-6.footer-body.copy
-      p
-        | Created and maintained by
-        a(href='https://blog.jle.im/')  Justin Le
-        |  (
-        a(href='https://twitter.com/mstk') 🐦
-        | ) in association with
-        a(href='https://www.chapman.edu/')  Chapman University
-        |  and 
-        a(href='https://www.chapman.edu/our-faculty/hesham-el-askary')  Dr. Hesham El-Askary
-        |  (Director, Computational and Data Sciences).
-      p
-        | Nation-level data provided by
-        a(href='https://github.com/CSSEGISandData/COVID-19')  John Hopkins University
-        |  and US state-level data provided by the
-        a(href='https://github.com/nytimes/covid-19-data')  New York Times
-        | .  Much thanks to
-        a(href='https://aatishb.com/covidtrends/')  Aatish Bhatia
-        |  and
-        a(href='https://coronavirus.1point3acres.com/en')  1point3acres
-        |  for inspiration and helping show the power of visualization in this
-        | time.
-      p
-        | These are truly unprecedented times, but it in a lot of cases it has
-        | also brought out the best in all of us — the only way we will get
-        | through all of this is by coming together to protect those most
-        | vulnerable.
-        a(href='https://www.cdc.gov/coronavirus/2019-ncov/prepare/prevention.html')   Stay safe
-        | , stay at home, and be mindful of the impact of your
-        | presence in public areas and the power you personally wield to
-        | make a difference.  Take care of your physical
-        a(href='https://bit.ly/WHO-mental-health')  and mental health
-        | .  If you are in a situation of financial
-        | stability, consider
-        a(href='https://www.givedirectly.org/')  contributing
-        |  what you can spare (
-        a(href='https://www.givewell.org/charities/give-directly') more info
-        | ).  We can make it through this, together ❤️.
-      p
-        | Application developed in
-        a(href='https://www.purescript.org/')  Purescript
-        |  and powered by strongly and dependently typed functional
-        | programming, love, and coffee ☕. All code is open-sourced and
-        a(href='https://github.com/mstksg/corona-charts')  available on Github
-        | .
-        a(href='https://github.com/mstksg/corona-charts/pulls')  Contributions
-        |  and
-        a(href='https://github.com/mstksg/corona-charts/issues')  ideas
-        |  welcomed and greatly appreciated!
+      :markdown-it(html=true)
+        Created and maintained by [Justin Le][] ([🐦][twitter]) in association
+        with [Chapman University][] and [Dr. Hesham El-Askary][hesham]
+        (Director, Computational and Data Sciences).
+        
+        [Justin Le]: https://blog.jle.im/
+        [twitter]: https://twitter.com/mstk
+        [Chapman University]: https://chapman.edu/
+        [hesham]: https://www.chapman.edu/our-faculty/hesham-el-askary
+
+        Nation-level data provided by [John Hopkins University][JHU] and US
+        state-level data provided by the [New York Times][NYT].  Much thanks
+        to [Aatish Bhatia][] and [1point3acres][] for inspiration and helping
+        show the power of visualization in this time.
+
+
+        [JHU]: https://github.com/CSSEGISandData/COVID-19
+        [NYT]: https://github.com/nytimes/covid-19-data
+        [Aatish Bhatia]: https://aatishb.com/covidtrends/
+        [1point3acres]: https://coronavirus.1point3acres.com/en
+
+        These are truly unprecedented times, but it in a lot of cases it has
+        also brought out the best in all of us — the only way we will get
+        through all of this is by coming together to protect those most
+        vulnerable.  [Stay safe][], stay at home, and be mindful of the impact
+        of your presence in public areas and the power you personally wield to
+        make a difference.  Take care of your physical [and mental
+        health][mentalhealth]!  If you are in a situation of financial
+        stability, consider contributing what you can spare ([Give Directly][]
+        / [more info][]).  We can make it through this, together ❤️.
+
+        [Stay safe]: https://www.cdc.gov/coronavirus/2019-ncov/prepare/prevention.html
+        [mentalhealth]: https://bit.ly/WHO-mental-health
+        [Give Directly]: https://www.givedirectly.org/
+        [more info]: https://www.givewell.org/charities/give-directly
+
+        Application developed in [Purescript][] and powered by strongly and
+        dependently typed functional programming, love, and coffee ☕. All code
+        is open-sourced and [available on Github][source].  [Code
+        contributions][contributions] and [ideas][] welcomed and greatly
+        appreciated!
+
+        [Purescript]: https://www.purescript.org/
+        [source]: https://github.com/mstksg/corona-charts
+        [contributions]: https://github.com/mstksg/corona-charts/pulls
+        [ideas]: https://github.com/mstksg/corona-charts/issues
 
 
 script(src='https://cdn.jsdelivr.net/npm/d3@5.16.0')
 script(src='https://cdn.jsdelivr.net/npm/d3-array@2.4.0')
 script(src='https://cdn.jsdelivr.net/npm/d3-simple-slider@1.7.0')
-// script(src='https://d3plus.org/js/d3plus.v2.0.0-alpha.25.full.min.js')
-// script(src='https://d3plus.org/js/d3plus-text.v0.9.full.min.js')
 script(src='https://cdn.jsdelivr.net/npm/save-svg-as-png@1.4.17')
 script(src='https://cdn.jsdelivr.net/npm/papaparse@5.2.0')
 script(src='https://cdn.jsdelivr.net/npm/lodash@4.17.15')
 script(src='https://cdn.jsdelivr.net/npm/toastify-js@1.7.0')
-// script(src='https://cdn.jsdelivr.net/npm/d3plus-common@0.6.60')
-// script(src='https://cdn.jsdelivr.net/npm/d3plus-text@0.9.51')
 script(src='https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js')
-// script(src='https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0')
 script(src='../dist/app.js')
