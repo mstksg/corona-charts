@@ -48,50 +48,9 @@ toSeries2 pX pY tc =
   where
     b = mkBundle tc []
     pts = lift2 (\x y -> {x, y})
-    -- TODO: this should be a seperate one that ignores stuff like
-    -- take/restrict
-    -- percentmax also needs to not take into account future dates
-    -- day-count must as well
-    -- maybe some of these we just...kll.  for example trnasforming to Date
-    -- doesn't make sense  so drop the projections entirely
-    -- yeah, dayCount would make sense to keep but it's not that simple...
-    --
-    -- maybe what needs ot happen is we have to transform the whole bundle
-    -- alongside each other
         (bundlePrincipal $ applyProjection pX b)
         (bundlePrincipal $ applyProjection pY b)
 
--- applyLazyBaseProjection
---     :: forall a.
---        BaseProjection a
---     -> TimeCounts Int
---     -> Dated a
--- applyLazyBaseProjection = case _ of
---     Time      r -> \tc -> D.generate tc.start tc.timespan (equivFrom r)
---     Confirmed r -> \tc -> equivFromF r $
---         Dated { start: tc.start, values: force $ tc.counts.confirmed }
---     Deaths    r -> \tc -> equivFromF r $
---         Dated { start: tc.start, values: force $ tc.counts.deaths }
---     Recovered r -> \tc -> equivFromF r $
---         Dated { start: tc.start, values: force $ tc.counts.recovered }
-
--- applyLazyProjection
---     :: forall a.
---        Projection a
---     -> TimeCounts Int
---     -> Dated a
--- applyLazyProjection spr allDat = withProjection spr (\pr ->
---             bundlePrincipal
---         <<< applyOperations pr.operations <<< principalBundled <<< applyBaseProjection pr.base
---         ) allDat
-
--- type LazyTimeCounts a =
---     { start     :: MJD.Day
---     , timespan  :: Int          -- ^ length - 1
---     , counts    :: Counts (Lazy (Array a))
---     }
-
--- hm this isn't lazy
 fitTimeCounts
     :: ModelSpec
     -> TimeCounts Int

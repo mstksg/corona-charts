@@ -764,6 +764,8 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
                           return null;
                       }
                   });
+              subplot.selectAll("circle")
+                  .attr("display", d => (d.point.t < t_) ? null : "none");
             }
 
             endDots.selectAll("*").remove();
@@ -780,13 +782,26 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
                       }];
                   } else {
                       const here = s.values[cutoff-1];
+                      const lastMissing = d3.bisector(p => p.t).right(s.missingDots,t_);
                       const there = s.values[cutoff];
-                      const interp = d3.interpolate(here, there);
-                      const timeScaled = (t(t_) - t(here.t)) / (t(there.t) - t(here.t));
-                      return [{
-                          name: s.name
-                        , last: interp(timeScaled)
-                      }]
+                      const freeze = s.missingDots[lastMissing-1]
+                                  && s.missingDots[lastMissing]
+                                  && fmtT(s.missingDots[lastMissing-1].t) === fmtT(here.t)
+                                  && fmtT(s.missingDots[lastMissing].t) === fmtT(there.t);
+                      if (freeze) {
+                        return [{
+                            name: s.name
+                          , last: here
+                        }]
+                      } else {
+                        const there = s.values[cutoff];
+                        const interp = d3.interpolate(here, there);
+                        const timeScaled = (t(t_) - t(here.t)) / (t(there.t) - t(here.t));
+                        return [{
+                            name: s.name
+                          , last: interp(timeScaled)
+                        }]
+                      }
                   }
               } else {
                   if (s.values.length > 0) {

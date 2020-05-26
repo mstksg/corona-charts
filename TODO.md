@@ -10,8 +10,6 @@
 
 *   some weird behavior when first adding 'moving average'?  it starts as 1 and
     you chagnge to 2 but it sitll stays same.
-*   need a good way to show  missing data in log plots where number is less
-    than 0
 *   performance when loading:
     *   changing scales should be fast
     *   i tried cacheing but actually generating the data does none of the
