@@ -386,7 +386,7 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
           ]
         ]
       ]
-    , HH.div [ HU.classProp "grid__col grid__col--2-of-5 welcome dialog" ]
+    , HH.div [ HU.classProp "grid__col grid__col--2-of-5 welcome copy dialog" ]
         case st.welcomeText of
           Nothing -> []
           Just t  -> [ HH.slot _welcomeFrame

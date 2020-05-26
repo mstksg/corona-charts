@@ -19,13 +19,29 @@ div#main-container {
   padding-right: 20px;
 
 
-  footer .footer-contents {
-    border-style: solid;
-    margin: 1.5rem 0.2rem;
-    padding: 0.6rem;
-    border-width: 1px;
-    border-radius: 2px;
-    background-color: #f7fff7;
+}
+
+.copy {
+  font-size: 100%;
+  line-height: 133%;
+  p {
+    margin-bottom: 0.75rem;
+  }
+  ul {
+    padding-left: 1.5rem;
+    li {
+      margin-bottom: 0.75rem;
+    }
+  }
+}
+
+footer {
+  background-color: #fff;
+  margin-top: 1rem;
+  .footer-wrapper {
+    max-width: 1024px;
+    margin: 0 auto;
+    padding: 1.25rem 0 10rem 0;
   }
 }
 
@@ -50,6 +66,7 @@ a {
   color: #44b;
   border-bottom: 1px dotted #bbb;
   text-decoration: none;
+  font-weight: 500;
 
   &:visited {
     color: #228;

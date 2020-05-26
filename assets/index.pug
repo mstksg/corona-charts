@@ -19,7 +19,7 @@ title Coronavirus Data Plotter
       h2 Coronavirus Data Plotter
     main#ui.unloaded
 
-    #welcome-text.grid__col.grid__col--6-of-6.dialog.welcome
+    #welcome-text.grid__col.grid__col--6-of-6.dialog.welcome.copy
 
       h3 Welcome!
 
@@ -73,11 +73,56 @@ title Coronavirus Data Plotter
           a(href='https://twitter.com/emmawage/status/1255172980788785152')  tornado plots
           | .
 
-    footer.grid__col.grid__col--6-of-6
-      // .footer-contents
-      //   p Created by Justin Le.  Data from John Hopkins University.
-
-#footer-container
+footer.container
+  .grid.footer-wrapper
+    .grid__col.grid__col--6-of-6.footer-body.copy
+      p
+        | Created and maintained by
+        a(href='https://blog.jle.im/')  Justin Le
+        |  (
+        a(href='https://twitter.com/mstk') twitter
+        | ) in association with
+        a(href='https://www.chapman.edu/')  Chapman Univerity
+        a(href='https://www.chapman.edu/scst/index.aspx')  Schmid College of Science and Technology
+        | .
+      p
+        | Nation-level data provided by
+        a(href='https://github.com/CSSEGISandData/COVID-19')  John Hopkins University
+        |  and US state-level data provided by the
+        a(href='https://github.com/nytimes/covid-19-data')  New York Times
+        | .  Much thanks to
+        a(href='https://aatishb.com/covidtrends/')  Aatish Bhatia
+        |  and
+        a(href='https://coronavirus.1point3acres.com/en')  1point3acres
+        |  for inspiration and helping show the power of visualization in this
+        | time.
+      p
+        | These are truly unprecedented times, but it in a lot of cases it has
+        | also brought out the best in all of us — the only way we will get
+        | through all of this is by coming together to protect those most
+        | vulnerable.
+        a(href='https://www.cdc.gov/coronavirus/2019-ncov/prepare/prevention.html')   Stay safe
+        | , stay at home, and be mindful of the impact of your
+        | presence in public areas and the power you personally wield to
+        | make a difference.  Take care of your physical
+        a(href='https://bit.ly/WHO-mental-health')  and mental health
+        | .  If you are in a situation of financial
+        | stability, consider
+        a(href='https://www.givedirectly.org/')  contributing
+        |  what you can spare (
+        a(href='https://www.givewell.org/charities/give-directly') more info
+        | ).  We can make it through this, together ❤️.
+      p
+        | Application developed in
+        a(href='https://www.purescript.org/')  Purescript
+        |  and powered by strongly and dependently typed functional
+        | programming, love, and coffee ☕. All code is open-sourced and
+        a(href='https://github.com/mstksg/corona-charts')  available on Github
+        | .
+        a(href='https://github.com/mstksg/corona-charts/pulls')  Contributions
+        |  and
+        a(href='https://github.com/mstksg/corona-charts/issues')  ideas
+        |  welcomed and greatly appreciated!
 
 
 script(src='https://cdn.jsdelivr.net/npm/d3@5.16.0')
