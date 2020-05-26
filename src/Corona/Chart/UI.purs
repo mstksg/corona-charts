@@ -249,14 +249,15 @@ defaultProjections = {
   , y: D3.sInt :=> Product (Tuple
       ( projection
         { base: Confirmed refl
-        , operations: C.nil
+        , operations: Delta D3.nInt refl
+                 C.:> C.nil
         }
       ) (D3.Log D3.nInt)
     )
   , z: D3.sDays :=> Product (Tuple
       ( projection
         { base: Confirmed refl
-        , operations: Restrict D3.sInt refl After (AtLeast 10)
+        , operations: Restrict D3.sInt refl After (AtLeast 50)
                  C.:> DayNumber refl After
                  C.:> C.nil
         }
@@ -275,7 +276,7 @@ defaultModels :: Models
 defaultModels = {
       linFit: false
     , expFit: false
-    , logFit: false
+    , logFit: true
     , decFit: false
     , forecast: 21
     , tail: 35
@@ -855,7 +856,7 @@ serializeModels :: Models -> String
 serializeModels { linFit, expFit, logFit, decFit, tail, forecast } =
        foldMap Marshal.serialize enableds
     <> if or enableds
-         then Marshal.serialize tail <> "." <> Marshal.serialize forecast
+         then Marshal.serialize tail <> "|" <> Marshal.serialize forecast
          else ""
   where
     enableds = [linFit, expFit, logFit, decFit]
@@ -869,7 +870,7 @@ parseModels = do
     if or [logFit, expFit, logFit, decFit]
       then do
         tail     <- Marshal.parse
-        _        <- P.char '.'
+        _        <- P.char '|'
         forecast <- Marshal.parse
         pure { linFit, expFit, logFit, decFit, tail, forecast }
       else

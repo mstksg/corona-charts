@@ -46,36 +46,32 @@ title Coronavirus Data Plotter
 
       ul
         li
-          a.dataview(href='/?x=cno&y=ccccw3no&z=ccral50cnanif&t=tnd') Bhatia-Reich plots
+          a.dataview(href='/?x=cno&y=ccccw3no&z=ccral50cnanif&t=tnd&m=fftf35|21') Bhatia-Reich plots
           | , made famous by
           a(href='https://www.youtube.com/watch?v=54XLXg4fYsc' target="_blank")  this MinutePhysics video
           | .  Exponential growth shows up as a nice visual "highway" that regions
           | travel along, and it becomes very visually explicit when they exit
           | exponential growth.
         li
-          a.dataview(href='/?x=dcccw7cccw7cmnif&y=dcccw7cmnif&z=ccral50cnanif&t=tnd') "Baserunner" Plots
+          a.dataview(href='/?x=ccral50cnanif&y=ccccw2nif&z=ccccw2cmnif&t=tnd&m=fftf42|21') Growth curve plots
+          | , prominently displaying the infamous curves on the news that we
+          | are supposed to be flattening.  A logistic fit is added to get
+          | satisfying bell curve projections.
+        li
+          a.dataview(href='/?x=tnd&y=ccgcw3no&z=cno&t=tcral58930nd?m=ffff') Percent growth plots
+          |  , an example of a basic projection you can explore while limiting
+          | results.  Periods of perfectly exponential growth will show
+          | up as horizontal lines. Colors reflect absolute counts, to show
+          | more info at a glance.
+        li
+          a.dataview(href='/?x=dcccw7cccw7cmnif&y=dcccw7cmnif&z=ccral50cnanif&t=tnd&m=ffff') "Baserunner" Plots
           | , which I've found very helpful personally.  In this view, regions
           | all must move through a circular track, from "home base" at the bottom,
           | counter-clockwise; when they get back "home", they are out clear.
           | Set-backs will visually appear as
-          | backtracking or getting lost, whereas effective control measures
-          | appear as very fast motion.  Inspired by Danny Dorling's infamous
+          | backtracking or getting lost. Inspired by Danny Dorling's
           a(href='https://twitter.com/emmawage/status/1255172980788785152')  tornado plots
           | .
-        li
-          a.dataview(href='/?x=tnd&y=ccgcw3ni&z=cno&t=tct60bnd') Percent growth plots
-          |  limited to the past 60 days, an example of a basic projection you can explore.
-          | example of limiting to only the past 60 days.  Percent growth is
-          | useful because periods of perfectly exponential growth will show
-          | up as horizontal lines. Colors reflect absolute counts, to show
-          | more info at a glance.
-        li
-          a.dataview(href='/?x=ccral50cnanif&y=cno&z=ccccmnif&t=tnd') Time-shifted plot
-          | , a basic transformation on dates.  This
-          | tweaks the X axis to display "days since 50 cases confirmed", so
-          | that you can visually compare the relative progression based on
-          | the "arrival" of COVID-19 to a given region.  Colors reflect
-          | periods of relative high growth (blue) per region.
 
     footer.grid__col.grid__col--6-of-6
       // .footer-contents
