@@ -5,6 +5,7 @@
 *   favicon
 *   "help" info hovers
 *   fullscreen
+*   logistic: end date
 
 # Fixes
 

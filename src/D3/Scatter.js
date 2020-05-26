@@ -264,6 +264,16 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
           };
         }
 
+        const svgDefs = svg.append('defs');
+        const endlabelGradient = svgDefs.append('linearGradient')
+            .attr('id','endlabelGradient');
+        endlabelGradient.append('stop')
+            .attr('offset',"0%")
+            .attr('style',"stop-color:#fff; stop-opacity: 1.0");
+        endlabelGradient.append('stop')
+            .attr('offset',"100%")
+            .attr('style',"stop-color:#fff; stop-opacity: 0.0");
+
         // this converts to and form the different coordinate systems
         const x = scaleFunc(scatter.axis.x.scale)
                         .domain(extentx).nice()
@@ -698,8 +708,8 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
         mainplot.append("g")
             .call(zLegend);
 
-        const endDots = mainplot.append("g");
         const subplot = mainplot.append("g")
+        const endDots = mainplot.append("g");
 
 
         // yo this is it
@@ -720,10 +730,8 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
              .attr("d", d => line(d.pair))
              .attr("opacity",0)
              .transition()
-             // .ease(d3.quadOut)
              .delay(d => t(d.pair[0].t)*0.33)
              .duration(333)
-             // .duration(d => t(d.pair[0].t)*2)
              .attr("opacity",1);
         datalines
             .selectAll("circle")
@@ -811,17 +819,27 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
               }
             });
 
-            endDots.append("g")
-                .attr("text-anchor","start")
-                .selectAll("text")
+            const endSlots = endDots.append("g")
+                .selectAll("g")
                 .data(dotData)
-                .join("text")
+                .join("g");
+
+            endSlots.append("rect")
+                .attr("width",40)
+                .attr("height",14)
+                .attr("style","fill:url(#endlabelGradient)")
+                .attr("x",d => x(d.last.x)+10)
+                .attr("y",d => y(d.last.y)-8);
+
+            endSlots.append("text")
+                .attr("text-anchor","start")
                 .attr("x",d => x(d.last.x)+10)
                 .attr("y",d => y(d.last.y)+3)
                 .attr("font-family", "sans-serif")
                 .attr("font-size", 12)
                 .text(d => d.name)
-                .style('pointer-events','none')
+                .style('pointer-events','none');
+                // .insert()
 
             endDots.append("g")
                 .selectAll("circle")

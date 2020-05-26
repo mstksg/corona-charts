@@ -246,14 +246,13 @@ defaultProjections = {
         }
       ) (D3.Date refl)
     )
-  , y: D3.sNumber :=> Product (Tuple
+  , y: D3.sInt :=> Product (Tuple
       ( projection
         { base: Confirmed refl
         , operations: Delta D3.nInt refl
-                 C.:> Window (I2N refl refl) 1
                  C.:> C.nil
         }
-      ) (D3.Log D3.nNumber)
+      ) (D3.Log D3.nInt)
     )
   , z: D3.sDays :=> Product (Tuple
       ( projection
@@ -379,7 +378,7 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
             ]
           ]
         , HH.div [HU.classProp "axis-links"] [
-            HH.ul_ $ allAxis <#> \a ->
+            HH.ul_ $ [YAxis, XAxis, TAxis, ZAxis] <#> \a ->
               HH.li_
                 [ HH.a [HP.href $ "#axis-" <> axisParam a]
                     [HH.text $ "Customize " <> D3.axisLabel a]
