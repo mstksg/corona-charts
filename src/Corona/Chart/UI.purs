@@ -209,7 +209,7 @@ initialRegions = case _ of
         "California"
       , "New York"
       , "Washington"
-      , "South Carolina"
+      , "North Carolina"
       , "Iowa"
       ]
 

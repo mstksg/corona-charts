@@ -440,7 +440,8 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
           const syncDots = crosshair.append("g");
 
           const tooltip = crosshair.append("g")
-                                .style("opacity",0.85);
+                                .style("opacity",0.85)
+                                .attr("display","none");
 
           tooltip.append("rect")
               .attr("width",100)
@@ -449,7 +450,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
               .attr("y",-60)
               .style("fill","#fff")
               .style("stroke","#666")
-              .style("stroke-width","1px");
+              .style("stroke-width","1px")
 
           const bottomlabel = mkLabel(tooltip,"middle",12,-60, -44)
                                     .attr("font-weight","bold");
@@ -502,6 +503,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
                 return;
             } else {
                 entered();
+                tooltip.attr("display",null);
             }
             const mouse = [Math.max(margin.left,Math.min(width-margin.right,mouse0[0])),
                            Math.max(margin.top,Math.min(height-margin.bottom,mouse0[1]))
