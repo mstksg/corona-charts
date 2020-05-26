@@ -54,6 +54,10 @@ datedEnd (Dated d) = addDays (A.length (d.values) - 1) d.start
 datedLength :: forall a. Dated a -> Int
 datedLength = A.length <<< datedValues
 
+-- | delete all items but leave the start date
+clearDated :: forall a b. Dated a -> Dated b
+clearDated (Dated d) = Dated $ d { values = [] }
+
 
 generate
     :: forall a.

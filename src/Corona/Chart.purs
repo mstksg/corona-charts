@@ -9,16 +9,21 @@ import Corona.Data.Type
 import D3.Scatter.Type
 import Data.Array as A
 import Data.Array.ST as MA
+import Data.Bundle
 import Data.Const
 import Data.Dated (Dated(..))
 import Data.Dated as D
 import Data.Exists
 import Data.Foldable
+import Data.Functor.Compose
 import Data.Functor.Product
 import Data.FunctorWithIndex
 import Data.Int
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
+import Data.Lazy
+import Data.Lens
+import Data.Lens.Record as LR
 import Data.List as L
 import Data.List.Lazy as LL
 import Data.List.NonEmpty as NE
@@ -32,11 +37,13 @@ import Data.Number
 import Data.Options
 import Data.Ord
 import Data.Ord.Max
+import Data.Point
 import Data.Semiring
 import Data.Sequence as Seq
 import Data.Sequence.NonEmpty as NESeq
 import Data.Set (Set)
 import Data.Set as Set
+import Data.Symbol (SProxy(..))
 import Data.Tuple
 import Data.Void
 import Debug.Trace
@@ -86,6 +93,13 @@ bDeaths    :: BaseProjection Int
 bDeaths    = Deaths refl
 bRecovered :: BaseProjection Int
 bRecovered = Recovered refl
+
+baseLens :: forall a. BaseProjection Int -> Lens' (Counts a) a
+baseLens = case _ of
+    Time _      -> undefined    -- illegal but purescript cannot verify
+    Confirmed _ -> LR.prop (SProxy :: SProxy "confirmed")
+    Deaths    _ -> LR.prop (SProxy :: SProxy "deaths")
+    Recovered _ -> LR.prop (SProxy :: SProxy "recovered")
 
 instance decideBaseProjection :: Decide BaseProjection where
     decide = case _ of
@@ -306,65 +320,66 @@ windows n = case _ of
       Just (Tuple y ys) -> NESeq.Seq y (Seq.snoc ys x)
 
 applyOperation
-    :: forall a b.
-       Operation a b
-    -> Dated a
-    -> Dated b
+    :: forall h a b. Functor h
+    => Operation a b
+    -> Bundle h Dated a
+    -> Bundle h Dated b
 applyOperation = case _ of
-    Delta num rab -> \(Dated x) -> Dated
+    Delta num rab -> hoistBundle $ \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: withConsec
             (\y0 y1 -> equivTo rab (nTypeSubtract num y1 y0))
             x.values
         }
-    PGrowth num rbp -> \(Dated x) -> Dated
+    PGrowth num rbp -> hoistBundle $ \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: withConsec (\y0 y1 -> equivFrom rbp $ percentGrowth
                                 (nTypeNumber num y0)
                                 (nTypeNumber num y1)
                   ) x.values
         }
-    Window tf n -> \(Dated x) -> Dated
+    Window tf n -> hoistBundle $ \(Dated x) -> Dated
         { start: MJD.addDays n x.start
         , values: flip (withWindow n) x.values $ \ys ->
                     numberNType (toFractionalOut tf) $
                       sum (map (nTypeNumber (toFractionalIn tf)) ys)
                         / toNumber (n * 2 + 1)
         }
-    PMax nt rbp -> \xs ->
-      let ys :: Dated Number
-          ys = nTypeNumber nt <$> xs
-          maxAbs :: Number
-          maxAbs = maybe 1.0 unwrap <<< flip foldMap ys $ \y ->
-                     if y == zero || isNaN y
-                       then Nothing
-                       else Just (Max (abs y))
-      in  equivFromF rbp $ Percent <<< (_ / maxAbs) <$> ys
-    Restrict nt rab co cond ->
-      let dropper = case co of
-            After  -> D.dropUntil
-            Before -> D.dropUntilEnd
-      in  equivToF rab <<< dropper (applyCondition nt cond)
-    Take rab n co ->
-      let dropper = case co of
-            After  -> D.take
-            Before -> D.takeEnd
-      in  equivToF rab <<< dropper n
-    DayNumber rbds co -> \(Dated x) ->
-      let emptyDated = Dated { start: x.start, values: [] }
-      in  maybe emptyDated (equivFromF rbds) $
-            case co of
-              After  -> D.findHead (Dated x) <#> \{ day: d0 } ->
-                  mapWithIndex (\i _ -> Days $ MJD.diffDays i d0) (Dated x)
-              Before -> D.findLast (Dated x) <#> \{ day: dF } ->
-                  mapWithIndex (\i _ -> Days $ MJD.diffDays i dF) (Dated x)
-    PointDate rbd -> equivFromF rbd <<< mapWithIndex const
+    PMax nt rbp -> equivFromF rbp <<< pMax <<< hoistBundle (map (nTypeNumber nt))
+    Restrict nt rab co cond -> equivToF rab <<< mapPrincipal (
+        let dropper = case co of
+              After  -> D.dropUntil
+              Before -> D.dropUntilEnd
+        in  dropper (applyCondition nt cond)
+      )
+    Take rab n co -> equivToF rab <<< mapPrincipal (
+        let dropper = case co of
+              After  -> D.take
+              Before -> D.takeEnd
+        in  dropper n
+      )
+    DayNumber rbds co -> \bundle -> equivFromF rbds $
+      fromMaybe (hoistBundle D.clearDated bundle) case co of
+        After  -> D.findHead (bundlePrincipal bundle) <#> \{ day: d0 } ->
+          hoistBundle (mapWithIndex (\i _ -> Days $ MJD.diffDays i d0)) bundle
+        Before -> D.findLast (bundlePrincipal bundle) <#> \{ day: dF } ->
+          hoistBundle (mapWithIndex (\i _ -> Days $ MJD.diffDays i dF)) bundle
+    PointDate rbd -> hoistBundle $ equivFromF rbd <<< mapWithIndex const
+  where
+    pMax :: Bundle h Dated Number -> Bundle h Dated Percent
+    pMax b = hoistBundle (map (Percent <<< (_ / maxAbs))) b
+      where
+        maxAbs :: Number
+        maxAbs = maybe 1.0 unwrap <<< flip foldMap (unwrap b).principal $ \y ->
+          if y == zero || isNaN y
+            then Nothing
+            else Just (Max (abs y))
 
 applyOperations
-    :: forall a b.
-       C.Chain Operation a b
-    -> Dated a
-    -> Dated b
+    :: forall h a b. Functor h
+    => C.Chain Operation a b
+    -> Bundle h Dated a
+    -> Bundle h Dated b
 applyOperations = C.runChain applyOperation
 
 applyCondition :: forall a. SType a -> Condition a -> a -> Boolean
@@ -372,20 +387,20 @@ applyCondition t = case _ of
     AtLeast n -> \x -> sTypeCompare t x n == GT
     AtMost n  -> \x -> sTypeCompare t x n == LT
 
-type TimeCounts a =
+newtype TimeCounts a = TC
     { start     :: Day
     , timespan  :: Int          -- ^ length - 1
-    , counts    :: Counts (Array a)
+    , counts    :: Counts (Lazy (Array a))
     }
 
 mkTimeCounts
     :: Day                  -- ^ start
     -> Counts (Array Int)   -- ^ data
     -> TimeCounts Int
-mkTimeCounts start dat =
+mkTimeCounts start dat = TC
     { start
     , timespan: maxLen - 1
-    , counts: dat
+    , counts: mapCounts (defer <<< const) dat
     }
   where
     maxLen = A.length dat.confirmed
@@ -399,19 +414,21 @@ applyBaseProjection
     -> TimeCounts Int
     -> Dated a
 applyBaseProjection = case _ of
-    Time      r -> \tc -> D.generate tc.start tc.timespan (equivFrom r)
-    Confirmed r -> \tc -> equivFromF r $ Dated { start: tc.start, values: tc.counts.confirmed }
-    Deaths    r -> \tc -> equivFromF r $ Dated { start: tc.start, values: tc.counts.deaths }
-    Recovered r -> \tc -> equivFromF r $ Dated { start: tc.start, values: tc.counts.recovered }
-
+    Time      r -> \(TC tc) -> D.generate tc.start tc.timespan (equivFrom r)
+    Confirmed r -> \(TC tc) -> equivFromF r $
+      Dated { start: tc.start, values: force tc.counts.confirmed }
+    Deaths    r -> \(TC tc) -> equivFromF r $
+      Dated { start: tc.start, values: force tc.counts.deaths }
+    Recovered r -> \(TC tc) -> equivFromF r $
+      Dated { start: tc.start, values: force tc.counts.recovered }
 
 applyProjection
-    :: forall a.
-       Projection a
-    -> TimeCounts Int
-    -> Dated a
+    :: forall h a. Functor h
+    => Projection a
+    -> Bundle h TimeCounts Int
+    -> Bundle h Dated a
 applyProjection spr allDat = withProjection spr (\pr ->
-          applyOperations pr.operations <<< applyBaseProjection pr.base
+          applyOperations pr.operations <<< hoistBundle (applyBaseProjection pr.base)
         ) allDat
 
 baseProjection :: forall a. Projection a -> Exists BaseProjection
@@ -481,16 +498,43 @@ toAxisConf (PS { projection, scale }) = AC
       }
 
 toSeries
-    :: forall a b c d.
-       PointF Projection a b c d
-    -> TimeCounts Int
-    -> Array (Point a b c d)
-toSeries {x, y, z, t} ps = D.datedValues $
-    lift4 (\x y z t -> {x, y, z, t})
-        (applyProjection x ps)
-        (applyProjection y ps)
-        (applyProjection z ps)
-        (applyProjection t ps)
+    :: forall h a b c d. Functor h
+    => PointF Projection a b c d
+    -> Bundle h TimeCounts Int
+    -> { principal :: Array (Point a b c d)
+       , mirrored :: PointF (Compose h Dated) a b c d
+       }
+toSeries projs bs =
+    { principal: D.datedValues $ lift4 (\x y z t -> {x, y, z, t})
+          principalOut.x
+          principalOut.y
+          principalOut.z
+          principalOut.t
+    , mirrored: mirroredOut
+    }
+  where
+    bundleRes :: PointF (Bundle h Dated) a b c d
+    bundleRes = hoistPointF (flip applyProjection bs) projs
+    principalOut :: PointF Dated a b c d
+    principalOut = hoistPointF bundlePrincipal bundleRes
+    mirroredOut :: PointF (Compose h Dated) a b c d
+    mirroredOut = hoistPointF (Compose <<< bundleMirrored) bundleRes
+
+-- applyProjection
+--     :: forall h a. Functor h
+--     => Projection a
+--     -> Bundle h TimeCounts Int
+--     -> Bundle h Dated a
+--     -- D.datedValues $
+--     -- lift4 (\x y z t -> {x, y, z, t})
+--     --     (bundlePrincipal $ applyProjection x b)
+--     --     (bundlePrincipal $ applyProjection y b)
+--     --     (bundlePrincipal $ applyProjection z b)
+--     --     (bundlePrincipal $ applyProjection t b)
+--   -- where
+--     -- b :: Bundle Array TimeCounts Int
+--     -- b = mkBundle ps []
+
 
 setBase :: forall a. BaseProjection a -> DSum SType Projection -> DSum SType Projection
 setBase base dp = withDSum dp (\tB spr ->

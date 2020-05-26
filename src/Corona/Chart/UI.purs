@@ -15,7 +15,7 @@ import Corona.Chart.UI.Projection as Projection
 import Corona.Data as Corona
 import Corona.Data.Type
 import Corona.Marshal as Marshal
-import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..), Axis(..), Point, ModelFit(..))
+import D3.Scatter.Type (SType(..), NType(..), Scale(..), NScale(..), Axis(..), ModelFit(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
 import Data.Bifunctor
@@ -33,12 +33,13 @@ import Data.Identity as Identity
 import Data.Int
 import Data.Lens
 import Data.Lens.Record as LR
-import Data.Map as M
 import Data.Map (Map)
+import Data.Map as M
 import Data.Maybe
 import Data.ModifiedJulianDay as MJD
 import Data.Number as N
 import Data.Ord
+import Data.Point
 import Data.Set (Set)
 import Data.Set as S
 import Data.String as String

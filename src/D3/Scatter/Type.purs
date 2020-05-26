@@ -16,6 +16,7 @@ import Data.Lens.Record as LR
 import Data.Maybe
 import Data.ModifiedJulianDay (Day)
 import Data.Newtype
+import Data.Point
 import Data.Semiring
 import Data.Symbol (SProxy(..))
 import Data.Tuple
@@ -279,26 +280,6 @@ axisLens = case _ of
     ZAxis -> LR.prop (SProxy :: SProxy "z")
     TAxis -> LR.prop (SProxy :: SProxy "t")
 
-type Point a b c d = { x :: a, y :: b, z :: c, t :: d }
-
-type PointF f a b c d = { x :: f a, y :: f b, z :: f c, t :: f d }
-
-hoistPointF
-    :: forall f g a b c d.
-       (forall x. f x -> g x)
-    -> PointF f a b c d
-    -> PointF g a b c d
-hoistPointF f { x, y, z, t } =
-    { x: f x
-    , y: f y
-    , z: f z
-    , t: f t
-    }
-
-
-type Point2D a b = { x :: a, y :: b }
--- type NoZ a b d = { x :: a, y :: b, t :: d }
-
 type SomeValue = DSum SType Identity
 
 someValue :: forall a. STypeable a => a -> SomeValue
@@ -324,6 +305,9 @@ data ModelFit = LinFit
               | LogFit
               -- | QuadFit
               | DecFit
+
+derive instance eqModelFit :: Eq ModelFit
+derive instance ordModelFit :: Ord ModelFit
 
 allModelFit :: Array ModelFit
 allModelFit = [LinFit, ExpFit, LogFit, DecFit]

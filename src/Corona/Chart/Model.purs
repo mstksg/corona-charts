@@ -13,6 +13,7 @@ import Corona.Data.Type
 import D3.Scatter.Type (ModelFit(..))
 import D3.Scatter.Type as D3
 import Data.Array as A
+import Data.Bundle
 import Data.Dated (Dated(..))
 import Data.Dated as D
 import Data.FunctorWithIndex
@@ -20,6 +21,7 @@ import Data.Int
 import Data.Lazy
 import Data.Maybe
 import Data.ModifiedJulianDay as MJD
+import Data.Point
 import Data.Tuple
 import Debug.Trace
 import Foreign.Object as O
@@ -36,14 +38,15 @@ toSeries2
     :: forall a b.
        Projection a
     -> Projection b
-    -> LazyTimeCounts Int
-    -> Array (D3.Point2D a b)
+    -> TimeCounts Int
+    -> Array (Point2D a b)
 toSeries2 pX pY tc =
             D.datedValues
         -- <<< D.take len
         -- <<< D.dropBefore start
           $ pts
   where
+    b = mkBundle tc []
     pts = lift2 (\x y -> {x, y})
     -- TODO: this should be a seperate one that ignores stuff like
     -- take/restrict
@@ -55,46 +58,47 @@ toSeries2 pX pY tc =
     --
     -- maybe what needs ot happen is we have to transform the whole bundle
     -- alongside each other
-        (applyLazyProjection pX tc)
-        (applyLazyProjection pY tc)
+        (bundlePrincipal $ applyProjection pX b)
+        (bundlePrincipal $ applyProjection pY b)
 
-applyLazyBaseProjection
-    :: forall a.
-       BaseProjection a
-    -> LazyTimeCounts Int
-    -> Dated a
-applyLazyBaseProjection = case _ of
-    Time      r -> \tc -> D.generate tc.start tc.timespan (equivFrom r)
-    Confirmed r -> \tc -> equivFromF r $
-        Dated { start: tc.start, values: force $ tc.counts.confirmed }
-    Deaths    r -> \tc -> equivFromF r $
-        Dated { start: tc.start, values: force $ tc.counts.deaths }
-    Recovered r -> \tc -> equivFromF r $
-        Dated { start: tc.start, values: force $ tc.counts.recovered }
+-- applyLazyBaseProjection
+--     :: forall a.
+--        BaseProjection a
+--     -> TimeCounts Int
+--     -> Dated a
+-- applyLazyBaseProjection = case _ of
+--     Time      r -> \tc -> D.generate tc.start tc.timespan (equivFrom r)
+--     Confirmed r -> \tc -> equivFromF r $
+--         Dated { start: tc.start, values: force $ tc.counts.confirmed }
+--     Deaths    r -> \tc -> equivFromF r $
+--         Dated { start: tc.start, values: force $ tc.counts.deaths }
+--     Recovered r -> \tc -> equivFromF r $
+--         Dated { start: tc.start, values: force $ tc.counts.recovered }
 
-applyLazyProjection
-    :: forall a.
-       Projection a
-    -> LazyTimeCounts Int
-    -> Dated a
-applyLazyProjection spr allDat = withProjection spr (\pr ->
-          applyOperations pr.operations <<< applyLazyBaseProjection pr.base
-        ) allDat
+-- applyLazyProjection
+--     :: forall a.
+--        Projection a
+--     -> TimeCounts Int
+--     -> Dated a
+-- applyLazyProjection spr allDat = withProjection spr (\pr ->
+--             bundlePrincipal
+--         <<< applyOperations pr.operations <<< principalBundled <<< applyBaseProjection pr.base
+--         ) allDat
 
-type LazyTimeCounts a =
-    { start     :: MJD.Day
-    , timespan  :: Int          -- ^ length - 1
-    , counts    :: Counts (Lazy (Array a))
-    }
+-- type LazyTimeCounts a =
+--     { start     :: MJD.Day
+--     , timespan  :: Int          -- ^ length - 1
+--     , counts    :: Counts (Lazy (Array a))
+--     }
 
 -- hm this isn't lazy
 fitTimeCounts
     :: ModelSpec
     -> TimeCounts Int
-    -> { modelInfo :: Counts (Lazy D3.ModelRes), timeCounts :: LazyTimeCounts Int }
-fitTimeCounts info tc =
+    -> { modelInfo :: Counts (Lazy D3.ModelRes), timeCounts :: TimeCounts Int }
+fitTimeCounts info (TC tc) =
     { modelInfo: mapCounts (map (_.modelInfo)) fittedCounts
-    , timeCounts:
+    , timeCounts: TC
         { counts: mapCounts
                 (map (map round <<< D.datedValues <<< (_.results)))
                 fittedCounts
@@ -104,8 +108,8 @@ fitTimeCounts info tc =
     }
   where
     fittedCounts :: Counts (Lazy { modelInfo :: D3.ModelRes, results :: Dated Number })
-    fittedCounts = flip mapCounts tc.counts $ \xs ->
-        defer $ const $ modelBase info (Dated { start: tc.start, values: map toNumber xs })
+    fittedCounts = flip (mapCounts <<< map) tc.counts $ \xs ->
+        modelBase info (Dated { start: tc.start, values: map toNumber xs })
 
 modelBase
     :: ModelSpec
