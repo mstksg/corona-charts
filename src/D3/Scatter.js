@@ -839,7 +839,6 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
                 .attr("font-size", 12)
                 .text(d => d.name)
                 .style('pointer-events','none');
-                // .insert()
 
             endDots.append("g")
                 .selectAll("circle")
