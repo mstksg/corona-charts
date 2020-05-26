@@ -182,45 +182,66 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             , decFit: (() => "Exp. Decay")
             }
         );
+    const decorateSeries = ss => ss.map(function(s) {
+          const vals = s.values.map( p =>
+                      ({ x: convertX(p.x)
+                       , y: convertY(p.y)
+                       , z: convertZ(p.z)
+                       , t: convertT(p.t)
+                       , valid: validPair(p)
+                      })
+                   );
+          const segments = d3.pairs(vals);
+          const missingDots = [];
+          const validSegments = [];
+          for (const seg of segments) {
+              // console.log(seg);
+              if (seg[0].valid) {
+                  if (seg[1].valid) {
+                      validSegments.push(seg)
+                  } else {
+                      missingDots.push(seg[0])
+                  }
+              } else {
+                  if (seg[1].valid) {
+                      missingDots.push(seg[1]);
+                  }
+              }
+          }
+          return { name: s.name
+                 , values: vals.filter(d => d.valid)
+                 , segments: validSegments
+                 , missingDots: missingDots
+                 };
+      });
 
     return function () {
         exports.clearSvg(svg)();
         console.log(scatter);
         const margin = { top: 10, right: 40, bottom: 80, left: 50, slider: 35 };
-        const series = scatter.series.map(function(s) {
-                const vals = s.values.filter(validPair).map( p =>
-                            ({ x: convertX(p.x)
-                             , y: convertY(p.y)
-                             , z: convertZ(p.z)
-                             , t: convertT(p.t)
-                            })
-                         );
-                return { name: s.name
-                       , values: vals
-                       , segments: d3.pairs(vals)
-                       };
-            });
+        const series = decorateSeries(scatter.series);
         const fits = scatter.series.flatMap(s =>
             s.modelfits.map(ft =>
                 ({ name: s.name
                  , fit: ft.fit
                  , info: ft.info
-                 , values: ft.values.filter(validPair2).map( p =>
+                 , values: ft.values.map( p =>
                      ({ x: convertX(p.x)
                       , y: convertY(p.y)
+                      , valid: validPair2(p)
                      })
                    )
                 })
             )
         );
-        console.log(fits);
+        // console.log(fits);
         const sliceSeries = timedSeries(series);
         // console.log(series);
 
         const allx = series.flatMap(s => s.values.map(p => p.x) )
-                        .concat(fits.flatMap(s => s.values.map(p => p.x)));   // include model fits
+                        .concat(fits.flatMap(s => s.values.filter(d=>d.valid).map(p => p.x)));   // include model fits
         const ally = series.flatMap(s => s.values.map(p => p.y) )
-                        .concat(fits.flatMap(s => s.values.map(p => p.y)));   // include model fits
+                        .concat(fits.flatMap(s => s.values.filter(d=>d.valid).map(p => p.y)));   // include model fits
         const allz = series.flatMap(s => s.values.map(p => p.z) );
         const allt = series.flatMap(s => s.values.map(p => p.t) );
         const extentx = d3.extent(allx.concat(zeroScale(scatter.axis.x.scale)));
@@ -267,7 +288,10 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
         // makes axes lines. i think this converts coordinates into svg points
         // or something???
         const line = d3.line()
-                            // .defined(validPair)
+                            .x(d => x(d.x))
+                            .y(d => y(d.y));
+        const line2 = d3.line()
+                            .defined(validPair2)
                             .x(d => x(d.x))
                             .y(d => y(d.y));
 
@@ -355,12 +379,12 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
         }
 
         const highlight = datalines => function(name) {
-          datalines.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 1)
-                .filter(d => d.name === name)
-                .raise();
+          datalines.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 1);
+          datalines.selectAll("circle").attr("r", d => d.name === name ? 3.5 : 1.5);
         }
         const unhighlight = datalines => function() {
-            datalines.selectAll("path").attr("stroke-width",2);
+          datalines.selectAll("path").attr("stroke-width",2);
+          datalines.selectAll("circle").attr("r",2.5);
         }
 
         // quadtree points for fits
@@ -541,10 +565,12 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
 
                 const syncDotData = series.flatMap(function(s) {
                   const cutoff = d3.bisector(p => p.t).right(s.values,closest.t);
-                  if (cutoff == 0 || s.name == closest.name) {
+                  const foundval = s.values[Math.min(cutoff-1,s.values.length-1)];
+                  // console.log(foundval.t, closest.t, foundval.t === closest.t);
+                  if (cutoff == 0 || s.name == closest.name || !(fmtT(foundval.t) === fmtT(closest.t))) {
                       return [];
                   } else {
-                      return [s.values[Math.min(cutoff-1,s.values.length-1)]];
+                      return [foundval];
                   }
                 });
                 if (validTimeScale) {
@@ -657,6 +683,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
         }
 
         const flatSegments = ss => ss.flatMap(s => s.segments.map (p => ({ name: s.name, pair: p })));
+        const flatDots = ss => ss.flatMap(s => s.missingDots.map(p => ({ name: s.name, point: p })));
         // const mkTimed = timedSeries(series);
 
         const mainplot = svg.append("g")
@@ -699,6 +726,13 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
              .attr("stroke-linecap", "round")
              .attr("stroke", d => z(d.pair[1].z))
              .attr("d", d => line(d.pair));
+        datalines
+            .selectAll("circle")
+            .data(flatDots(series))
+            .join("circle")
+            .attr("r",2.5)
+            .attr("fill",d => z(d.point.z))
+            .attr("transform", d => `translate(${x(d.point.x)},${y(d.point.y)})`);
 
         // model lines
         subplot.append("g")
@@ -710,7 +744,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             .attr("stroke-dasharray",[8, 6])
             // .attr("stroke","#595")
             .attr("stroke", d => modelFitColor(d.fit))
-            .attr("d", d => line(d.values));
+            .attr("d", d => line2(d.values));
 
         svg.call(hover, highlight(datalines),unhighlight(datalines));
 
