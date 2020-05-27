@@ -663,7 +663,7 @@ type URISpec m =
 
 uriSpecs :: forall o m. MonadAff m => Array (URISpec (M o m))
 -- uriSpecs = axisSpec <> [datasetSpec, modelSpec]
-uriSpecs = axisSpec <> [datasetSpec, regionSpec, modelSpec]
+uriSpecs = axisSpec <> [modelSpec, datasetSpec, regionSpec]
   where
     regionParam = "r"
     datasetParam = "d"

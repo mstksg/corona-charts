@@ -271,6 +271,9 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             .attr('offset',"0%")
             .attr('style',"stop-color:#fff; stop-opacity: 1.0");
         endlabelGradient.append('stop')
+            .attr('offset',"50%")
+            .attr('style',"stop-color:#fff; stop-opacity: 1.0");
+        endlabelGradient.append('stop')
             .attr('offset',"100%")
             .attr('style',"stop-color:#fff; stop-opacity: 0.0");
 
@@ -829,7 +832,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
                 .join("g");
 
             endSlots.append("rect")
-                .attr("width",40)
+                .attr("width",60)
                 .attr("height",14)
                 .attr("style","fill:url(#endlabelGradient)")
                 .attr("x",d => x(d.last.x)+10)
