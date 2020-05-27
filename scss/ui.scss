@@ -69,11 +69,6 @@ header {
     margin: 0;
     color: #666;
   }
-  .axis-scale {
-    span {
-      display: block;
-    }
-  }
   .helptip-link {
     font-size: 90%;
 
@@ -381,6 +376,7 @@ input {
 .linear-zero {
   padding: 0;
   margin-top: 0.4rem;
+  width: 100%;
 }
 
 .autocomplete-widget {
