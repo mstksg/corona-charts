@@ -3,8 +3,8 @@
     "postinstall": "spago install",
     "build": "spago build",
     "clean": "rm -rf node_modules output .spago dist/* *.lock",
-    "bundle": "spago bundle-app --main Main --to dist/app.js && parcel build assets/index.pug -d _site --public-url ./ --no-content-hash --no-minify",
-    "deploy": "spago bundle-app -x --main Main --to dist/app.js && parcel build assets/index.pug -d _site --public-url ./ --no-source-maps --no-content-hash && jle-update-gh-pages _site && git push origin master gh-pages"
+    "bundle": "spago bundle-app -x --main Main --to dist/app.js && parcel build assets/index.pug -d _site --public-url ./ --no-content-hash --no-minify",
+    "deploy": "spago bundle-app --main Main --to dist/app.js && parcel build assets/index.pug -d _site --public-url ./ --no-source-maps --no-content-hash && jle-update-gh-pages _site && git push origin master gh-pages"
   },
   "devDependencies": {
     "cssnano": "^4.1.10",
