@@ -1,3 +1,7 @@
+- var image = "https://coronavirus.jle.im/coronacharts-120.png";
+- var desc = "COVID-19 / Coronavirus interactive, customizable data visualization, animation, and analysis portal. Together, we can make it through this :)";
+- var title = "Coronavirus Data Plotter";
+
 doctype html
 head
   script(async='' src='https://www.googletagmanager.com/gtag/js?id=UA-443711-10')
@@ -22,17 +26,17 @@ head
   meta(http-equiv='Content-Type' content='text/html;charset=utf-8')
   meta(name='viewport' content='width=device-width,initial-scale=1.0')
 
-  meta(property='og:site_name' content='Coronavirus Data Plotter')
-  meta(property='og:description' content='COVID-19 / Coronavirus interactive, customizable data visualization portal. Together, we can make it through this.')
+  meta(property='og:site_name' content=title)
+  meta(property='og:description' content=desc)
   meta(property='og:type' content='website')
-  meta(property='og:title' content='Coronavirus Data Plotter')
-  meta(property='og:image' content='https://coronavirus.jle.im/coronacharts-120.png')
+  meta(property='og:title' content=title)
+  meta(property='og:image' content=image)
   meta(property='og:locale' content='en_US')
   meta(property='og:url' content='https://coronavirus.jle.im')
   meta(name='twitter:card' content='summary')
-  meta(name='twitter:title' content='Coronavirus Data Plotter')
-  meta(name='twitter:description' content='COVID-19 / Coronavirus interactive, customizable data visualization portal. Together, we can make it through this.')
-  meta(name='twitter:image' content='https://coronavirus.jle.im/coronacharts-120.png')
+  meta(name='twitter:title' content=title)
+  meta(name='twitter:description' content=desc)
+  meta(name='twitter:image' content=image)
   meta(name='twitter:site' content='@mstk')
   meta(name='twitter:creator' content='@mstk')
   link(href='https://coronavirus.jle.im/favicon.ico' rel='shortcut icon')
