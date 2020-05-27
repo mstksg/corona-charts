@@ -1,16 +1,45 @@
 doctype html
-link(href='../static/css/normalize.css' rel='stylesheet' type='text/css')
-link(href='../scss/grid.scss' rel='stylesheet' type='text/css')
-link(href='../scss/font.scss' rel='stylesheet' type='text/css')
-link(href='../scss/main.scss' rel='stylesheet' type='text/css')
-link(href='../scss/ui.scss' rel='stylesheet' type='text/css')
-link(href='https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css' rel='stylesheet' type='text/css')
-link(href='https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css' rel='stylesheet' type='text/css')
-link(href='https://cdn.jsdelivr.net/npm/pretty-checkbox@3.0/dist/pretty-checkbox.min.css' rel='stylesheet' type='text/css')
-meta(charset="utf-8")
-meta(http-equiv="Content-Type" content="text/html; charset=utf-8")
-meta(name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1")
-title Coronavirus Data Plotter
+head
+  script(async='' src='https://www.googletagmanager.com/gtag/js?id=UA-443711-10')
+  script
+    | window.dataLayer = window.dataLayer || [];
+    | function gtag(){dataLayer.push(arguments);}
+    | gtag('js', new Date());
+    | gtag('config', 'UA-443711-10');
+  link(href='../static/css/normalize.css' rel='stylesheet' type='text/css')
+  link(href='../scss/grid.scss' rel='stylesheet' type='text/css')
+  link(href='../scss/font.scss' rel='stylesheet' type='text/css')
+  link(href='../scss/main.scss' rel='stylesheet' type='text/css')
+  link(href='../scss/ui.scss' rel='stylesheet' type='text/css')
+  link(href='https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css' rel='stylesheet' type='text/css')
+  link(href='https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css' rel='stylesheet' type='text/css')
+  link(href='https://cdn.jsdelivr.net/npm/pretty-checkbox@3.0/dist/pretty-checkbox.min.css' rel='stylesheet' type='text/css')
+  meta(charset="utf-8")
+  meta(http-equiv="Content-Type" content="text/html; charset=utf-8")
+  meta(name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1")
+
+  meta(name='description' content='Curriculum Vitae of Justin A. Le')
+  meta(http-equiv='Content-Type' content='text/html;charset=utf-8')
+  meta(name='viewport' content='width=device-width,initial-scale=1.0')
+
+  meta(property='og:site_name' content='Coronavirus Data Plotter')
+  meta(property='og:description' content='COVID-19 / Coronavirus interactive data visualization customizer')
+  meta(property='og:type' content='website')
+  meta(property='og:title' content='Coronavirus Data Plotter')
+  // meta(property='og:image' content='https://coronavirus.jle.im/img/photo_square.jpg')
+  meta(property='og:locale' content='en_US')
+  meta(property='og:url' content='https://coronavirus.jle.im')
+  meta(name='twitter:card' content='summary')
+  meta(name='twitter:title' content='Coronavirus Data Plotter')
+  meta(name='twitter:description' content='COVID-19 / Coronavirus interactive data visualization customizer')
+  // meta(name='twitter:image' content='https://cv.jle.im/img/photo_square.jpg')
+  meta(name='twitter:site' content='@mstk')
+  meta(name='twitter:creator' content='@mstk')
+  // link(href='/favicon.ico' rel='shortcut icon')
+
+  title Coronavirus Data Plotter
+
+
 
 #header-container
 #body-container.container
@@ -193,7 +222,6 @@ footer.container
         symmetric log plots negative and positive numbers on flipped log
         scales to preserve details at all scales, and stitches them together
         around 0.
-
 
 script(src='https://cdn.jsdelivr.net/npm/d3@5.16.0')
 script(src='https://cdn.jsdelivr.net/npm/d3-array@2.4.0')
