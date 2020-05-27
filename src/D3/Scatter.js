@@ -390,11 +390,11 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
 
         const highlight = datalines => function(name) {
           datalines.selectAll("path").attr("stroke-width", d => d.name === name ? 3 : 1);
-          datalines.selectAll("circle").attr("r", d => d.name === name ? 3.5 : 1.5);
+          datalines.selectAll("circle").attr("r", d => d.name === name ? 3.1 : 1.1);
         }
         const unhighlight = datalines => function() {
           datalines.selectAll("path").attr("stroke-width",2);
-          datalines.selectAll("circle").attr("r",2.5);
+          datalines.selectAll("circle").attr("r",2.1);
         }
 
         // quadtree points for fits
@@ -711,6 +711,17 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
         const subplot = mainplot.append("g")
         const endDots = mainplot.append("g");
 
+        // model lines
+        subplot.append("g")
+            .selectAll("path")
+            .data(fits)
+            .join("path")
+            .attr("fill","none")
+            .attr("stroke-width",1.5)
+            .attr("stroke-dasharray",[8, 6])
+            // .attr("stroke","#595")
+            .attr("stroke", d => modelFitColor(d.fit))
+            .attr("d", d => line2(d.values));
 
         // yo this is it
         //
@@ -737,21 +748,14 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             .selectAll("circle")
             .data(flatDots(series))
             .join("circle")
-            .attr("r",2.5)
+            .attr("r",2.1)
             .attr("fill",d => z(d.point.z))
-            .attr("transform", d => `translate(${x(d.point.x)},${y(d.point.y)})`);
-
-        // model lines
-        subplot.append("g")
-            .selectAll("path")
-            .data(fits)
-            .join("path")
-            .attr("fill","none")
-            .attr("stroke-width",1.5)
-            .attr("stroke-dasharray",[8, 6])
-            // .attr("stroke","#595")
-            .attr("stroke", d => modelFitColor(d.fit))
-            .attr("d", d => line2(d.values));
+            .attr("transform", d => `translate(${x(d.point.x)},${y(d.point.y)})`)
+            .attr("opacity",0)
+            .transition()
+            .delay(d => t(d.point.t)*0.33)
+            .duration(333)
+            .attr("opacity",1);
 
         svg.call(hover, highlight(datalines),unhighlight(datalines));
 

@@ -41,10 +41,9 @@ footer {
   .footer-wrapper {
     max-width: 1024px;
     margin: 0 auto;
-    padding: 1.25rem 20px 10rem 0;
+    padding: 1.25rem 20px 12rem 0;
     .footer-body {
       line-height: 150%;
-
     }
   }
 }
@@ -52,6 +51,16 @@ footer {
 
 .clear {
   clear: both;
+}
+
+.noselect {
+  -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+     -khtml-user-select: none; /* Konqueror HTML */
+       -moz-user-select: none; /* Old versions of Firefox */
+        -ms-user-select: none; /* Internet Explorer/Edge */
+            user-select: none; /* Non-prefixed version, currently
+                                  supported by Chrome, Edge, Opera and Firefox */
 }
 
 html {
@@ -134,110 +143,41 @@ h3 {
   }
 }
 
+.helptip-link {
+  padding: 2px 0.5rem;
+  color: #99b;
+  float: right;
+  border: none;
+  // cursor: pointer;
+}
 
-// h2 {
-//   font-weight: normal;
-//   // font-style: italic;
-//   font-weight: 100;
-//   font-size: 133%;
-//   margin: 0 0 0.66em 0;
-//   letter-spacing: 0.1em;
-//   line-height: normal;
-//   @media (max-width: $breakpoint) {
-//     letter-spacing: 0em;
-//   }
-// }
+.helptip {
+  display: none;
+  @extend .copy;
+  font-size: 80%;
+  width: 25rem;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #f1f2f3;
+  padding: 0.75rem;
+  padding-bottom: 0;
+  left: 0px;
+  top: 0px;
+  @media (max-width: $breakpoint) {
+    width: auto;
+  }
+  ul {
+    li {
+      margin-bottom: 0;
+    }
+  }
+  // p {
+  //   margin-bottom: 0.25rem;
+  // }
+}
 
-// .links {
-//   font-size: 110%;
-//   font-style: italic;
-// }
+.helptip-active {
+  display: block;
+  position: absolute;
+}
 
-// header {
-//   margin-bottom: 3.3em;
-// }
-
-// h3 {
-//   font-weight: normal;
-//   font-style: italic;
-//   font-size: 175%;
-//   margin: 0 0 0.25em 0;
-//   line-height: normal;
-// }
-
-// h4 {
-//   font-weight: normal;
-//   font-style: italic;
-//   font-size: 100%;
-//   margin: 0;
-//   line-height: normal;
-// }
-
-// .cvsection {
-//   margin: 0 0 2em 0;
-// }
-
-// .cvs-wide p {
-//   margin: 0 0 0.5em 0;
-// }
-
-// .cvline {
-//   margin: 0 0 0.5em 0;
-// }
-
-// .cventry-heading {
-//   margin: 0 0 0.1em 0;
-// }
-
-// .cventry-heading > span {
-//   margin: 0 0.5em 0 0;
-// }
-
-// .cventry-title {
-//   font-weight: bold;
-// }
-
-// .cventry-institution {
-//   font-style: italic;
-// }
-
-// .cvline-body strong {
-//   font-weight: normal;
-//   font-style: italic;
-// }
-
-// div#section-skills p {
-//   font-size: 95%;
-//   line-height: 125%;
-//   // font-style: italic;
-//   // font-family: $sans;
-// }
-
-// a {
-//   &:hover {
-//     background-color: #eee;
-//   }
-//   &:visited {
-//     color: #224;
-//   }
-
-//   text-decoration: none;
-//   border-bottom: 1px dotted #bbb;
-//   color: #447;
-// }
-
-// .cvsection-pretitle, .cvline-desc {
-//   text-align: right;
-//   @media (max-width: $breakpoint) {
-//     text-align: left;
-//     margin-top: 1em;
-//   }
-// }
-
-// .cvsection-pretitle a {
-//   font-size: 175%;
-//   margin-top: 0.1em;
-//   @media (max-width: $breakpoint) {
-//     display: none;
-//   }
-// }

@@ -157,6 +157,7 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
       HH.h3_ [HH.text (D3.axisLabel label)]
     , HH.div [HU.classProp "base-projection"] [
         HH.span_ [HH.text "Base Projection"]
+      , helptipLink "base-tip"
       , HH.select [HE.onSelectedIndexChange (map SetBase <<< (allBaseProjections A.!! _))] $
           allBaseProjections <#> \sbp -> runExists (\bp ->
             let isSelected = withDSum aState.projection (\_ pr ->
@@ -167,6 +168,7 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
       ]
     , HH.div [HU.classProp "axis-op-chain"] [
         HH.span_ [HH.text "Transformations"]
+      , helptipLink "transformations-tip"
       , withDSum aState.projection (\_ spr ->
           withProjection spr (\pr ->
             let tBase = baseType pr.base
@@ -188,6 +190,7 @@ render label aState = HH.div [HU.classProp "axis-options dialog"] [
             ]
             Right _ -> fold [
               [ HH.span_ [HH.text "Scale"]
+              , helptipLink "scale-tip"
               , HH.select [HE.onSelectedIndexChange (map SetNumScaleType <<< (allNST A.!! _))] $
                   allNST <#> \nst ->
                     HH.option [HP.selected (nst == aState.numScaleType)] [HH.text (nstLabel nst)]
@@ -303,6 +306,12 @@ handleQuery = case _ of
       H.raise (Update s)
       pure (Just next)
     )
+
+helptipLink :: forall a c m. String -> H.ComponentHTML a c m
+helptipLink id = HH.a [
+      HP.href $ "#" <> id
+    , HU.classProp "helptip-link noselect"
+    ] [HH.text "?"]
 
 defaultLZ :: Boolean
 defaultLZ = false

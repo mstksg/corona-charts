@@ -3,9 +3,7 @@
 
 *   other datasets: australia, china, etc.
 *   favicon
-*   "help" info hovers
 *   fullscreen
-*   logistic: end date
 
 # Fixes
 

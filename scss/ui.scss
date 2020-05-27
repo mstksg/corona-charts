@@ -62,11 +62,21 @@ header {
 .axis-options, .dataset-picker {
 
   span {
-    display: block;
+    // display: block;
+    display: inline;
     width: 100%;
     font-size: 90%;
     margin: 0;
     color: #666;
+  }
+  .axis-scale {
+    span {
+      display: block;
+    }
+  }
+  .helptip-link {
+    font-size: 90%;
+
   }
   margin-bottom: 1rem;
 
@@ -382,3 +392,4 @@ input {
     margin-bottom: 0;
   }
 }
+

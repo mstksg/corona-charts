@@ -37,7 +37,7 @@ title Coronavirus Data Plotter
         class="saveimage" href="#"> save the image</a> to your computer! If
         you find something interesting, I'd be [happy to hear from
         you!][twitter]
-        
+
         [twitter]: https://twitter.com/mstk
 
         For some examples of configurations that might be useful, check these
@@ -71,11 +71,11 @@ title Coronavirus Data Plotter
 footer.container
   .grid.footer-wrapper
     .grid__col.grid__col--6-of-6.footer-body.copy
-      :markdown-it(html=true)
+      :markdown-it
         Created and maintained by [Justin Le][] ([🐦][twitter]) in association
         with [Chapman University][] and [Dr. Hesham El-Askary][hesham]
         (Director, Computational and Data Sciences).
-        
+
         [Justin Le]: https://blog.jle.im/
         [twitter]: https://twitter.com/mstk
         [Chapman University]: https://chapman.edu/
@@ -117,6 +117,82 @@ footer.container
         [source]: https://github.com/mstksg/corona-charts
         [contributions]: https://github.com/mstksg/corona-charts/pulls
         [ideas]: https://github.com/mstksg/corona-charts/issues
+
+
+.helptip#linear-fit
+  :markdown-it
+    **Linear Growth**: Assumes that every day brings a fixed change.  Can often
+    be found "in between" exponential growth and exponential decay, when
+    growth is controlled but not yet eliminated.  Can also occur if reporting
+    measures (like tests) has a fixed capacity per-day.
+
+    *   *Daily Change*: Increase in count per day
+.helptip#exponential-growth-fit
+  :markdown-it
+    **Exponential Growth**: Assumes that the change every day is proportional
+    to the total amount of the previous day.  This is the hallmark pattern of
+    uncontrolled epidemic growth, because each infected person becomes
+    themselves a source of future infection.
+
+    *   *Daily % Growth*: Percent growth per day
+    *   *Doubling Time*: Time it takes for count to double
+.helptip#logistic-fit
+  :markdown-it
+    **Logistic Growth**: Assumes that exponential growth in the beginning will
+    steadily transition into exponential decay as limiting factors overpower
+    growth factors.  In order to fit properly, this transition must have
+    already begun.  Otherwise, it is indistinguishable from perfect
+    exponential growth.
+
+    *   *Final Total*: Maximum count after growth ends
+    *   *Date of Peak*: Date when growth is highest
+    *   *95% Date*: Date when 95% of maximum count is reached
+.helptip#exponential-decay-fit
+  :markdown-it
+    **Exponential Decay**: Assumes that the decrease in growth rate is
+    proportional to the total growth of the previous day.  This will happen if
+    suppressing factors uniformly overpower spreading factors.
+
+    *   *Final Total*: Maximum count after growth ends
+    *   *95% Date*: Date when 95% of maximum count is reached
+// .helptip#lookback-tip
+//   :markdown-it
+//     **Lookback**: How far back into the past (from the present day) to
+//     consider in the analysis for fitting the models.
+// .helptip#forecast-tip
+//   :markdown-it
+//     **Forecast**: How far into the future (from the present day) to
+//     project, using the models.
+.helptip#base-tip
+  :markdown-it
+    **Base Projection**: The underlying dataset to begin building your axis
+    data from.   This data will be run through the transformations below
+    to generate the data you want to plot.
+.helptip#transformations-tip
+  :markdown-it
+    **Transformations**: With the basic building blocks below, you can
+    generate many different unique aspects to visualize. Select different ones
+    to see how they affect your data, and what options they can be configured
+    with.  Chain as many as you want, but be aware that not all
+    transformations can necessarily logically follow some others.  This portal
+    will take the base projection you selected, run it through this chain, and
+    plot it.
+.helptip#scale-tip
+  :markdown-it
+    **Scale**: How to "spread out" the values on the plot, relative to each
+    other value.
+
+    *   *Linear*: "Normal" scale — fixed distance on plot corresponds to
+        fixed change in value.  Can be the most "truthful"; however,
+        details for small scales can be lost if larger values are present.
+    *   *Logarithmic*: Fixed distance on plot corresponds to fixed
+        *proportional change* in value.  This is the natural scale for
+        exponential growth and decay, because they look like straight lines.
+        Also useful for being able to see detail at all scales.
+    *   *Symmetric Log*: Log scales normally cannot show negative values;
+        symmetric log plots negative and positive numbers on flipped log
+        scales to preserve details at all scales, and stitches them together
+        around 0.
 
 
 script(src='https://cdn.jsdelivr.net/npm/d3@5.16.0')

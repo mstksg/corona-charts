@@ -88,6 +88,9 @@ import Web.HTML.HTMLInputElement as HTMLInputElement
 import Web.HTML.History as History
 import Web.HTML.Location as Location
 import Web.HTML.Window as Window
+import Web.TouchEvent.Touch as TE
+import Web.TouchEvent.TouchEvent as TE
+import Web.TouchEvent.TouchList as TE
 import Web.UIEvent.MouseEvent as ME
 import Web.URLSearchParams as USP
 
@@ -124,6 +127,7 @@ type State =
     , permalink    :: Maybe String
     , waiting      :: Set Aspect     -- ^ do not load unless empty
     , welcomeText  :: Maybe String
+    , helptip      :: Maybe HTMLElement.HTMLElement
     }
 
 v4Lens :: forall a. Axis -> Lens' (V4 a) a
@@ -178,6 +182,8 @@ data Action =
       | LoadDataset Corona.Dataset
       | Highlight Region
       | Unhighlight
+      | LoadHelptip String { x :: Int, y :: Int }
+      | UnloadHelptip
       | SaveFile
       | Redraw
       | Reset
@@ -229,6 +235,7 @@ component = H.mkComponent
         , permalink: Nothing
         , waiting: S.empty
         , welcomeText: Nothing
+        , helptip: Nothing
         }
     , render: render
     , eval: H.mkEval $ H.defaultEval
@@ -430,15 +437,22 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
         , HH.ul [HU.classProp "model-picker-list"] $ D3.allModelFit <#> \mfit ->
           HH.li [HU.classProp "model-picker-fit"] [
             HH.div [HU.classProp "pretty p-switch p-fill"] [
-                HH.input [
-                  HP.type_ HP.InputCheckbox
-                , HP.checked (st.modelStates ^. modelFitLens mfit)
-                , HE.onChecked (Just <<< SetModel mfit)
+                  HH.input [
+                    HP.type_ HP.InputCheckbox
+                  , HP.checked (st.modelStates ^. modelFitLens mfit)
+                  , HE.onChecked (Just <<< SetModel mfit)
+                  ]
+                , HH.div [HU.classProp $ "state " <> modelColor mfit] [
+                  HH.label_ [
+                    HH.text (D3.modelFitLabel mfit)
+                  ]
                 ]
-              , HH.div [HU.classProp $ "state " <> modelColor mfit] [
-                HH.label_ [HH.text (D3.modelFitLabel mfit)]
               ]
-            ]
+            , helptipLink $ case mfit of
+                LinFit -> "linear-fit"
+                ExpFit -> "exponential-growth-fit"
+                LogFit -> "logistic-fit"
+                DecFit -> "exponential-decay-fit"
           ]
         ]
       , if anyModelsActive
@@ -463,6 +477,17 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
           else []
       ]
     parsePosInt = map (max 1 <<< abs <<< round) <<< N.fromString
+
+helptipLink :: forall a c m. String -> H.ComponentHTML a c m
+helptipLink id = HH.a [
+      HP.href $ "#" <> id
+    , HU.classProp "helptip-link noselect"
+    ] [HH.text "?"]
+
+firstTouch :: TE.TouchEvent -> Maybe { x :: Int, y :: Int }
+firstTouch = map (\t -> { x: TE.pageX t, y: TE.pageY t })
+         <<< TE.item 0
+         <<< TE.targetTouches
 
 type M = H.HalogenM State Action ChildSlots
 
@@ -529,6 +554,20 @@ handleAction = case _ of
       reRender Nothing
     Highlight c -> void $ H.query _scatter unit $ HQ.tell (Scatter.Highlight c)
     Unhighlight -> void $ H.query _scatter unit $ HQ.tell Scatter.Unhighlight
+    LoadHelptip id pos -> do
+      -- log "hi"
+      tip <- liftAff $ HU.selectElement (DOM.QuerySelector id)
+      case tip of
+        Nothing -> warn $ "helptip not found for " <> id
+        Just tp -> do
+          H.modify_ $ _ { helptip = Just tp }
+          liftEffect $ do
+            HTMLElement.setClassName "helptip helptip-active" tp
+            runFn2 setPos tp (pos { x = pos.x+5 })
+    UnloadHelptip -> do
+      tip <- State.state $ \st -> Tuple st.helptip (st { helptip = Nothing })
+      for_ tip $ \tp ->
+        liftEffect $ HTMLElement.setClassName "helptip" tp
     SaveFile -> do
       r <- H.query _scatter unit $ HQ.request (Scatter.Export "coronavirus-plot.png")
       liftEffect $ toast
@@ -555,13 +594,19 @@ handleAction = case _ of
     Linkify -> do
       -- log "linkify me, captain"
       void $ H.subscribe $ ES.effectEventSource $ \e -> do
-        ac <- runFn3 linkify
-          (ES.emit e <<< LoadURIString)
+        _ <- runFn3 linkify
+          (\str -> scrollToTop $
+                ES.emit e (LoadURIString str)
+          )
           (ES.emit e CopyURI)
           (ES.emit e SaveFile)
         pure mempty
-    LoadURIString str -> do
-      liftEffect scrollToTop
+      void $ H.subscribe $ ES.effectEventSource $ \e -> do
+        _ <- runFn2 helpify
+          (\x y -> ES.emit e (LoadHelptip x y))
+          (ES.emit e UnloadHelptip)
+        pure mempty
+    LoadURIString str ->
       loadUriString false str
     Initialize -> do
       -- setup welcome
@@ -909,7 +954,12 @@ foreign import linkify
            (Effect Unit)
            (Effect Unit)
            (Effect Unit)
+foreign import helpify
+    :: Fn2 (String -> { x :: Int, y :: Int} -> Effect Unit)
+           (Effect Unit)
+           (Effect Unit)
 foreign import cutInnerHTML :: HTMLElement.HTMLElement -> Effect String
 foreign import toast :: String -> Effect Unit
-foreign import scrollToTop :: Effect Unit
+foreign import scrollToTop :: Effect Unit -> Effect Unit
+foreign import setPos :: Fn2 HTMLElement.HTMLElement { x :: Int, y :: Int } (Effect Unit)
 -- foreign import moveDiv :: Fn2 HTMLElement.HTMLElement HTMLElement.HTMLElement (Effect Unit)

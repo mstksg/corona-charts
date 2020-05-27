@@ -82,10 +82,12 @@ modelBase { fit, tail, forecast } baseData = out
     paramTrans = modelFitTrans tail baseData fit
     touchup = case fit of
       LogFit
-        | capInfinity -> O.insert "Date of Peak" (D3.someValue G.nan)
+        | capInfinity -> O.delete "Date of Peak"
+                     <<< O.delete "95% Date"
         | otherwise   -> identity
       DecFit        -- TODO: infinityk
         | capInfinity -> O.insert "Halving Time" (D3.someValue G.infinity)
+                     <<< O.delete "95% Date"
         | otherwise   -> identity
       _      -> identity
     inf = D3.someValue G.infinity
@@ -111,12 +113,20 @@ modelFitParams = case _ of
       , Tuple "Doubling Time (Days)"
               (D3.someValue (D3.Days (round (M.log 2.0 / lr.beta))))
       ]
-    DecFit -> \lr -> O.singleton 
-        "Halving Time"
-        (D3.someValue (D3.Days (round $ M.abs (M.log 2.0 / lr.beta))))
-    LogFit -> \lr -> O.singleton
-        "Date of Peak"
-        (D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta))))
+    DecFit -> \lr -> O.fromFoldable [
+        Tuple "Halving Time"
+              (D3.someValue (D3.Days (round $ M.abs (M.log 2.0 / lr.beta))))
+      , Tuple "95% Date"
+              (D3.someValue (MJD.fromModifiedJulianDay (round $ (M.log 0.05 - lr.alpha) / lr.beta)))
+      ]
+    LogFit -> \lr -> O.fromFoldable [
+        Tuple "Date of Peak"
+              (D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta))))
+      , Tuple "95% Date"
+              (D3.someValue (MJD.fromModifiedJulianDay
+                  (round $ (M.log (0.05/0.95) - lr.alpha) / lr.beta)
+                 ))
+      ]
     -- QuadFit -> \lr -> [
     --     { name: "Daily Change in Change"
     --     , value: D3.someValue (2.0 * lr.beta * lr.beta)
