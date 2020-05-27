@@ -1,26 +1,122 @@
-<!DOCTYPE html><link href="normalize.2b099e71.css" rel="stylesheet" type="text/css"><link href="grid.0d4b0708.css" rel="stylesheet" type="text/css"><link href="font.ae0d00cb.css" rel="stylesheet" type="text/css"><link href="main.e5703e5d.css" rel="stylesheet" type="text/css"><link href="ui.08bbf738.css" rel="stylesheet" type="text/css"><link href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css" rel="stylesheet" type="text/css"><link href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" rel="stylesheet" type="text/css"><link href="https://cdn.jsdelivr.net/npm/pretty-checkbox@3.0/dist/pretty-checkbox.min.css" rel="stylesheet" type="text/css"><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1"><title>Coronavirus Data Plotter</title><div id="header-container"></div><div class="container" id="body-container"><div class="grid" id="main-container"><header class="grid__col grid__col--6-of-6"><h2>Coronavirus Data Plotter</h2></header><main class="unloaded" id="ui"></main><div class="grid__col grid__col--6-of-6 dialog welcome copy" id="welcome-text"><h3>Welcome!</h3><p>On this data portal, explore different aspects of COVID-19 /
-Coronavirus time evolution. I put this together
-because I saw a lot of different visualizations and data views over
-many different sites but no nice way to explore them all within the
-same tool. I hope this will be as helpful for you as it was for me!</p><p>On this page you can set the x, y, color, and time axes to be different
-aspects of the underling data, and also customize what regions to
-display. When you find a set of projections that you like,<a class="copylink" href="#"> copy a link to share</a> or<a class="saveimage" href="#"> save the image</a> to your computer! If you find something interesting, I'd be<a href="https://twitter.com/mstk"> happy to hear from you</a>!</p><p>For some examples of configurations that might be useful, check these out:</p><ul><li><a class="dataview" href="/?x=cno&amp;y=ccccw3no&amp;z=ccral50cnanif&amp;t=tnd&amp;m=fftf35|21">Bhatia-Reich plots</a>, made famous by<a href="https://www.youtube.com/watch?v=54XLXg4fYsc" target="_blank"> this MinutePhysics video</a>. Exponential growth shows up as a nice visual "highway" that regions
+<!DOCTYPE html><link href="normalize.2b099e71.css" rel="stylesheet" type="text/css"><link href="grid.0d4b0708.css" rel="stylesheet" type="text/css"><link href="font.ae0d00cb.css" rel="stylesheet" type="text/css"><link href="main.e5703e5d.css" rel="stylesheet" type="text/css"><link href="ui.08bbf738.css" rel="stylesheet" type="text/css"><link href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/css/autoComplete.min.css" rel="stylesheet" type="text/css"><link href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" rel="stylesheet" type="text/css"><link href="https://cdn.jsdelivr.net/npm/pretty-checkbox@3.0/dist/pretty-checkbox.min.css" rel="stylesheet" type="text/css"><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1"><title>Coronavirus Data Plotter</title><div id="header-container"></div><div class="container" id="body-container"><div class="grid" id="main-container"><header class="grid__col grid__col--6-of-6"><h2>Coronavirus Data Plotter</h2></header><main class="unloaded" id="ui"></main><div class="grid__col grid__col--6-of-6 dialog welcome copy" id="welcome-text"><h3>Welcome!</h3>
+<p>On this data portal, explore different aspects of COVID-19 /
+Coronavirus time evolution. I put this together because I saw a lot of
+different visualizations and data views over many different sites but
+no nice way to explore them all within the same tool. I hope this will
+be as helpful for you as it was for me!</p>
+<p>On this page you can set the x, y, color, and time axes to be
+different aspects of the underling data, and also customize what
+regions to display. When you find a set of projections that you like,
+<a class="copylink" href="#">copy a link to share</a> or <a class="saveimage" href="#"> save the image</a> to your computer! If
+you find something interesting, I'd be <a href="https://twitter.com/mstk">happy to hear from
+you!</a></p>
+<p>For some examples of configurations that might be useful, check these
+out:</p>
+<ul>
+<li>
+<p><a class="dataview" href="/?x=cno&y=ccccw3no&z=ccral50cnanif&t=tnd&m=fftf35|21">Bhatia-Reich plots</a>,
+made famous by <a href="https://www.youtube.com/watch?v=54XLXg4fYsc" target="_blank">this MinutePhysics video</a>.
+Exponential growth shows up as a nice visual &quot;highway&quot; that regions
 travel along, and it becomes very visually explicit when they exit
-exponential growth.</li><li><a class="dataview" href="/?x=ccral50cnanif&amp;y=ccccw2nif&amp;z=ccccw2cmnif&amp;t=tnd&amp;m=fftf42|21">Growth curve plots</a>, prominently displaying the infamous curves on the news that we
-are supposed to be flattening. A logistic fit is added to get
-satisfying bell curve projections.</li><li><a class="dataview" href="/?x=tnd&amp;y=ccgcw3no&amp;z=cno&amp;t=tcral58930nd?m=ffff">Percent growth plots</a> , an example of a basic projection you can explore while limiting
-results. Periods of perfectly exponential growth will show
-up as horizontal lines. Colors reflect absolute counts, to show
-more info at a glance.</li><li><a class="dataview" href="/?x=dcccw7cccw7cmnif&amp;y=dcccw7cmnif&amp;z=ccral50cnanif&amp;t=tnd&amp;m=ffff">"Baserunner" Plots</a>, which I've found very helpful personally. In this view, regions
-all must move through a circular track, from "home base" at the bottom,
-counter-clockwise; when they get back "home", they are out clear.
-Set-backs will visually appear as
-backtracking or getting lost. Inspired by Danny Dorling's<a href="https://twitter.com/emmawage/status/1255172980788785152"> tornado plots</a>.</li></ul></div></div></div><footer class="container"><div class="grid footer-wrapper"><div class="grid__col grid__col--6-of-6 footer-body copy"><p>Created and maintained by<a href="https://blog.jle.im/"> Justin Le</a> (<a href="https://twitter.com/mstk">🐦</a>) in association with<a href="https://www.chapman.edu/"> Chapman University</a> and <a href="https://www.chapman.edu/our-faculty/hesham-el-askary"> Dr. Hesham El-Askary</a> (Director, Computational and Data Sciences).</p><p>Nation-level data provided by<a href="https://github.com/CSSEGISandData/COVID-19"> John Hopkins University</a> and US state-level data provided by the<a href="https://github.com/nytimes/covid-19-data"> New York Times</a>. Much thanks to<a href="https://aatishb.com/covidtrends/"> Aatish Bhatia</a> and<a href="https://coronavirus.1point3acres.com/en"> 1point3acres</a> for inspiration and helping show the power of visualization in this
-time.</p><p>These are truly unprecedented times, but it in a lot of cases it has
+exponential growth.</p>
+</li>
+<li>
+<p><a class="dataview" href="/?x=ccral50cnanif&y=ccccw2nif&z=ccccw2cmnif&t=tnd&m=fftf42|21">Growth curve plots</a>,
+prominently displaying the infamous curves on the news that we are
+supposed to be flattening. A logistic fit is added to get
+satisfying bell curve projections.</p>
+</li>
+<li>
+<p><a class="dataview" href="/?x=tnd&y=ccgcw3no&z=cno&t=tcral58930nd?m=ffff">Percent growth plots</a>:
+periods of perfectly exponential growth will show up as horizontal
+lines. Colors reflect absolute counts, to show more info at a
+glance.</p>
+</li>
+<li>
+<p><a class="dataview" href="/?x=dcccw7cccw7cmnif&y=dcccw7cmnif&z=ccral50cnanif&t=tnd&m=ffff">&quot;Baserunner&quot; Plots</a>,
+which I've found very helpful personally. In this view, regions
+all must move through a circular track, from &quot;home base&quot; at the
+bottom, counter-clockwise; when they get back &quot;home&quot;, they are out
+clear. Set-backs will visually appear as backtracking or getting
+lost. Inspired by Danny Dorling's <a href="https://twitter.com/emmawage/status/1255172980788785152">tornado plots</a></p>
+</li>
+</ul>
+</div></div></div><footer class="container"><div class="grid footer-wrapper"><div class="grid__col grid__col--6-of-6 footer-body copy"><p>Created and maintained by <a href="https://blog.jle.im/">Justin Le</a> (<a href="https://twitter.com/mstk">🐦</a>) in association
+with <a href="https://chapman.edu/">Chapman University</a> and <a href="https://www.chapman.edu/our-faculty/hesham-el-askary">Dr. Hesham El-Askary</a>
+(Director, Computational and Data Sciences).</p>
+<p>Nation-level data provided by <a href="https://github.com/CSSEGISandData/COVID-19">John Hopkins University</a> and US
+state-level data provided by the <a href="https://github.com/nytimes/covid-19-data">New York Times</a>. Much thanks
+to <a href="https://aatishb.com/covidtrends/">Aatish Bhatia</a> and <a href="https://coronavirus.1point3acres.com/en">1point3acres</a> for inspiration and helping
+show the power of visualization in this time.</p>
+<p>These are truly unprecedented times, but it in a lot of cases it has
 also brought out the best in all of us — the only way we will get
 through all of this is by coming together to protect those most
-vulnerable.<a href="https://www.cdc.gov/coronavirus/2019-ncov/prepare/prevention.html"> Stay safe</a>, stay at home, and be mindful of the impact of your
-presence in public areas and the power you personally wield to
-make a difference. Take care of your physical<a href="https://bit.ly/WHO-mental-health"> and mental health</a>. If you are in a situation of financial
-stability, consider<a href="https://www.givedirectly.org/"> contributing</a> what you can spare (<a href="https://www.givewell.org/charities/give-directly">more info</a>). We can make it through this, together ❤️.</p><p>Application developed in<a href="https://www.purescript.org/"> Purescript</a> and powered by strongly and dependently typed functional
-programming, love, and coffee ☕. All code is open-sourced and<a href="https://github.com/mstksg/corona-charts"> available on Github</a>.<a href="https://github.com/mstksg/corona-charts/pulls"> Contributions</a> and<a href="https://github.com/mstksg/corona-charts/issues"> ideas</a> welcomed and greatly appreciated!</p></div></div></footer><script src="https://cdn.jsdelivr.net/npm/d3@5.16.0"></script><script src="https://cdn.jsdelivr.net/npm/d3-array@2.4.0"></script><script src="https://cdn.jsdelivr.net/npm/d3-simple-slider@1.7.0"></script><script src="https://cdn.jsdelivr.net/npm/save-svg-as-png@1.4.17"></script><script src="https://cdn.jsdelivr.net/npm/papaparse@5.2.0"></script><script src="https://cdn.jsdelivr.net/npm/lodash@4.17.15"></script><script src="https://cdn.jsdelivr.net/npm/toastify-js@1.7.0"></script><script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script><script src="app.73158d74.js"></script>
+vulnerable. <a href="https://www.cdc.gov/coronavirus/2019-ncov/prepare/prevention.html">Stay safe</a>, stay at home, and be mindful of the impact
+of your presence in public areas and the power you personally wield to
+make a difference. Take care of your physical <a href="https://bit.ly/WHO-mental-health">and mental
+health</a>! If you are in a situation of financial
+stability, consider contributing what you can spare (<a href="https://www.givedirectly.org/">Give Directly</a>
+/ <a href="https://www.givewell.org/charities/give-directly">more info</a>). We can make it through this, together ❤️.</p>
+<p>Application developed in <a href="https://www.purescript.org/">Purescript</a> and powered by strongly and
+dependently typed functional programming, love, and coffee ☕. All code
+is open-sourced and <a href="https://github.com/mstksg/corona-charts">available on Github</a>. <a href="https://github.com/mstksg/corona-charts/pulls">Code
+contributions</a> and <a href="https://github.com/mstksg/corona-charts/issues">ideas</a> welcomed and greatly
+appreciated!</p>
+</div></div></footer><div class="helptip" id="linear-fit"><p><strong>Linear Growth</strong>: Assumes that every day brings a fixed change. Can often
+be found &quot;in between&quot; exponential growth and exponential decay, when
+growth is controlled but not yet eliminated. Can also occur if reporting
+measures (like tests) has a fixed capacity per-day.</p>
+<ul>
+<li><em>Daily Change</em>: Increase in count per day</li>
+</ul>
+</div><div class="helptip" id="exponential-growth-fit"><p><strong>Exponential Growth</strong>: Assumes that the change every day is proportional
+to the total amount of the previous day. This is the hallmark pattern of
+uncontrolled epidemic growth, because each infected person becomes
+themselves a source of future infection.</p>
+<ul>
+<li><em>Daily % Growth</em>: Percent growth per day</li>
+<li><em>Doubling Time</em>: Time it takes for count to double</li>
+</ul>
+</div><div class="helptip" id="logistic-fit"><p><strong>Logistic Growth</strong>: Assumes that exponential growth in the beginning will
+steadily transition into exponential decay as limiting factors overpower
+growth factors. In order to fit properly, this transition must have
+already begun. Otherwise, it is indistinguishable from perfect
+exponential growth.</p>
+<ul>
+<li><em>Final Total</em>: Maximum count after growth ends</li>
+<li><em>Date of Peak</em>: Date when growth is highest</li>
+<li><em>95% Date</em>: Date when 95% of maximum count is reached</li>
+</ul>
+</div><div class="helptip" id="exponential-decay-fit"><p><strong>Exponential Decay</strong>: Assumes that the decrease in growth rate is
+proportional to the total growth of the previous day. This will happen if
+suppressing factors uniformly overpower spreading factors.</p>
+<ul>
+<li><em>Final Total</em>: Maximum count after growth ends</li>
+<li><em>95% Date</em>: Date when 95% of maximum count is reached</li>
+</ul>
+</div><div class="helptip" id="base-tip"><p><strong>Base Projection</strong>: The underlying dataset to begin building your axis
+data from. This data will be run through the transformations below
+to generate the data you want to plot.</p>
+</div><div class="helptip" id="transformations-tip"><p><strong>Transformations</strong>: With the basic building blocks below, you can
+generate many different unique aspects to visualize. Select different ones
+to see how they affect your data, and what options they can be configured
+with. Chain as many as you want, but be aware that not all
+transformations can necessarily logically follow some others. This portal
+will take the base projection you selected, run it through this chain, and
+plot it.</p>
+</div><div class="helptip" id="scale-tip"><p><strong>Scale</strong>: How to &quot;spread out&quot; the values on the plot, relative to each
+other value.</p>
+<ul>
+<li><em>Linear</em>: &quot;Normal&quot; scale — fixed distance on plot corresponds to
+fixed change in value. Can be the most &quot;truthful&quot;; however,
+details for small scales can be lost if larger values are present.</li>
+<li><em>Logarithmic</em>: Fixed distance on plot corresponds to fixed
+<em>proportional change</em> in value. This is the natural scale for
+exponential growth and decay, because they look like straight lines.
+Also useful for being able to see detail at all scales.</li>
+<li><em>Symmetric Log</em>: Log scales normally cannot show negative values;
+symmetric log plots negative and positive numbers on flipped log
+scales to preserve details at all scales, and stitches them together
+around 0.</li>
+</ul>
+</div><script src="https://cdn.jsdelivr.net/npm/d3@5.16.0"></script><script src="https://cdn.jsdelivr.net/npm/d3-array@2.4.0"></script><script src="https://cdn.jsdelivr.net/npm/d3-simple-slider@1.7.0"></script><script src="https://cdn.jsdelivr.net/npm/save-svg-as-png@1.4.17"></script><script src="https://cdn.jsdelivr.net/npm/papaparse@5.2.0"></script><script src="https://cdn.jsdelivr.net/npm/lodash@4.17.15"></script><script src="https://cdn.jsdelivr.net/npm/toastify-js@1.7.0"></script><script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script><script src="app.73158d74.js"></script>
