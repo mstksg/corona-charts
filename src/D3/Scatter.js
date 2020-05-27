@@ -269,10 +269,10 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             .attr('id','endlabelGradient');
         endlabelGradient.append('stop')
             .attr('offset',"0%")
-            .attr('style',"stop-color:#fff; stop-opacity: 1.0");
+            .attr('style',"stop-color:#fff; stop-opacity: 0.5");
         endlabelGradient.append('stop')
             .attr('offset',"50%")
-            .attr('style',"stop-color:#fff; stop-opacity: 1.0");
+            .attr('style',"stop-color:#fff; stop-opacity: 0.5");
         endlabelGradient.append('stop')
             .attr('offset',"100%")
             .attr('style',"stop-color:#fff; stop-opacity: 0.0");
