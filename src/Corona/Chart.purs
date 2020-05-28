@@ -460,8 +460,8 @@ operationLabel = case _ of
     --     ]
     Take r n c ->
       let cStr = case c of
-            After -> "last"
-            Before -> "first"
+            After -> "first"
+            Before -> "last"
       in  "Keeping the " <> cStr <> " " <> show n <> " points of"
     DayNumber _ c -> case c of
       After  -> "Days of"
