@@ -46,12 +46,14 @@ pickerMap t0 = case t0 of
     SDay  _ -> [
         t0       :=> restrictPickOp t0
       , t0       :=> takePickOp
+      , t0       :=> lagPickOp
       , D3.sDays :=> dayNumberPickOp
       , D3.sDay  :=> pointDatePickOp
       ]
     SDays _ -> [
         t0       :=> restrictPickOp t0
       , t0       :=> takePickOp
+      , t0       :=> lagPickOp
       , D3.sDays :=> dayNumberPickOp
       , D3.sDay  :=> pointDatePickOp
       ]
@@ -62,6 +64,7 @@ pickerMap t0 = case t0 of
       , D3.sPercent :=> pmaxPickOp (D3.NInt r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp
+      , t0          :=> lagPickOp
       , D3.sDays    :=> dayNumberPickOp
       , D3.sDay     :=> pointDatePickOp
       ]
@@ -72,6 +75,7 @@ pickerMap t0 = case t0 of
       , D3.sPercent :=> pmaxPickOp (D3.NNumber r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp
+      , t0          :=> lagPickOp
       , D3.sDays    :=> dayNumberPickOp
       , D3.sDay     :=> pointDatePickOp
       ]
@@ -82,6 +86,7 @@ pickerMap t0 = case t0 of
       , D3.sPercent :=> pmaxPickOp (D3.NPercent r)
       , t0          :=> restrictPickOp t0
       , t0          :=> takePickOp
+      , t0          :=> lagPickOp
       , D3.sDays    :=> dayNumberPickOp
       , D3.sDay     :=> pointDatePickOp
       ]
@@ -320,6 +325,30 @@ takePickOp = mkPickOp
     showCutoff = case _ of
       After  -> "first"
       Before -> "last"
+
+-- | Lag       (a ~ b) Int               -- ^ lag amount
+lagPickOp :: forall m a. PickOp m a a
+lagPickOp = mkPickOp
+    { label: "Lag"
+    , render: \st -> HH.div [HU.classProp "lag"] [
+        HH.span_ [HH.text "Lag time (days)"]
+      , HH.input [
+          HP.type_ HP.InputNumber
+        , HP.value (show st)
+        , HE.onValueChange parseAmount
+        ]
+      ]
+    , toState: case _ of
+        Lag _ j -> Just j
+        _       -> Nothing
+    , modify: const
+    , fromState: Lag refl
+    , defaultState: 13
+    }
+  where
+    parseAmount = map round <<< N.fromString
+
+
 
 -- | DayNumber (b ~ Days) CutoffType     -- ^ day number
 dayNumberPickOp :: forall m a b. PickOp m a D3.Days

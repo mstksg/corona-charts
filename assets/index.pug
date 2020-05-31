@@ -93,10 +93,13 @@ head
             lines. Colors reflect absolute counts, to show more info at a
             glance.
 
-        *   <a class="dataview" href="/?x=cno&y=dno&z=ccral100cnanif&t=tnd&m=ftff35%7C21">Mortality Rate Plots</a>:
+        *   <a class="dataview" href="/?x=ccl13no&y=dno&z=ccral100cnanif&t=tnd&m=ftff35%7C21">Mortality Rate Plots</a>:
             The angle/slope of travel at each point in time approximates that
             moment's cumulative fatality rate.  The more upwards-angled, the higher
-            the rate; the more rightward-angled, the lower.
+            the rate; the more rightward-angled, the lower.  13-day lag
+            applied, as per [this CDC recommendation][cdc].
+
+            [cdc]: https://wwwnc.cdc.gov/eid/article/26/6/20-0320_article?fbclid=IwAR3ActUE0gqlqQAdxb_ComHcb5P22tvaLWwp03UhzERAEJgI1eZgO_jNr5U
 
         *   <a class="dataview" href="/?x=dcccw7cccw7cmnif&y=dcccw7cmnif&z=ccral50cnanif&t=tnd&m=ffff">"Baserunner" Plots</a>:
             Regions all must move through a circular track, from "home base"
@@ -111,10 +114,10 @@ footer.container
   .grid.footer-wrapper
     .grid__col.grid__col--6-of-6.footer-body.copy
       :markdown-it
-        Created and maintained by [Justin Le][] ([🐦][twitter]) , in association
-        with [Chapman University][] and [Dr. Hesham El-Askary][hesham]
-        (Director, Computational and Data Sciences, working with the
-        government of Egypt).
+        Created and maintained by [Justin Le][] ([🐦][twitter])
+        (v1.1.0), in association with [Chapman University][] and [Dr. Hesham
+        El-Askary][hesham] (Director, Computational and Data Sciences, working
+        with the government of Egypt).
 
         [Justin Le]: https://blog.jle.im/
         [twitter]: https://twitter.com/mstk

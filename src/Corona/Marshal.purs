@@ -193,6 +193,7 @@ instance mar1Op :: STypeable a => Marshal1 (Operation a) where
       PMax _ _ -> "m"
       Restrict t _ ct co -> "r" <> serialize ct <> serialize co
       Take _ n ct -> "t" <> serialize n <> serialize ct
+      Lag _ n     -> "l" <> serialize n
       DayNumber _ ct -> "n" <> serialize ct
       PointDate  _ -> "d"
     parse1 = do
@@ -221,6 +222,9 @@ instance mar1Op :: STypeable a => Marshal1 (Operation a) where
              n  <- parse
              ct <- parse
              pure $ t :=> Take refl n ct
+          'l' -> do
+             n  <- parse
+             pure $ t :=> Lag refl n
           'n' -> do
              ct <- parse
              pure $ sDays :=> DayNumber refl ct

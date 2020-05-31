@@ -228,11 +228,10 @@ data Operation a b =
       | Window    (ToFractional a b) Int -- ^ moving average of x over t, window (2n+1)
       | PMax      (NType a) (b ~ Percent)   -- ^ rescale to make max = 1 or -1
       | Restrict  (SType a) (a ~ b) CutoffType (Condition a)    -- ^ restrict before/after condition
-            -- maybe this should take all types?
       | Take      (a ~ b) Int CutoffType    -- ^ take n
+      | Lag       (a ~ b) Int               -- ^ lag amount
       | DayNumber (b ~ Days) CutoffType     -- ^ day number
       | PointDate (b ~ Day)     -- ^ day associated with point
-      -- TODO: take based on date window
 
 instance gshow2Operation :: GShow2 Operation where
     gshow2 = case _ of
@@ -242,6 +241,7 @@ instance gshow2Operation :: GShow2 Operation where
       PMax _ _    -> "PMax"
       Restrict nt _ co cond -> "Restrict " <> show co <> " (" <> gshowCondition nt cond <> ")"
       Take _ n co -> "Take " <> show n <> " " <> show co
+      Lag _ n       -> "Lag " <> show n
       DayNumber _ c -> "DayNumber " <> show c
       PointDate _ -> "PointDate"
 instance gshowOperation :: GShow (Operation a) where
@@ -257,21 +257,9 @@ operationType = case _ of
     PMax    _ r      -> \_ -> equivFromF r sPercent
     Restrict _ r _ _ -> equivToF r
     Take r _ _       -> equivToF r
+    Lag r _          -> equivToF r
     DayNumber r _    -> \_ -> equivFromF r sDays
     PointDate r      -> \_ -> equivFromF r sDay
-
--- operationInType :: forall a b. Operation a b -> SType a
--- operationInType = case _ of
---     Delta   nt _ -> fromNType nt
---     PGrowth nt _ -> fromNType nt
---     Window  tf _ -> toFractionalIn tf
---     DayNumber t _ _ -> t
--- operationOutType :: forall a b. Operation a b -> SType b
--- operationOutType = case _ of
---     Delta   nt r -> equivToF r (fromNType nt)
---     PGrowth _  r -> SPercent r
---     Window  tf _ -> toFractionalOut tf
---     DayNumber _ r _ -> SDays r
 
 percentGrowth
     :: Number
@@ -357,6 +345,9 @@ applyOperation = case _ of
               After  -> D.take
               Before -> D.takeEnd
         in  dropper n
+      )
+    Lag rab n -> equivToF rab <<< hoistBundle (\(Dated x) ->
+        Dated (x { start = MJD.addDays n x.start })
       )
     DayNumber rbds co -> \bundle -> equivFromF rbds $
       fromMaybe (hoistBundle D.clearDated bundle) case co of
@@ -458,11 +449,12 @@ operationLabel = case _ of
     --     , conditionLabel t cond
     --     , ")"
     --     ]
-    Take r n c ->
+    Take _ n c ->
       let cStr = case c of
             After -> "first"
             Before -> "last"
       in  "Keeping the " <> cStr <> " " <> show n <> " points of"
+    Lag _ n -> show n <> "-day Lagged"
     DayNumber _ c -> case c of
       After  -> "Days of"
       Before -> "Days left of"
