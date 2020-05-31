@@ -6,17 +6,18 @@ import Prelude
 import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Control.Alternative
-import Data.Bifunctor
 import Control.Monad.Except
-import Corona.Data.Type
 import Control.Monad.Maybe.Trans
+import Control.MonadZero as MZ
+import Corona.Data.Type
 import Data.Array as A
+import Data.Bifunctor
 import Data.Date
 import Data.Either
 import Data.Functor
 import Data.HTTP.Method (Method(..))
-import Data.Int.Parse
 import Data.Int
+import Data.Int.Parse
 import Data.JSDate (JSDate)
 import Data.JSDate as JSDate
 import Data.Map as M
@@ -38,6 +39,9 @@ type State = String
 dataUrl :: String
 dataUrl = "https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv"
 
+popUrl :: String
+popUrl = "https://raw.githubusercontent.com/mstksg/corona-charts/master/public/data/us_pop.csv"
+
 fetchCoronaData :: Aff (Either String CoronaData)
 fetchCoronaData = runExceptT do
     response <- ExceptT $ lmap AX.printError <$> AX.request (AX.defaultRequest
@@ -49,6 +53,11 @@ fetchCoronaData = runExceptT do
         dat  = buildCorona rows
     start <- maybe (throwError ("bad date: " <> show dat.start)) pure $
                 MJD.fromJSDate dat.start
+    popsData <- ExceptT $ lmap AX.printError <$> AX.request (AX.defaultRequest
+      { url = popUrl
+      , method = Left GET
+      , responseFormat = ResponseFormat.string }
+      )
     pure
       { start
       , counts: dat.counts <#> \d ->
@@ -56,6 +65,7 @@ fetchCoronaData = runExceptT do
           , deaths: d.deaths
           , recovered: []
           }
+      , pops: buildPops (parseCSV popsData.body).data
       }
 
 type CSVData =
@@ -64,3 +74,15 @@ type CSVData =
     }
 
 foreign import buildCorona :: Array (Array String) -> CSVData
+
+buildPops :: Array (Array String) -> O.Object Int
+buildPops = O.fromFoldable
+        <<< A.mapMaybe go
+        <<< A.drop 1
+  where
+    go xs = do
+      level <- A.index xs 0
+      MZ.guard $ level == "40"
+      st  <- A.index xs 4
+      pop <- flip parseInt (toRadix 10) =<< A.index xs 5
+      pure $ Tuple st pop

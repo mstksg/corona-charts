@@ -35,6 +35,7 @@ type Region = String
 type CoronaData =
     { start  :: Day
     , counts :: O.Object (Counts (Array Int))
+    , pops   :: O.Object Int
     }
 
 type Counts a =
