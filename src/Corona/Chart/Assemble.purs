@@ -13,6 +13,7 @@ import Data.Bundle
 import Data.Dated (Dated)
 import Data.Dated as D
 import Data.Exists
+import Debug.Trace
 import Data.Functor.Compose
 import Data.Lazy
 import Data.Lens
@@ -38,7 +39,7 @@ toScatterPlot
 toScatterPlot dat mspecs pss ctrys =
     { axis   : hoistPointF toAxisConf pss
     , series : flip A.mapMaybe (A.fromFoldable ctrys) $ \ctry -> do
-        cdat <- O.lookup ctry dat.counts
+        cdat <- O.lookup ctry dat.dat
         let tcounts :: TimeCounts Int
             tcounts = mkTimeCounts dat.start cdat
             mirroredTup :: Map ModelFit (Tuple (Counts (Lazy ModelRes)) (TimeCounts Int))

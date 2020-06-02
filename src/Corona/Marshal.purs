@@ -195,6 +195,7 @@ instance mar1Op :: STypeable a => Marshal1 (Operation a) where
       Take _ n ct -> "t" <> serialize n <> serialize ct
       Lag _ n     -> "l" <> serialize n
       DayNumber _ ct -> "n" <> serialize ct
+      PerCapita _ -> "p"
       PointDate  _ -> "d"
     parse1 = do
         c <- P.anyChar
@@ -228,6 +229,11 @@ instance mar1Op :: STypeable a => Marshal1 (Operation a) where
           'n' -> do
              ct <- parse
              pure $ sDays :=> DayNumber refl ct
+          'p' -> case toNType t of
+            Right nt -> pure $
+              runExists (\tf -> fromNType (toFractionalOut tf) :=> PerCapita tf)
+                        (toFractional nt)
+            Left _   -> P.fail $ "percapita does not support " <> gshow t
           'd' -> pure $ sDay :=> PointDate refl
           _   -> P.fail $ "invalid operation: " <> show c
       where

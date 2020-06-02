@@ -49,23 +49,24 @@ fetchCoronaData = runExceptT do
       , method = Left GET
       , responseFormat = ResponseFormat.string }
       )
-    let rows = A.drop 1 (parseCSV response.body).data
-        dat  = buildCorona rows
-    start <- maybe (throwError ("bad date: " <> show dat.start)) pure $
-                MJD.fromJSDate dat.start
     popsData <- ExceptT $ lmap AX.printError <$> AX.request (AX.defaultRequest
       { url = popUrl
       , method = Left GET
       , responseFormat = ResponseFormat.string }
       )
-    pure
-      { start
-      , counts: dat.counts <#> \d ->
+    let rows = A.drop 1 (parseCSV response.body).data
+        dat  = buildCorona rows
+        counts = dat.counts <#> \d ->
           { confirmed: d.confirmed
           , deaths: d.deaths
           , recovered: []
           }
-      , pops: buildPops (parseCSV popsData.body).data
+        pops = buildPops (parseCSV popsData.body).data
+    start <- maybe (throwError ("bad date: " <> show dat.start)) pure $
+                MJD.fromJSDate dat.start
+    pure
+      { start
+      , dat: combineDat pops counts
       }
 
 type CSVData =
@@ -76,7 +77,8 @@ type CSVData =
 foreign import buildCorona :: Array (Array String) -> CSVData
 
 buildPops :: Array (Array String) -> O.Object Int
-buildPops = O.fromFoldable
+buildPops = O.union corePops
+        <<< O.fromFoldable
         <<< A.mapMaybe go
         <<< A.drop 1
   where
@@ -86,3 +88,11 @@ buildPops = O.fromFoldable
       st  <- A.index xs 4
       pop <- flip parseInt (toRadix 10) =<< A.index xs 5
       pure $ Tuple st pop
+
+corePops :: O.Object Int
+corePops = O.fromFoldable [
+    Tuple "Virgin Islands" 104437               -- https://www.worldometers.info/world-population/united-states-virgin-islands-population/
+  , Tuple "Guam" 168661                         -- https://www.worldometers.info/world-population/guam-population/
+  , Tuple "Northern Mariana Islands" 168661     -- https://www.worldometers.info/world-population/northern-mariana-islands-population/
+  ]
+

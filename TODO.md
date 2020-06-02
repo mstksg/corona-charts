@@ -2,7 +2,6 @@
 # Features
 
 *   other datasets: australia, china, etc.
-*   favicon
 *   fullscreen
 
 # Fixes
@@ -27,7 +26,6 @@
 *   icons
 *   Discrete data: consider dot plots or bar graphs
 *   localization
-*   scale per capita
 *   zoom in
 *   fourier transform?  but this requires something on both axes...or at least
     to do them separately.

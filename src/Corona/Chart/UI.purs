@@ -753,7 +753,7 @@ loadDataset dspec = do
     unless skip $ liftAff (Corona.fetchDataset dspec) >>= case _ of
       Left e     -> warn $ "warning: dataset failed to load -- " <> e
       Right dset -> H.modify_ $ \st ->
-        let allRegs = S.fromFoldable (O.keys dset.counts)
+        let allRegs = S.fromFoldable (O.keys dset.dat)
         in  st { datasetSpec = dspec
                , dataset     = Just dset
                , regionState = st.regionState

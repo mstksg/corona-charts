@@ -68,8 +68,7 @@ fetchCoronaData = runExceptT do
       Nothing -> throwError "missing data"
       Just c  -> pure
         { start: confirmed.start
-        , counts: c
-        , pops
+        , dat: combineDat pops c
         }
 
 type CSVData =
@@ -97,11 +96,23 @@ buildData xs = case A.uncons xs of
        pure (Tuple country valnum)
 
 filterCountry :: Country -> Country
-filterCountry = case _ of
-    "US"           -> "United States"
-    "Korea, South" -> "South Korea"
-    "Taiwan*"      -> "Taiwan"
-    c              -> c
+filterCountry c = fromMaybe c $ O.lookup c countryFilters
+
+countryFilters :: O.Object Country
+countryFilters = O.fromFoldable [
+    Tuple "US"           "United States"
+  , Tuple "Korea, South" "South Korea"
+  , Tuple "Taiwan*"      "Taiwan"
+  , Tuple "Burma"        "Myanmar"
+  , Tuple "Bosnia and Herzegovina" "Bosnia-Herzegovina"
+  , Tuple "Palestinian Territory" "West Bank and Gaza" -- arbitrarily use WHO designation
+  , Tuple "eSwatini" "Eswatini"
+  , Tuple "Cape Verde" "Cabo Verde"
+  , Tuple "St. Vincent and the Grenadines" "Saint Vincent and the Grenadines"
+  , Tuple "St. Kitts-Nevis" "Saint Kitts and Nevis"
+  , Tuple "Congo" "Congo (Brazzaville)"
+  , Tuple "Congo, Dem. Rep." "Congo (Kinshasa)"
+  ]
 
 fetchData :: String -> Aff (Either String CSVData)
 fetchData url = do
@@ -130,7 +141,8 @@ fetchPops url = do
       Right response -> Right $ buildPops (parseCSV response.body).data
 
 buildPops :: Array (Array String) -> O.Object Int
-buildPops = O.fromFoldable
+buildPops = O.union corePops
+        <<< O.fromFoldable
         <<< A.mapMaybe go
         <<< A.drop 5
   where
@@ -139,4 +151,11 @@ buildPops = O.fromFoldable
       MZ.guard $ tp == "Country"
       cty <- A.index xs 1
       pop <- Number.fromString =<< A.index xs 4
-      pure $ Tuple cty (round (pop * 1e6))
+      pure $ Tuple (filterCountry cty) (round (pop * 1e6))
+
+corePops :: O.Object Int
+corePops = O.fromFoldable [
+    Tuple "Holy See" 825              -- https://en.wikipedia.org/wiki/Vatican_City
+  , Tuple "Diamond Princess" 3711     -- https://en.wikipedia.org/wiki/Diamond_Princess_(ship)
+  , Tuple "MS Zaandam" 1829           -- https://en.wikipedia.org/wiki/MS_Zaandam
+  ]

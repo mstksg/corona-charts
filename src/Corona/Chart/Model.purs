@@ -63,6 +63,7 @@ fitTimeCounts info (TC tc) =
                 fittedCounts
         , timespan: info.tail + info.forecast
         , start: MJD.addDays (tc.timespan - info.tail) tc.start
+        , pop: tc.pop
         }
     }
   where

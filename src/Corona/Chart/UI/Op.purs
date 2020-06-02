@@ -66,6 +66,7 @@ pickerMap t0 = case t0 of
       , t0          :=> takePickOp
       , t0          :=> lagPickOp
       , D3.sDays    :=> dayNumberPickOp
+      , D3.sNumber  :=> perCapitaPickOp (I2N r refl)
       , D3.sDay     :=> pointDatePickOp
       ]
     SNumber r -> [
@@ -77,6 +78,7 @@ pickerMap t0 = case t0 of
       , t0          :=> takePickOp
       , t0          :=> lagPickOp
       , D3.sDays    :=> dayNumberPickOp
+      , D3.sNumber  :=> perCapitaPickOp (N2N r refl)
       , D3.sDay     :=> pointDatePickOp
       ]
     SPercent r -> [
@@ -88,6 +90,7 @@ pickerMap t0 = case t0 of
       , t0          :=> takePickOp
       , t0          :=> lagPickOp
       , D3.sDays    :=> dayNumberPickOp
+      , D3.sPercent :=> perCapitaPickOp (P2P r refl)
       , D3.sDay     :=> pointDatePickOp
       ]
 
@@ -372,6 +375,21 @@ dayNumberPickOp = mkPickOp
     showCutoff = case _ of
       After  -> "first day"
       Before -> "last day"
+
+-- | PerCapita (ToFractional a b)        -- ^ number per million population
+perCapitaPickOp :: forall m a b. ToFractional a b -> PickOp m a b
+perCapitaPickOp tf = mkPickOp
+    { label: "Per Million People"
+    , render: \st -> HH.div [HU.classProp "per-million-people"] []
+    , toState: case _ of
+        PerCapita _ -> Just unit
+        _          -> Nothing
+    , modify: const
+    , fromState: \_ -> PerCapita tf
+    , defaultState: unit
+    }
+
+
 
 -- | PointDate (b ~ Day)     -- ^ day associated with point
 pointDatePickOp :: forall m a. PickOp m a Day

@@ -1,6 +1,14 @@
 Changelog
 =========
 
+## Version 1.2.0
+
+*June 1, 2020*
+
+*   Add "Per-Capita" transformation, allowing you to scale the number per
+    million people in population.  See "Growth curve plots" link on the
+    introduction box for an example.
+
 ## Version 1.1.0
 
 *May 31, 2020*

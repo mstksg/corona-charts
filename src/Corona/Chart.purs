@@ -231,6 +231,7 @@ data Operation a b =
       | Take      (a ~ b) Int CutoffType    -- ^ take n
       | Lag       (a ~ b) Int               -- ^ lag amount
       | DayNumber (b ~ Days) CutoffType     -- ^ day number
+      | PerCapita (ToFractional a b)        -- ^ number per million population
       | PointDate (b ~ Day)     -- ^ day associated with point
 
 instance gshow2Operation :: GShow2 Operation where
@@ -243,6 +244,7 @@ instance gshow2Operation :: GShow2 Operation where
       Take _ n co -> "Take " <> show n <> " " <> show co
       Lag _ n       -> "Lag " <> show n
       DayNumber _ c -> "DayNumber " <> show c
+      PerCapita _   -> "PerCapita"
       PointDate _ -> "PointDate"
 instance gshowOperation :: GShow (Operation a) where
     gshow = gshow2
@@ -259,6 +261,7 @@ operationType = case _ of
     Take r _ _       -> equivToF r
     Lag r _          -> equivToF r
     DayNumber r _    -> \_ -> equivFromF r sDays
+    PerCapita tf     -> \_ -> fromNType (toFractionalOut tf)
     PointDate r      -> \_ -> equivFromF r sDay
 
 percentGrowth
@@ -309,10 +312,11 @@ windows n = case _ of
 
 applyOperation
     :: forall h a b. Functor h
-    => Operation a b
+    => Int                  -- ^ total population
+    -> Operation a b
     -> Bundle h Dated a
     -> Bundle h Dated b
-applyOperation = case _ of
+applyOperation pop = case _ of
     Delta num rab -> hoistBundle $ \(Dated x) -> Dated
         { start: MJD.addDays 1 x.start
         , values: withConsec
@@ -355,6 +359,11 @@ applyOperation = case _ of
           hoistBundle (mapWithIndex (\i _ -> Days $ MJD.diffDays i d0)) bundle
         Before -> D.findLast (bundlePrincipal bundle) <#> \{ day: dF } ->
           hoistBundle (mapWithIndex (\i _ -> Days $ MJD.diffDays i dF)) bundle
+    PerCapita tf -> hoistBundle $
+            map $ numberNType (toFractionalOut tf)
+              <<< (_ * 1000000.0)
+              <<< (_ / toNumber pop)
+              <<< nTypeNumber (toFractionalIn tf)
     PointDate rbd -> hoistBundle $ equivFromF rbd <<< mapWithIndex const
   where
     pMax :: Bundle h Dated Number -> Bundle h Dated Percent
@@ -368,10 +377,11 @@ applyOperation = case _ of
 
 applyOperations
     :: forall h a b. Functor h
-    => C.Chain Operation a b
+    => Int                          -- ^ population
+    -> C.Chain Operation a b
     -> Bundle h Dated a
     -> Bundle h Dated b
-applyOperations = C.runChain applyOperation
+applyOperations pop = C.runChain (applyOperation pop)
 
 applyCondition :: forall a. SType a -> Condition a -> a -> Boolean
 applyCondition t = case _ of
@@ -382,21 +392,25 @@ newtype TimeCounts a = TC
     { start     :: Day
     , timespan  :: Int          -- ^ length - 1
     , counts    :: Counts (Lazy (Array a))
+    , pop       :: Int
     }
+
+derive instance ncTC :: Newtype (TimeCounts a) _
 
 mkTimeCounts
     :: Day                  -- ^ start
-    -> Counts (Array Int)   -- ^ data
+    -> { pop :: Int, counts :: Counts (Array Int) }  -- ^ data
     -> TimeCounts Int
 mkTimeCounts start dat = TC
     { start
     , timespan: maxLen - 1
-    , counts: mapCounts (defer <<< const) dat
+    , counts: mapCounts (defer <<< const) dat.counts
+    , pop: dat.pop
     }
   where
-    maxLen = A.length dat.confirmed
-       `max` A.length dat.deaths
-       `max` A.length dat.recovered
+    maxLen = A.length dat.counts.confirmed
+       `max` A.length dat.counts.deaths
+       `max` A.length dat.counts.recovered
 
 
 applyBaseProjection
@@ -419,8 +433,11 @@ applyProjection
     -> Bundle h TimeCounts Int
     -> Bundle h Dated a
 applyProjection spr allDat = withProjection spr (\pr ->
-          applyOperations pr.operations <<< hoistBundle (applyBaseProjection pr.base)
-        ) allDat
+    let baseVals = hoistBundle (applyBaseProjection pr.base) allDat
+        pop = (unwrap (bundlePrincipal allDat)).pop
+    in  applyOperations pop pr.operations baseVals
+  )
+
 
 baseProjection :: forall a. Projection a -> Exists BaseProjection
 baseProjection pr = withProjection pr (mkExists <<< _.base)
@@ -458,9 +475,9 @@ operationLabel = case _ of
     DayNumber _ c -> case c of
       After  -> "Days of"
       Before -> "Days left of"
+    PerCapita _ -> "Per-Million"
     PointDate _ -> "Date for value of"
 
--- | TODO: pretty print
 conditionLabel :: forall a. SType a -> Condition a -> String
 conditionLabel t = case _ of
     AtLeast n -> "at least " <> sTypeFormat t n
