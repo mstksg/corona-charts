@@ -1,0 +1,58 @@
+SUMLEV,REGION,DIVISION,STATE,NAME,POPESTIMATE2019
+10,0,0,0,United States,328239523
+20,1,0,0,Northeast Region,55982803
+20,2,0,0,Midwest Region,68329004
+20,3,0,0,South Region,125580448
+20,4,0,0,West Region,78347268
+40,3,6,1,Alabama,4903185
+40,4,9,2,Alaska,731545
+40,4,8,4,Arizona,7278717
+40,3,7,5,Arkansas,3017804
+40,4,9,6,California,39512223
+40,4,8,8,Colorado,5758736
+40,1,1,9,Connecticut,3565287
+40,3,5,10,Delaware,973764
+40,3,5,11,District of Columbia,705749
+40,3,5,12,Florida,21477737
+40,3,5,13,Georgia,10617423
+40,4,9,15,Hawaii,1415872
+40,4,8,16,Idaho,1787065
+40,2,3,17,Illinois,12671821
+40,2,3,18,Indiana,6732219
+40,2,4,19,Iowa,3155070
+40,2,4,20,Kansas,2913314
+40,3,6,21,Kentucky,4467673
+40,3,7,22,Louisiana,4648794
+40,1,1,23,Maine,1344212
+40,3,5,24,Maryland,6045680
+40,1,1,25,Massachusetts,6892503
+40,2,3,26,Michigan,9986857
+40,2,4,27,Minnesota,5639632
+40,3,6,28,Mississippi,2976149
+40,2,4,29,Missouri,6137428
+40,4,8,30,Montana,1068778
+40,2,4,31,Nebraska,1934408
+40,4,8,32,Nevada,3080156
+40,1,1,33,New Hampshire,1359711
+40,1,2,34,New Jersey,8882190
+40,4,8,35,New Mexico,2096829
+40,1,2,36,New York,19453561
+40,3,5,37,North Carolina,10488084
+40,2,4,38,North Dakota,762062
+40,2,3,39,Ohio,11689100
+40,3,7,40,Oklahoma,3956971
+40,4,9,41,Oregon,4217737
+40,1,2,42,Pennsylvania,12801989
+40,1,1,44,Rhode Island,1059361
+40,3,5,45,South Carolina,5148714
+40,2,4,46,South Dakota,884659
+40,3,6,47,Tennessee,6829174
+40,3,7,48,Texas,28995881
+40,4,8,49,Utah,3205958
+40,1,1,50,Vermont,623989
+40,3,5,51,Virginia,8535519
+40,4,9,53,Washington,7614893
+40,3,5,54,West Virginia,1792147
+40,2,3,55,Wisconsin,5822434
+40,4,8,56,Wyoming,578759
+40,X,X,72,Puerto Rico,3193694
