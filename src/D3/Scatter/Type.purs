@@ -313,14 +313,14 @@ type ModelRes =
 data ModelFit = LinFit
               | ExpFit
               | LogFit
-              -- | QuadFit
               | DecFit
+              | QuadFit
 
 derive instance eqModelFit :: Eq ModelFit
 derive instance ordModelFit :: Ord ModelFit
 
 allModelFit :: Array ModelFit
-allModelFit = [LinFit, ExpFit, LogFit, DecFit]
+allModelFit = [LinFit, ExpFit, LogFit, DecFit, QuadFit]
 
 modelFitLabel :: ModelFit -> String
 modelFitLabel = case _ of
@@ -328,7 +328,7 @@ modelFitLabel = case _ of
     ExpFit -> "Exp. Growth"
     LogFit -> "Logistic"
     DecFit -> "Exp. Decay"
-    -- QuadFit -> "Quadratic"
+    QuadFit -> "Quadratic"
 
 type FitData a b =
     { fit :: ModelFit
@@ -474,24 +474,27 @@ instance handle1SType :: Handle1 SType OnSType where
 
 newtype OnModelFit = OnModelFit
     (forall r.
-        { linFit :: Unit -> r
-        , expFit :: Unit -> r
-        , logFit :: Unit -> r
-        , decFit :: Unit -> r
+        { linFit  :: Unit -> r
+        , quadFit :: Unit -> r
+        , expFit  :: Unit -> r
+        , logFit  :: Unit -> r
+        , decFit  :: Unit -> r
         } -> r
     )
 
 instance handleModelFit :: Handle ModelFit OnModelFit where
     handle   = case _ of
-      LinFit -> OnModelFit (\h -> h.linFit unit)
-      ExpFit -> OnModelFit (\h -> h.expFit unit)
-      LogFit -> OnModelFit (\h -> h.logFit unit)
-      DecFit -> OnModelFit (\h -> h.decFit unit)
+      LinFit  -> OnModelFit (\h -> h.linFit  unit)
+      ExpFit  -> OnModelFit (\h -> h.expFit  unit)
+      LogFit  -> OnModelFit (\h -> h.logFit  unit)
+      DecFit  -> OnModelFit (\h -> h.decFit  unit)
+      QuadFit -> OnModelFit (\h -> h.quadFit unit)
     unHandle (OnModelFit f) = f
-      { linFit: const LinFit
-      , expFit: const ExpFit
-      , logFit: const LogFit
-      , decFit: const DecFit
+      { linFit:  const LinFit
+      , expFit:  const ExpFit
+      , logFit:  const LogFit
+      , decFit:  const DecFit
+      , quadFit: const QuadFit
       }
 
 foreign import _formatSType :: forall a. Fn2 (HandleFunc1 SType OnSType) (SType a) (a -> String)

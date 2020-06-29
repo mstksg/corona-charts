@@ -171,7 +171,8 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             { linFit: (() => fitcolors[0])
             , expFit: (() => fitcolors[1])
             , logFit: (() => fitcolors[2])
-            , decFit: (() => fitcolors[4])
+            , decFit: (() => fitcolors[3])
+            , quadFit: (() => fitcolors[4])
             }
         );
 
@@ -180,6 +181,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
             , expFit: (() => "Exp. Growth")
             , logFit: (() => "Logistic")
             , decFit: (() => "Exp. Decay")
+            , quadFit: (() => "Quadratic")
             }
         );
     const decorateSeries = ss => ss.map(function(s) {

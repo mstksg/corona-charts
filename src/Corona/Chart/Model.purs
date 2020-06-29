@@ -6,6 +6,7 @@ import Prelude
 import Control.Apply
 import Control.MonadZero as MZ
 import Corona.Analyze.LinReg
+import Corona.Analyze.QuadReg
 import Corona.Analyze.Search
 import Corona.Analyze.Transform
 import Corona.Chart
@@ -128,57 +129,89 @@ modelFitParams = case _ of
                   (round $ (M.log (0.05/0.95) - lr.alpha) / lr.beta)
                  ))
       ]
-    -- QuadFit -> \lr -> [
-    --     { name: "Daily Change in Change"
-    --     , value: D3.someValue (2.0 * lr.beta * lr.beta)
-    --     }
-    --   ]
+    QuadFit -> \lr -> O.fromFoldable
+      if lr.beta >= 0.0
+        then [ Tuple "Acceleration" (D3.someValue lr.beta) ]
+        else [ Tuple "Deceleration" (D3.someValue lr.beta)
+             , Tuple "Date of Peak"
+                    (D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta))))
+             ]
+
+data ModelTrans = MTLinear (Transform Number)
+                | MTQuadratic
 
 modelFitTrans
     :: Int                  -- ^ number of days to take from end
     -> Dated Number
     -> ModelFit
     -> { params :: O.Object D3.SomeValue
-       , trans :: Transform Number
+       , trans :: ModelTrans
        }
 modelFitTrans n dat = case _ of
-    LinFit -> { params: O.empty, trans: idTrans }
-    ExpFit -> { params: O.empty, trans: expTrans }
+    LinFit -> { params: O.empty, trans: MTLinear idTrans }
+    ExpFit -> { params: O.empty, trans: MTLinear expTrans }
     DecFit -> finder idTrans decayTrans
     LogFit -> finder expTrans logisticTrans
-    -- QuadFit -> { params: [], trans: quadTrans }
+    QuadFit -> { params: O.empty, trans: MTQuadratic }
   where
     finder def mkT = case findCap mkT (D.takeEnd n dat) of
       Nothing -> {
           params: O.singleton "Final Total" (D3.someValue G.infinity)
-        , trans: def
+        , trans: MTLinear def
         }
       Just c  -> {
           params: O.singleton "Final Total" (D3.someValue c)
-        , trans: mkT c
+        , trans: MTLinear (mkT c)
         }
 
 -- | generate the model based on base data
 modelBaseData
-    :: Transform Number     -- ^ transformation
+    :: ModelTrans     -- ^ transformation
     -> (LinReg Number -> O.Object D3.SomeValue)     -- ^ params
+    -- -> (LinReg Number -> O.Object D3.SomeValue)     -- ^ params
     -> Int                  -- ^ points to take from end
     -> Int                  -- ^ points to extend into future
     -> Dated Number
     -> { modelInfo :: D3.ModelRes, results :: Dated Number }
 modelBaseData tr mkP n m xs =
-    { modelInfo: { params: mkP linReg, r2 }
+    { modelInfo: { params: params, r2 }
+    -- { modelInfo: { params: mkP linReg, r2 }
     , results: D.generate
           (D.datedStart ys)
           (n + m)
-          (applyLinRegTrans tr linReg <<< toNumber <<< MJD.toModifiedJulianDay)
+          (mkDat <<< toNumber <<< (_ - 58870) <<< MJD.toModifiedJulianDay)
     }
   where
     ys = D.takeEnd n xs
-    {linReg, r2} = linRegTrans tr
-               <<< D.datedValues
-               <<< mapWithIndex preparePoint
-                 $ ys
+    prepared = (\p -> p { x = p.x - 58870.0 })
+           <$> D.datedValues (mapWithIndex preparePoint ys)
+    { params, r2, mkDat } = case tr of
+      MTLinear tt ->
+        let { linReg, r2 } = linRegTrans tt prepared
+        in  { params: mkP linReg, r2, mkDat: applyLinRegTrans tt linReg }
+      MTQuadratic -> 
+        let { quadReg, r2 } = quadReg prepared
+        in  { params: mkP (dqr quadReg)
+            , r2
+            , mkDat: applyQuadReg quadReg
+            }
+
+dqr :: QuadReg Number -> LinReg Number
+dqr qr = { alpha: qr.beta, beta: qr.alpha * 2.0 }
+-- mkPQuad :: QuadReg Number -> O.Object D3.SomeValue
+-- mkPQuad qr = O.fromFoldable
+--     [ Tuple "Acceleration" (D3.someValue (qr.alpha * 2.0))
+--     , Tuple "Inflection" (D3.someValue (qr.beta / (qr.alpha * 2.0)))
+--     ]
+
+    -- {linReg, r2} = linRegTrans tr
+    --            <<< D.datedValues
+    --            <<< mapWithIndex preparePoint
+    --              $ ys
+    -- {linReg, r2} = linRegTrans tr
+    --            <<< D.datedValues
+    --            <<< mapWithIndex preparePoint
+    --              $ ys
 
 
 preparePoint :: forall a. MJD.Day -> a -> { x :: Number, y :: a }

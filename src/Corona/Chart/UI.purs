@@ -109,11 +109,12 @@ type RegionState =
   }
 
 type Models =
-    { linFit :: Boolean
-    , expFit :: Boolean
-    , logFit :: Boolean
-    , decFit :: Boolean
-    , tail :: Int
+    { linFit   :: Boolean
+    , expFit   :: Boolean
+    , logFit   :: Boolean
+    , decFit   :: Boolean
+    , quadFit  :: Boolean
+    , tail     :: Int
     , forecast :: Int
     }
 
@@ -146,11 +147,11 @@ axisParam = case _ of
 
 modelFitLens :: ModelFit -> Lens' Models Boolean
 modelFitLens = case _ of
-    LinFit -> LR.prop (SProxy :: SProxy "linFit")
-    ExpFit -> LR.prop (SProxy :: SProxy "expFit")
-    LogFit -> LR.prop (SProxy :: SProxy "logFit")
-    DecFit -> LR.prop (SProxy :: SProxy "decFit")
-    -- QuadFit -> LR.prop (SProxy :: SProxy "quadFit")
+    LinFit  -> LR.prop (SProxy :: SProxy "linFit")
+    ExpFit  -> LR.prop (SProxy :: SProxy "expFit")
+    LogFit  -> LR.prop (SProxy :: SProxy "logFit")
+    DecFit  -> LR.prop (SProxy :: SProxy "decFit")
+    QuadFit -> LR.prop (SProxy :: SProxy "quadFit")
 
 
 data Aspect = ADataset
@@ -282,6 +283,7 @@ defaultProjections = {
 defaultModels :: Models
 defaultModels = {
       linFit: false
+    , quadFit: false
     , expFit: false
     , logFit: true
     , decFit: false
@@ -431,7 +433,8 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
       LinFit -> "p-primary"
       ExpFit -> "p-success"
       LogFit -> "p-info"
-      DecFit -> "p-danger"
+      DecFit -> "p-warning"
+      QuadFit -> "p-danger"
     modelPicker = fold [
         [ HH.h3_ [HH.text "Analysis"]
         , HH.ul [HU.classProp "model-picker-list"] $ D3.allModelFit <#> \mfit ->
@@ -453,6 +456,7 @@ render st = HH.div [HU.classProp "ui-wrapper"] [
                 ExpFit -> "exponential-growth-fit"
                 LogFit -> "logistic-fit"
                 DecFit -> "exponential-decay-fit"
+                QuadFit -> "quadratic-fit"
           ]
         ]
       , if anyModelsActive
@@ -898,13 +902,13 @@ parseRegions = do
 
 
 serializeModels :: Models -> String
-serializeModels { linFit, expFit, logFit, decFit, tail, forecast } =
+serializeModels { linFit, expFit, logFit, decFit, quadFit, tail, forecast } =
        foldMap Marshal.serialize enableds
     <> if or enableds
          then Marshal.serialize tail <> "|" <> Marshal.serialize forecast
          else ""
   where
-    enableds = [linFit, expFit, logFit, decFit]
+    enableds = [linFit, expFit, logFit, decFit, quadFit]
 
 parseModels :: P.Parser Models
 parseModels = do
@@ -912,14 +916,15 @@ parseModels = do
     expFit   <- Marshal.parse
     logFit   <- Marshal.parse
     decFit   <- Marshal.parse
-    if or [logFit, expFit, logFit, decFit]
+    quadFit  <- Marshal.parse
+    if or [logFit, expFit, logFit, decFit, quadFit]
       then do
         tail     <- Marshal.parse
         _        <- P.char '|'
         forecast <- Marshal.parse
-        pure { linFit, expFit, logFit, decFit, tail, forecast }
+        pure { linFit, expFit, logFit, decFit, quadFit, tail, forecast }
       else
-        pure { linFit, expFit, logFit, decFit
+        pure { linFit, expFit, logFit, decFit, quadFit
              , tail: defaultModels.tail
              , forecast: defaultModels.forecast
              }

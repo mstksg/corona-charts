@@ -116,7 +116,7 @@ footer.container
     .grid__col.grid__col--6-of-6.footer-body.copy
       :markdown-it
         Created and maintained by [Justin Le][] ([🐦][twitter])
-        ([v1.2.0][changelog]), in association with [Chapman University][] and [Dr. Hesham
+        ([v1.3.0][changelog]), in association with [Chapman University][] and [Dr. Hesham
         El-Askary][hesham] (Director, Computational and Data Sciences, working
         with the government of Egypt).
 
@@ -201,6 +201,16 @@ footer.container
 
     *   *Final Total*: Maximum count after growth ends
     *   *95% Date*: Date when 95% of maximum count is reached
+.helptip#quadratic-fit
+  :markdown-it
+    **Quadratic Growth**: Also known as "Linear fit on daily change".  Assumes
+    that the new cases every day increase at a constant rate.  Can occur if
+    daily increases are stable, yet experience a steady drift in one direction
+    or the other.
+
+    *   *Acceleration/Deceleration*: Change in daily new cases per day
+    *   *Date of Peak*: If decelerating, the date of the peak new cases.
+
 // .helptip#lookback-tip
 //   :markdown-it
 //     **Lookback**: How far back into the past (from the present day) to

@@ -1,6 +1,12 @@
 Changelog
 =========
 
+## Version 1.3.0
+
+*June 28, 2020*
+
+*   Add quadratic fit, for linear changes in new cases.
+
 ## Version 1.2.0
 
 *June 1, 2020*
