@@ -51,7 +51,7 @@ Dorling's <a href="https://twitter.com/emmawage/status/1255172980788785152">torn
 </li>
 </ul>
 </div></div></div><footer class="container"><div class="grid footer-wrapper"><div class="grid__col grid__col--6-of-6 footer-body copy"><p>Created and maintained by <a href="https://blog.jle.im/">Justin Le</a> (<a href="https://twitter.com/mstk">🐦</a>)
-(<a href="https://github.com/mstksg/corona-charts/blob/master/CHANGELOG.md">v1.2.0</a>), in association with <a href="https://chapman.edu/">Chapman University</a> and <a href="https://www.chapman.edu/our-faculty/hesham-el-askary">Dr. Hesham
+(<a href="https://github.com/mstksg/corona-charts/blob/master/CHANGELOG.md">v1.3.0</a>), in association with <a href="https://chapman.edu/">Chapman University</a> and <a href="https://www.chapman.edu/our-faculty/hesham-el-askary">Dr. Hesham
 El-Askary</a> (Director, Computational and Data Sciences, working
 with the government of Egypt).</p>
 <p>Nation-level data provided by <a href="https://github.com/CSSEGISandData/COVID-19">John Hopkins University</a> and US
@@ -105,6 +105,14 @@ suppressing factors uniformly overpower spreading factors.</p>
 <ul>
 <li><em>Final Total</em>: Maximum count after growth ends</li>
 <li><em>95% Date</em>: Date when 95% of maximum count is reached</li>
+</ul>
+</div><div class="helptip" id="quadratic-fit"><p><strong>Quadratic Growth</strong>: Also known as &quot;Linear fit on daily change&quot;. Assumes
+that the new cases every day increase at a constant rate. Can occur if
+daily increases are stable, yet experience a steady drift in one direction
+or the other.</p>
+<ul>
+<li><em>Acceleration/Deceleration</em>: Change in daily new cases per day</li>
+<li><em>Date of Peak</em>: If decelerating, the date of the peak new cases.</li>
 </ul>
 </div><div class="helptip" id="base-tip"><p><strong>Base Projection</strong>: The underlying dataset to begin building your axis
 data from. This data will be run through the transformations below
