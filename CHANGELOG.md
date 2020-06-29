@@ -1,6 +1,13 @@
 Changelog
 =========
 
+## Version 1.3.1
+
+*June 28, 2020*
+
+*   Fixed inaccuracies in description/parameter interpretations of quadratic
+    model, and regressions in date-based parameter interpretations.
+
 ## Version 1.3.0
 
 *June 28, 2020*

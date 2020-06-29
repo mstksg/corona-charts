@@ -119,23 +119,26 @@ modelFitParams = case _ of
         Tuple "Halving Time"
               (D3.someValue (D3.Days (round $ M.abs (M.log 2.0 / lr.beta))))
       , Tuple "95% Date"
-              (D3.someValue (MJD.fromModifiedJulianDay (round $ (M.log 0.05 - lr.alpha) / lr.beta)))
+              (D3.someValue (reDate ((M.log 0.05 - lr.alpha) / lr.beta)))
       ]
     LogFit -> \lr -> O.fromFoldable [
         Tuple "Date of Peak"
-              (D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta))))
+              (D3.someValue (reDate (-lr.alpha / lr.beta)))
       , Tuple "95% Date"
-              (D3.someValue (MJD.fromModifiedJulianDay
-                  (round $ (M.log (0.05/0.95) - lr.alpha) / lr.beta)
-                 ))
+              (D3.someValue (reDate ((M.log (0.05/0.95) - lr.alpha) / lr.beta)))
       ]
     QuadFit -> \lr -> O.fromFoldable
       if lr.beta >= 0.0
         then [ Tuple "Acceleration" (D3.someValue lr.beta) ]
         else [ Tuple "Deceleration" (D3.someValue lr.beta)
-             , Tuple "Date of Peak"
-                    (D3.someValue (MJD.fromModifiedJulianDay (round (-lr.alpha / lr.beta))))
+             , Tuple "End Date"
+                    (D3.someValue (reDate (-lr.alpha / lr.beta)))
              ]
+  where
+    reDate :: Number -> MJD.Day
+    reDate = MJD.fromModifiedJulianDay
+         <<< (_ + 58870)
+         <<< round
 
 data ModelTrans = MTLinear (Transform Number)
                 | MTQuadratic
@@ -196,23 +199,10 @@ modelBaseData tr mkP n m xs =
             , mkDat: applyQuadReg quadReg
             }
 
+-- | Turns a quadratic regression on a series into a linear regression on its
+-- derivative
 dqr :: QuadReg Number -> LinReg Number
 dqr qr = { alpha: qr.beta, beta: qr.alpha * 2.0 }
--- mkPQuad :: QuadReg Number -> O.Object D3.SomeValue
--- mkPQuad qr = O.fromFoldable
---     [ Tuple "Acceleration" (D3.someValue (qr.alpha * 2.0))
---     , Tuple "Inflection" (D3.someValue (qr.beta / (qr.alpha * 2.0)))
---     ]
-
-    -- {linReg, r2} = linRegTrans tr
-    --            <<< D.datedValues
-    --            <<< mapWithIndex preparePoint
-    --              $ ys
-    -- {linReg, r2} = linRegTrans tr
-    --            <<< D.datedValues
-    --            <<< mapWithIndex preparePoint
-    --              $ ys
-
 
 preparePoint :: forall a. MJD.Day -> a -> { x :: Number, y :: a }
 preparePoint i v = {
