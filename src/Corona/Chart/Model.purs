@@ -128,12 +128,13 @@ modelFitParams = case _ of
               (D3.someValue (reDate ((M.log (0.05/0.95) - lr.alpha) / lr.beta)))
       ]
     QuadFit -> \lr -> O.fromFoldable
-      if lr.beta >= 0.0
-        then [ Tuple "Acceleration" (D3.someValue lr.beta) ]
-        else [ Tuple "Deceleration" (D3.someValue lr.beta)
-             , Tuple "End Date"
-                    (D3.someValue (reDate (-lr.alpha / lr.beta)))
-             ]
+      let { accLabel, vertLabel } =
+            if lr.beta >= 0.0
+              then { accLabel: "Acceleration", vertLabel: "Vertex Date" }
+              else { accLabel: "Deceleration", vertLabel: "End Date" }
+      in [ Tuple accLabel  (D3.someValue lr.beta)
+         , Tuple vertLabel (D3.someValue (reDate (-lr.alpha / lr.beta)))
+         ]
   where
     reDate :: Number -> MJD.Day
     reDate = MJD.fromModifiedJulianDay

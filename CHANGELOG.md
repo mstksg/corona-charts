@@ -1,6 +1,13 @@
 Changelog
 =========
 
+## Version 1.3.2
+
+*July 2, 2020*
+
+*   Add "Vertex Date" parameter interpretation to quadratic model, to help
+    gauge steepness.
+
 ## Version 1.3.1
 
 *June 28, 2020*
