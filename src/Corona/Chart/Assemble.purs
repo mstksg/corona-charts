@@ -86,6 +86,7 @@ toScatterPlot dat mspecs pss ctrys =
             Confirmed _ -> Just cdr.confirmed
             Deaths    _ -> Just cdr.deaths
             Recovered _ -> Just cdr.recovered
+            Active    _ -> Just cdr.active
         )
     reshuffle
         :: Tuple ModelFit (Tuple (O.Object ModelRes) (Array (Point2D a b)))

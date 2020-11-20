@@ -66,6 +66,7 @@ data BaseProjection a =
       | Confirmed (a ~ Int)
       | Deaths    (a ~ Int)
       | Recovered (a ~ Int)
+      | Active    (a ~ Int)
 
 baseType :: forall a. BaseProjection a -> SType a
 baseType = case _ of
@@ -73,6 +74,7 @@ baseType = case _ of
     Confirmed refl -> SInt refl
     Deaths    refl -> SInt refl
     Recovered refl -> SInt refl
+    Active    refl -> SInt refl
 
 derive instance eqBase :: Eq (BaseProjection a)
 derive instance ordBase :: Ord (BaseProjection a)
@@ -82,6 +84,7 @@ instance gshowBase :: GShow BaseProjection where
       Confirmed _ -> "Confirmed"
       Deaths    _ -> "Deaths"
       Recovered _ -> "Recovered"
+      Active    _ -> "Active"
 instance showBase :: Show (BaseProjection a) where
     show = gshow
 
@@ -93,6 +96,8 @@ bDeaths    :: BaseProjection Int
 bDeaths    = Deaths refl
 bRecovered :: BaseProjection Int
 bRecovered = Recovered refl
+bActive :: BaseProjection Int
+bActive = Active refl
 
 baseLens :: forall a. BaseProjection Int -> Lens' (Counts a) a
 baseLens = case _ of
@@ -100,6 +105,7 @@ baseLens = case _ of
     Confirmed _ -> LR.prop (SProxy :: SProxy "confirmed")
     Deaths    _ -> LR.prop (SProxy :: SProxy "deaths")
     Recovered _ -> LR.prop (SProxy :: SProxy "recovered")
+    Active    _ -> LR.prop (SProxy :: SProxy "active")
 
 instance decideBaseProjection :: Decide BaseProjection where
     decide = case _ of
@@ -115,6 +121,9 @@ instance decideBaseProjection :: Decide BaseProjection where
       Recovered rX -> case _ of
         Recovered rY -> Just (equivFromF rY rX)
         _       -> Nothing
+      Active    rX -> case _ of
+        Active    rY -> Just (equivFromF rY rX)
+        _       -> Nothing
 
 instance geqBaseProjection :: GEq BaseProjection where
     geq = decide
@@ -125,6 +134,7 @@ allBaseProjections = [
     , mkExists (Confirmed refl)
     , mkExists (Deaths refl)
     , mkExists (Recovered refl)
+    , mkExists (Active refl)
     ]
 
 
@@ -426,6 +436,8 @@ applyBaseProjection = case _ of
       Dated { start: tc.start, values: force tc.counts.deaths }
     Recovered r -> \(TC tc) -> equivFromF r $
       Dated { start: tc.start, values: force tc.counts.recovered }
+    Active    r -> \(TC tc) -> equivFromF r $
+      Dated { start: tc.start, values: force tc.counts.active }
 
 applyProjection
     :: forall h a. Functor h
@@ -448,6 +460,7 @@ baseProjectionLabel = case _ of
     Confirmed _ -> "Confirmed Cases"
     Deaths    _ -> "Deaths"
     Recovered _ -> "Recovered Cases"
+    Active    _ -> "Active Cases"
 
 operationLabel :: forall a b. Operation a b -> String
 operationLabel = case _ of

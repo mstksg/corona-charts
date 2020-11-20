@@ -57,10 +57,12 @@ fetchCoronaData = runExceptT do
     let rows = A.drop 1 (parseCSV response.body).data
         dat  = buildCorona rows
         counts = dat.counts <#> \d ->
-          { confirmed: d.confirmed
-          , deaths: d.deaths
-          , recovered: []
-          }
+          let recovered = A.replicate 13 0 <> A.zipWith (-) d.confirmed (A.drop 13 d.deaths)
+          in { confirmed: d.confirmed
+             , deaths: d.deaths
+             , recovered
+             , active: A.zipWith (-) d.confirmed (A.zipWith (+) d.deaths recovered)
+             }
         pops = buildPops (parseCSV popsData.body).data
     start <- maybe (throwError ("bad date: " <> show dat.start)) pure $
                 MJD.fromJSDate dat.start

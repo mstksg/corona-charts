@@ -1,6 +1,15 @@
 Changelog
 =========
 
+## Version 1.4.0
+
+*November 19, 2020*
+
+*   Add "Active cases" base projection, defined as confirmed - deaths -
+    recovered.
+*   For US data, estimate recovered cases by subtracting deaths from confirmed
+    cases, lagged 13 days.
+
 ## Version 1.3.2
 
 *July 2, 2020*

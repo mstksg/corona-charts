@@ -146,6 +146,7 @@ instance mar1Base :: Marshal1 BaseProjection where
       Confirmed _ -> "c"
       Deaths _    -> "d"
       Recovered _ -> "r"
+      Active    _ -> "a"
     parse1 = do
       c <- P.anyChar
       case c of
@@ -153,6 +154,7 @@ instance mar1Base :: Marshal1 BaseProjection where
         'c' -> pure $ sInt :=> Confirmed refl
         'd' -> pure $ sInt :=> Deaths refl
         'r' -> pure $ sInt :=> Recovered refl
+        'a' -> pure $ sInt :=> Active refl
         _   -> P.fail $ "invalid base projection: " <> show c
 
 serializeSType :: forall a. SType a -> String

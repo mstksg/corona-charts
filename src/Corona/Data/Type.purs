@@ -42,6 +42,7 @@ type Counts a =
     { confirmed :: a
     , deaths    :: a
     , recovered :: a
+    , active    :: a
     }
 
 mapCounts :: forall a b. (a -> b) -> Counts a -> Counts b
@@ -49,6 +50,7 @@ mapCounts f c =
     { confirmed: f c.confirmed
     , deaths: f c.deaths
     , recovered: f c.recovered
+    , active: f c.active
     }
 
 combineDat

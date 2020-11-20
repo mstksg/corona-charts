@@ -63,6 +63,7 @@ fetchCoronaData = runExceptT do
             { confirmed: c
             , deaths: d
             , recovered: r
+            , active: A.zipWith (-) c (A.zipWith (+) d r)
             }
     case newCounts of
       Nothing -> throwError "missing data"
