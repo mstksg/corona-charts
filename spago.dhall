@@ -22,6 +22,7 @@ You can edit this file as you like.
   , "halogen-select"
   , "random"
   , "halogen-rawhtml"
+  , "debug"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

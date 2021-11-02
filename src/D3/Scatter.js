@@ -220,6 +220,7 @@ exports._drawData = function(handleType, handleScale, handleModelFit, typeX, typ
     return function () {
         exports.clearSvg(svg)();
         console.log(scatter);
+        document.scatter = scatter;
         const margin = { top: 10, right: 40, bottom: 80, left: 50, slider: 35 };
         const series = decorateSeries(scatter.series);
         const fits = scatter.series.flatMap(s =>

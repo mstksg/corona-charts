@@ -14,6 +14,7 @@ import Data.Array as A
 import Data.Date
 import Data.Either
 import Data.Functor
+import Data.FunctorWithIndex
 import Data.HTTP.Method (Method(..))
 import Data.Int
 import Data.Int.Parse
@@ -27,6 +28,7 @@ import Data.Number as Number
 import Data.Traversable
 import Data.TraversableWithIndex
 import Data.Tuple
+import Debug
 import Effect
 import Effect.Aff
 import Effect.Class
@@ -56,21 +58,24 @@ fetchCoronaData = runExceptT do
     pops      <- ExceptT $ fetchPops popUrl
     unless (confirmed.start == deaths.start && deaths.start == recovered.start) $
       throwError "non-matching dates for time serieses"
-    let newCounts = forWithIndex confirmed.counts $ \k c -> do
-          d <- O.lookup k deaths.counts
-          r <- O.lookup k recovered.counts
-          pure
-            { confirmed: c
-            , deaths: d
-            , recovered: r
-            , active: A.zipWith (-) c (A.zipWith (+) d r)
-            }
-    case newCounts of
-      Nothing -> throwError "missing data"
-      Just c  -> pure
-        { start: confirmed.start
-        , dat: combineDat pops c
-        }
+    let newCounts = O.filter noEmpty <<< flip mapWithIndex confirmed.counts $ \k c ->
+          let d = case O.lookup k deaths.counts of
+                    Nothing -> trace ("bad d: " <> k) \_ -> []
+                    Just q  -> q
+              r = case O.lookup k recovered.counts of
+                    Nothing -> trace ("bad r: " <> k) \_ -> []
+                    Just q  -> q
+          in  { confirmed: c
+              , deaths: d
+              , recovered: r
+              , active: A.zipWith (-) c (A.zipWith (+) d r)
+              }
+        res = { start: confirmed.start
+              , dat: combineDat pops newCounts
+              }
+    trace res (\_ -> pure res)
+  where
+      noEmpty o = not (A.null o.active)
 
 type CSVData =
     { start  :: Day

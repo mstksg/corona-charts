@@ -1,6 +1,12 @@
 Changelog
 =========
 
+## Version 1.4.1
+
+*November 1, 2021*
+
+*   Allow graceful failure from missing data for a single country
+
 ## Version 1.4.0
 
 *November 19, 2020*

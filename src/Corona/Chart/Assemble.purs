@@ -13,7 +13,6 @@ import Data.Bundle
 import Data.Dated (Dated)
 import Data.Dated as D
 import Data.Exists
-import Debug.Trace
 import Data.Functor.Compose
 import Data.Lazy
 import Data.Lens

@@ -25,7 +25,6 @@ import Data.Ord
 import Data.Symbol (SProxy(..))
 import Data.Traversable
 import Data.Tuple
-import Debug.Trace
 import Effect.Class
 import Effect.Class.Console
 import Halogen as H

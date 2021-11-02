@@ -22,7 +22,6 @@ import Data.Set (Set)
 import Data.Set as S
 import Data.Symbol (SProxy(..))
 import Data.Tuple
-import Debug.Trace
 import Effect.Class
 import Effect.Class.Console
 import Foreign.Object as O

@@ -47,7 +47,6 @@ import Data.String.Pattern as Pattern
 import Data.Symbol (SProxy(..))
 import Data.Traversable
 import Data.Tuple
-import Debug.Trace
 import Effect
 import Effect.Aff
 import Effect.Aff.Class
@@ -820,7 +819,6 @@ reRender initter = do
         let selected = case M.lookup st.datasetSpec st.regionState.selected of
               Nothing -> initialRegions st.datasetSpec
               Just s  -> s
-        -- traceM (show st)
         withDSum st.axis.x (\tX (Product (Tuple pX sX)) ->
           withDSum st.axis.y (\tY (Product (Tuple pY sY)) ->
             withDSum st.axis.z (\tZ (Product (Tuple pZ sZ)) ->

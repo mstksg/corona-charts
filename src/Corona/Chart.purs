@@ -46,7 +46,7 @@ import Data.Set as Set
 import Data.Symbol (SProxy(..))
 import Data.Tuple
 import Data.Void
-import Debug.Trace
+import Debug
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class
 import Foreign.Object as O

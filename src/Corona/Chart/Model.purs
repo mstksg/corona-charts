@@ -24,7 +24,6 @@ import Data.Maybe
 import Data.ModifiedJulianDay as MJD
 import Data.Point
 import Data.Tuple
-import Debug.Trace
 import Foreign.Object as O
 import Global as G
 import Math as M
@@ -193,7 +192,7 @@ modelBaseData tr mkP n m xs =
       MTLinear tt ->
         let { linReg, r2 } = linRegTrans tt prepared
         in  { params: mkP linReg, r2, mkDat: applyLinRegTrans tt linReg }
-      MTQuadratic -> 
+      MTQuadratic ->
         let { quadReg, r2 } = quadReg prepared
         in  { params: mkP (dqr quadReg)
             , r2

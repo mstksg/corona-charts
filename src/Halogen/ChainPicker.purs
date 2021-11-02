@@ -39,7 +39,7 @@ import Data.String.Regex.Flags as Regex
 import Data.Symbol (SProxy(..))
 import Data.Traversable
 import Data.Tuple
-import Debug.Trace
+import Debug
 import Effect.Class
 import Effect.Class.Console (log, error, warn)
 import Effect.Exception (throw)
