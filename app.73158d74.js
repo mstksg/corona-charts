@@ -23312,12 +23312,12 @@ var PS = {};
       });
     };
 
-    var $22 = Foreign_Object.union(corePops);
-    var $23 = Foreign_Object.fromFoldable(Data_Foldable.foldableArray);
-    var $24 = Data_Array.mapMaybe(go);
-    var $25 = Data_Array.drop(5);
-    return function ($26) {
-      return $22($23($24($25($26))));
+    var $21 = Foreign_Object.union(corePops);
+    var $22 = Foreign_Object.fromFoldable(Data_Foldable.foldableArray);
+    var $23 = Data_Array.mapMaybe(go);
+    var $24 = Data_Array.drop(5);
+    return function ($25) {
+      return $21($22($23($24($25))));
     };
   }();
 
@@ -23344,7 +23344,7 @@ var PS = {};
         }
 
         ;
-        throw new Error("Failed pattern match at Corona.Data.JHU (line 145, column 11 - line 147, column 72): " + [result.constructor.name]);
+        throw new Error("Failed pattern match at Corona.Data.JHU (line 146, column 11 - line 148, column 72): " + [result.constructor.name]);
       }());
     });
   };
@@ -23384,7 +23384,7 @@ var PS = {};
     }
 
     ;
-    throw new Error("Failed pattern match at Corona.Data.JHU (line 87, column 16 - line 89, column 38): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at Corona.Data.JHU (line 88, column 16 - line 90, column 38): " + [v.constructor.name]);
   };
 
   var fetchData = function fetchData(url) {
@@ -23419,12 +23419,12 @@ var PS = {};
           }
 
           ;
-          throw new Error("Failed pattern match at Corona.Data.JHU (line 134, column 15 - line 136, column 30): " + [dat.constructor.name]);
+          throw new Error("Failed pattern match at Corona.Data.JHU (line 135, column 15 - line 137, column 30): " + [dat.constructor.name]);
         });
       }
 
       ;
-      throw new Error("Failed pattern match at Corona.Data.JHU (line 130, column 5 - line 136, column 30): " + [result.constructor.name]);
+      throw new Error("Failed pattern match at Corona.Data.JHU (line 131, column 5 - line 137, column 30): " + [result.constructor.name]);
     });
   };
 
@@ -23490,9 +23490,7 @@ var PS = {};
                 start: confirmed.start,
                 dat: Corona_Data_Type.combineDat(pops)(newCounts)
               };
-              return Debug.trace()(res)(function (v) {
-                return Control_Applicative.pure(Control_Monad_Except_Trans.applicativeExceptT(Effect_Aff.monadAff))(res);
-              });
+              return Control_Applicative.pure(Control_Monad_Except_Trans.applicativeExceptT(Effect_Aff.monadAff))(res);
             });
           });
         });
