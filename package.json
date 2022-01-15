@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "jstransformer-markdown-it": "^2.1.0",
-    "marked": "^0.7.0"
+    "marked": "^4.0.10"
   },
   "staticFiles": {
     "staticPath": "public",
